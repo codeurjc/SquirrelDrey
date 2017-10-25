@@ -1,5 +1,6 @@
 package io.pablofuente.distributed.algorithm.aws.app;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,11 +35,13 @@ public class ProjectManager {
 			p.setFinishTime(System.currentTimeMillis());
 			p.setResult(Integer.toString((int) ev.getContent()));
 		});
-		hzClient.getTopic("executor-stats").addMessageListener((message) -> {
+		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			MyEvent ev = (MyEvent) message.getMessageObject();
-			System.out.println("EXECUTOR STATS: Number of tasks in queue [" + ev.getProjectId() + "] -> " + ev.getContent());
+			List<Integer> l = (List<Integer>) ev.getContent();
+			System.out.println("EXECUTOR STATS for queue [" + ev.getProjectId() + "]: Tasks waiting in queue -> " + l.get(0) + " , Tasks completed -> " + l.get(1));
 			Project p = this.projects.get(ev.getProjectId());
-			p.setTasksQueued((int) ev.getContent());
+			p.setTasksQueued(l.get(0));
+			p.setTasksCompleted(l.get(1));
 		});
 	}
 

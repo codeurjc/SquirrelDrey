@@ -16,7 +16,7 @@ public class ProjectSolveTask extends ProjectTask {
 
 	@Override
 	public String call() throws Exception {
-		this.publishQueueStats();
+		this.publishProjectStats();
 		Map<Integer, Integer> results = hazelcastInstance.getMap("results-" + this.project.getId());
 		this.finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {
@@ -27,6 +27,7 @@ public class ProjectSolveTask extends ProjectTask {
 
 	@Override
 	public String callback() {
+		super.callback();
 		ITopic<MyEvent> topic = hazelcastInstance.getTopic("project-solved");
 		topic.publish(new MyEvent(this.project.getId(), "project-solved", this.finalResult));
 		return Integer.toString(this.finalResult);

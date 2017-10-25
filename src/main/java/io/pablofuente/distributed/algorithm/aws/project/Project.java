@@ -1,6 +1,7 @@
 package io.pablofuente.distributed.algorithm.aws.project;
 
 import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.hazelcast.core.IAtomicLong;
 import com.hazelcast.core.IQueue;
@@ -30,6 +31,7 @@ public class Project implements Serializable {
 	private String data;
 	private String result;
 	private Integer tasksQueued;
+	private AtomicInteger tasksCompleted;
 	private Long initTime;
 	private Long finishTime;
 
@@ -38,6 +40,7 @@ public class Project implements Serializable {
 	public Project(String id, String data) {
 		this.id = id;
 		this.data = data;
+		this.tasksCompleted = new AtomicInteger(0);
 		this.preparationTask = new ProjectPreparationTask(this);
 	}
 
@@ -61,6 +64,18 @@ public class Project implements Serializable {
 
 	public void setTasksQueued(int tasksQueued) {
 		this.tasksQueued = tasksQueued;
+	}
+	
+	public int getTasksCompleted() {
+		return this.tasksCompleted.get();
+	}
+
+	public void setTasksCompleted(int tasksCompleted) {
+		this.tasksCompleted.set(tasksCompleted);
+	}
+	
+	public synchronized void incrementTasksCompleted() {
+		this.tasksCompleted.incrementAndGet();
 	}
 
 	public String getResult() {

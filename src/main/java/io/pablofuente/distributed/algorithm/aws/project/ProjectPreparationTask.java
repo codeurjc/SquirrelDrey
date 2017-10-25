@@ -10,6 +10,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IAtomicLong;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
+import com.hazelcast.core.ITopic;
 
 public class ProjectPreparationTask extends ProjectTask {
 
@@ -48,7 +49,7 @@ public class ProjectPreparationTask extends ProjectTask {
 		IQueue<ProjectTask> queue = hazelcastInstance.getQueue(this.project.getId());
 		queue.add(task);
 
-		publishQueueStats();
+		publishProjectStats();
 	}
 
 	private List<String> obtainWorksFromData(String data) {

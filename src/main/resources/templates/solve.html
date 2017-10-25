@@ -27,7 +27,7 @@
 		projectIds[i] = projects[i].id;
 		var strHtml = '<div class="table-container"><table id="table-' + i + '"><tr class="first-row"><th>Project</th><td>' + projects[i].id +
 			'</td><td></td></tr><tr><th>Data</th><td>' + projects[i].data +
-			'</td><td></td></tr><tr><th>Tasks in the queue</th><td id="tasks-queue-' + i +
+			'</td><td></td></tr><tr><th>Tasks completed</th><td id="tasks-completed-' + i + '"></td><td></td></tr><tr><th>Tasks in the queue</th><td id="tasks-queue-' + i +
 			'"></td><td><div class="loader" id="loader-' + i + '"></div></td></tr><tr id="result-row-' + i +
 			'" hidden="true"><th>Final result</th><td id="final-result-' +
 			i + '"></td><td></td></tr><tr id="time-row-' + i +
@@ -51,6 +51,7 @@
 				for (var i = 0; i < response.length; i++) {
 					var r = response[i];
 					$('#tasks-queue-' + i).text(r.taskQueued);
+					$('#tasks-completed-' + i).text(r.taskCompleted);
 					if (r.result && r.timeOfProcessing) {
 						$('#time-processing-' + i).text(r.timeOfProcessing + ' s');
 						$('#final-result-' + i).text(r.result);

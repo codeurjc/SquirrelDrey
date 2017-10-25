@@ -1,6 +1,8 @@
 package io.pablofuente.distributed.algorithm.aws.project;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 import com.hazelcast.core.HazelcastInstance;
@@ -27,13 +29,20 @@ public class ProjectTask implements Callable<String>, Serializable, HazelcastIns
 	}
 
 	public String callback() {
+		this.project.incrementTasksCompleted();
+		this.publishProjectStats();
 		return null;
 	}
 	
-	protected void publishQueueStats() {
+	protected void publishProjectStats() {
 		IQueue<ProjectTask> queue = hazelcastInstance.getQueue(this.project.getId());
-		hazelcastInstance.getTopic("executor-stats")
-				.publish(new MyEvent(this.project.getId(), "executor-stats", queue.size()));
+		
+		List<Integer> l = new ArrayList<>();
+		l.add(0, queue.size());
+		l.add(1, this.project.getTasksCompleted());
+		
+		hazelcastInstance.getTopic("queue-stats")
+				.publish(new MyEvent(this.project.getId(), "queue-stats", l));
 	}
 
 }

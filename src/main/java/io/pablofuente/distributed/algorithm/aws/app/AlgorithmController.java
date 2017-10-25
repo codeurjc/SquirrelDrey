@@ -50,17 +50,17 @@ public class AlgorithmController {
 	}
 
 	@RequestMapping(value = "/result", method = RequestMethod.GET)
-	public ResponseEntity<List<Response>> getResult(@RequestParam(value="projectIds[]") String[] projectIds) {
+	public ResponseEntity<List<Response>> getResult(@RequestParam(value = "projectIds[]") String[] projectIds) {
 		List<Response> l = new ArrayList<>();
 		for (String pId : projectIds) {
 			Project p = this.projectManager.getProject(pId);
 			if (p != null) {
 				String result = p.getResult();
 				Integer tasksQueued = p.getTasksQueued();
+				Integer tasksCompleted = p.getTasksCompleted();
 				Long time = p.getTimeOfProcessing();
 
-				l.add(new Response(result == null ? "" : result, tasksQueued == null ? 0 : tasksQueued,
-						time == null ? 0 : time));
+				l.add(new Response(result == null ? "" : result, tasksQueued, tasksCompleted, time));
 			}
 		}
 		return ResponseEntity.ok(l);

@@ -3,12 +3,14 @@ package io.pablofuente.distributed.algorithm.aws.project;
 public class Response {
 
 	int taskQueued;
+	int taskCompleted;
 	String result;
 	long timeOfProcessing;
 
-	public Response(String result, int taskQueued, long timeOfProcessing) {
+	public Response(String result, int taskQueued, int taskCompleted, long timeOfProcessing) {
 		this.result = result;
 		this.taskQueued = taskQueued;
+		this.taskCompleted = taskCompleted;
 		this.timeOfProcessing = timeOfProcessing;
 	}
 	
@@ -18,6 +20,10 @@ public class Response {
 	
 	public int getTaskQueued() {
 		return taskQueued;
+	}
+	
+	public int getTaskCompleted() {
+		return taskCompleted;
 	}
 	
 	public long getTimeOfProcessing() {
@@ -30,6 +36,10 @@ public class Response {
 	
 	public void setTaskQueued(int taskQueued){
 		this.taskQueued = taskQueued;
+	}
+	
+	public void setTaskCompleted(int taskCompleted){
+		this.taskCompleted = taskCompleted;
 	}
 	
 	public void setTimeOfProcessing(long timeOfProcessing){

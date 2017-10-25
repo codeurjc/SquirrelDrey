@@ -33,7 +33,7 @@ public class ProjectAtomicTask extends ProjectTask {
 
 	@Override
 	public String call() throws Exception {
-		this.publishQueueStats();
+		this.publishProjectStats();
 		String digits = factorial(Integer.parseInt(workData)).toString();
 		int sum = 0;
 		for (int i = 0; i < digits.length(); i++) {
@@ -54,6 +54,7 @@ public class ProjectAtomicTask extends ProjectTask {
 
 	@Override
 	public String callback() {
+		super.callback();
 		System.out.println("> Atomic task [" + this.workDescription + "] finished. Result: " + this.result);
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);

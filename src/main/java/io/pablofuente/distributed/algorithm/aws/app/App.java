@@ -22,7 +22,13 @@ import org.springframework.boot.SpringApplication;
 public class App {
 
 	public static void main(String[] args) {
-		if (args[1].equals("--web=true")){
+		String arg;
+		if (args.length == 1) {
+			arg = args[0];
+		} else {
+			arg = args[1];
+		}
+		if (arg.equals("--web=true")) {
 			SpringApplication.run(Web.class, args);
 		} else {
 			new Node().start();
