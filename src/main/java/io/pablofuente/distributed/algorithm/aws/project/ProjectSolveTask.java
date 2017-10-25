@@ -16,7 +16,7 @@ public class ProjectSolveTask extends ProjectTask {
 
 	@Override
 	public String call() throws Exception {
-		this.publishProjectStats();
+		super.call();
 		Map<Integer, Integer> results = hazelcastInstance.getMap("results-" + this.project.getId());
 		this.finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {

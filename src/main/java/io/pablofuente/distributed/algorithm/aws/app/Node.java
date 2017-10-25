@@ -2,8 +2,10 @@ package io.pablofuente.distributed.algorithm.aws.app;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
@@ -15,7 +17,7 @@ import io.pablofuente.distributed.algorithm.aws.project.QueueListener;
 
 public class Node {
 	
-	ExecutorService executor;
+	ThreadPoolExecutor executor;
 	Map<String, QueueListener> listeners;
 	HazelcastInstance hc;
 
@@ -24,7 +26,11 @@ public class Node {
 		int processors = Runtime.getRuntime().availableProcessors();
 		System.out.println("Number of cores: " + processors);
 		
-		this.executor = Executors.newFixedThreadPool(processors);
+		this.executor = new ThreadPoolExecutor(processors, processors,
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>());
+		
+		Executors.newFixedThreadPool(processors);
 		
 		this.listeners = new HashMap<>();
 		

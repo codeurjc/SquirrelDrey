@@ -10,7 +10,6 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IAtomicLong;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
-import com.hazelcast.core.ITopic;
 
 public class ProjectPreparationTask extends ProjectTask {
 
@@ -30,6 +29,7 @@ public class ProjectPreparationTask extends ProjectTask {
 
 	@Override
 	public String call() throws Exception {
+		super.call();
 		List<String> works = this.obtainWorksFromData(project.getData());
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
 		List<ProjectAtomicTask> atomicTasks = this.generateAtomicTasks(works);
@@ -49,7 +49,7 @@ public class ProjectPreparationTask extends ProjectTask {
 		IQueue<ProjectTask> queue = hazelcastInstance.getQueue(this.project.getId());
 		queue.add(task);
 
-		publishProjectStats();
+		publishQueueStats();
 	}
 
 	private List<String> obtainWorksFromData(String data) {
@@ -61,7 +61,6 @@ public class ProjectPreparationTask extends ProjectTask {
 		Random random = new Random(hash);
 		BigInteger i = new BigInteger(256, random);
 
-		System.out.println();
 		System.out.println("> Number to process: " + i);
 
 		List<String> s = new ArrayList<String>(Arrays.asList(i.toString().split("(?<=\\G.{5})")));

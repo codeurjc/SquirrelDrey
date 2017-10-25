@@ -33,7 +33,7 @@ public class ProjectAtomicTask extends ProjectTask {
 
 	@Override
 	public String call() throws Exception {
-		this.publishProjectStats();
+		super.call();
 		String digits = factorial(Integer.parseInt(workData)).toString();
 		int sum = 0;
 		for (int i = 0; i < digits.length(); i++) {

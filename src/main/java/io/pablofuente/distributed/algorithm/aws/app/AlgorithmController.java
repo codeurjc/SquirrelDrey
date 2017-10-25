@@ -60,7 +60,7 @@ public class AlgorithmController {
 				Integer tasksCompleted = p.getTasksCompleted();
 				Long time = p.getTimeOfProcessing();
 
-				l.add(new Response(result == null ? "" : result, tasksQueued, tasksCompleted, time));
+				l.add(new Response(result == null ? "" : result, tasksQueued == null ? 0 : tasksQueued, tasksCompleted == null ? 0 : tasksCompleted, time));
 			}
 		}
 		return ResponseEntity.ok(l);
