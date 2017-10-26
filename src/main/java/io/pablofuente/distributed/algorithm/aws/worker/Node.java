@@ -12,16 +12,14 @@ import com.hazelcast.config.Config;
 import com.hazelcast.config.FileSystemXmlConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.IQueue;
-
-import io.pablofuente.distributed.algorithm.aws.project.MyEvent;
-import io.pablofuente.distributed.algorithm.aws.project.ProjectTask;
+import com.hazelcast.core.IMap;
 
 public class Node {
 		
 	ThreadPoolExecutor executor;
 	Map<String, QueueListener> listeners;
 	HazelcastInstance hc;
+	IMap<String, String> QUEUES;
 
 	public void start(String HAZELCAST_CONFIG) {
 
@@ -44,29 +42,16 @@ public class Node {
 		}
 		
 		this.hc = Hazelcast.newHazelcastInstance(cfg);
-		this.hc.getTopic("new-project").addMessageListener((message) -> {
-			MyEvent ev = (MyEvent) message.getMessageObject();
-			String queueId = (String) ev.getContent();
-			
-			System.out.println("NEW PROJECT: id [" + queueId + "]");
-			
-			IQueue<ProjectTask> queue = this.hc.getQueue(queueId);
-			QueueListener listener = new QueueListener(queue, executor, listeners, this.hc);
-			String listenerId = queue.addItemListener(listener, true);
-			listener.setId(listenerId);
-			listeners.put(queueId, listener);
-			
-			// If the worker joins the cluster when there are no more task additions to the queue, 
-			// it wouldn't poll any from the queue (it only does when 'itemAdded' event fires) 
-			listener.checkQueue();
-		});
-
-		/*Config config = new Config();
-		ExecutorConfig executorConfig = config.getExecutorConfig("task-runner");
-		executorConfig.setPoolSize(processors).setStatisticsEnabled(true);
-		config.addExecutorConfig(executorConfig);
-
-		Hazelcast.newHazelcastInstance(config);*/
+		this.QUEUES = hc.getMap("QUEUES");
+		
+		// Add a listener to every existing queue
+		MapOfQueuesListener mapListener = new MapOfQueuesListener(hc, executor, listeners);
+		for (String queueId : QUEUES.values()) {
+			mapListener.addQueueListener(queueId);
+		}
+		
+		// Add a listener to the map of queues to listen for new queues
+		QUEUES.addEntryListener(mapListener, true);
 	}
 
 }
