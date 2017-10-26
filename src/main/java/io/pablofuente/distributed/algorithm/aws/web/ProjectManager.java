@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.app;
+package io.pablofuente.distributed.algorithm.aws.web;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.app;
+package io.pablofuente.distributed.algorithm.aws.web;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,8 +13,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import io.pablofuente.distributed.algorithm.aws.project.Project;
-import io.pablofuente.distributed.algorithm.aws.project.ProjectFields;
-import io.pablofuente.distributed.algorithm.aws.project.Response;
 
 @Controller
 public class AlgorithmController {

@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.project;
+package io.pablofuente.distributed.algorithm.aws.worker;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -9,6 +9,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IQueue;
 import com.hazelcast.core.ItemEvent;
 import com.hazelcast.core.ItemListener;
+
+import io.pablofuente.distributed.algorithm.aws.project.ProjectTask;
 
 public class QueueListener implements ItemListener<ProjectTask> {
 
@@ -34,8 +36,8 @@ public class QueueListener implements ItemListener<ProjectTask> {
 	@Override
 	public void itemAdded(ItemEvent<ProjectTask> item) {
 		synchronized (this) {
-			System.out
-					.println("Item [" + item.getItem().toString() + "] added to queue [" + this.queue.getName() + "]");
+			System.out.println("Item [" + item.getItem().toString() + "] added to queue [" + this.queue.getName()
+					+ "] by member [" + item.getMember() + "]");
 			int activeTasks = executor.getActiveCount();
 			System.out.println("ACTIVE TASKS: " + activeTasks);
 			if (activeTasks < Runtime.getRuntime().availableProcessors()) {
@@ -71,7 +73,7 @@ public class QueueListener implements ItemListener<ProjectTask> {
 	}
 
 	private synchronized void unsubscribeFromAllListeners() {
-		System.out.println("UNSUBSCRIBING");
+		System.out.println("UNSUBSCRIBING from queue [" + this.queue.getName() + "]");
 		for (QueueListener l : this.listeners.values()) {
 			this.queue.removeItemListener(l.id);
 		}
@@ -83,7 +85,7 @@ public class QueueListener implements ItemListener<ProjectTask> {
 		if (task != null) {
 			runTask(task);
 		} else {
-			System.out.println("SUBSCRIBING");
+			System.out.println("SUBSCRIBING to queue [" + this.queue.getName() + "]");
 			for (QueueListener l : this.listeners.values()) {
 				this.queue.addItemListener(l, true);
 			}

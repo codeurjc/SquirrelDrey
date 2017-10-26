@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.project;
+package io.pablofuente.distributed.algorithm.aws.web;
 
 public class Response {
 

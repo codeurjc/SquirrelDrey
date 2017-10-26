@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.app;
+package io.pablofuente.distributed.algorithm.aws.worker;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +13,6 @@ import com.hazelcast.core.IQueue;
 
 import io.pablofuente.distributed.algorithm.aws.project.MyEvent;
 import io.pablofuente.distributed.algorithm.aws.project.ProjectTask;
-import io.pablofuente.distributed.algorithm.aws.project.QueueListener;
 
 public class Node {
 	

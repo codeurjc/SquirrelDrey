@@ -1,6 +1,9 @@
-package io.pablofuente.distributed.algorithm.aws.app;
+package io.pablofuente.distributed.algorithm.aws;
 
 import org.springframework.boot.SpringApplication;
+
+import io.pablofuente.distributed.algorithm.aws.web.Web;
+import io.pablofuente.distributed.algorithm.aws.worker.Node;
 
 /**
  * Sample application to split the execution of one expensive algorithm into
