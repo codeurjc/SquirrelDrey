@@ -1,5 +1,7 @@
 package io.pablofuente.distributed.algorithm.aws;
 
+import java.util.Arrays;
+
 import org.springframework.boot.SpringApplication;
 
 import io.pablofuente.distributed.algorithm.aws.web.Web;
@@ -25,16 +27,26 @@ import io.pablofuente.distributed.algorithm.aws.worker.Node;
 public class App {
 
 	public static void main(String[] args) {
-		String arg;
-		if (args.length == 1) {
-			arg = args[0];
+		
+		// Environment variables
+		String modeOfExecution;
+		String hazelcastConfigPath;
+		
+		System.out.println(Arrays.asList(args));
+		
+		if (args[0].equals("--spring.output.ansi.enabled=always")) {
+			// Eclipse execution
+			modeOfExecution = args[1];
+			hazelcastConfigPath = args[2];
 		} else {
-			arg = args[1];
+			modeOfExecution = args[0];
+			hazelcastConfigPath = args[1];
 		}
-		if (arg.equals("--web=true")) {
-			SpringApplication.run(Web.class, args);
+		args = new String[]{hazelcastConfigPath, hazelcastConfigPath};
+		if (modeOfExecution.equals("--web=true")) {
+			SpringApplication.run(Web.class, hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1));
 		} else {
-			new Node().start();
+			new Node().start(hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1));
 		}
 	}
 

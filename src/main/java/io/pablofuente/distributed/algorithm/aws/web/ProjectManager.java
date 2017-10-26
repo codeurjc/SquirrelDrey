@@ -1,28 +1,35 @@
 package io.pablofuente.distributed.algorithm.aws.web;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
-import com.hazelcast.config.GroupConfig;
+import com.hazelcast.client.config.XmlClientConfigBuilder;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IQueue;
+import com.hazelcast.core.MemberAttributeEvent;
+import com.hazelcast.core.MembershipEvent;
+import com.hazelcast.core.MembershipListener;
 
 import io.pablofuente.distributed.algorithm.aws.project.MyEvent;
 import io.pablofuente.distributed.algorithm.aws.project.Project;
 import io.pablofuente.distributed.algorithm.aws.project.ProjectTask;
 
-public class ProjectManager {
-
+public class ProjectManager implements MembershipListener {
+	
 	private HazelcastInstance hzClient;
 	private Map<String, Project> projects;
-
-	public ProjectManager() {
+	
+	public ProjectManager(String HAZELCAST_CLIENT_CONFIG) {
+		
 		ClientConfig config = new ClientConfig();
-		GroupConfig groupConfig = config.getGroupConfig();
-		groupConfig.setName("dev");
-		groupConfig.setPassword("dev-pass");
+		try {
+			config = new XmlClientConfigBuilder(HAZELCAST_CLIENT_CONFIG).build();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		this.hzClient = HazelcastClient.newHazelcastClient(config);
 
 		this.projects = new ConcurrentHashMap<>();
@@ -36,7 +43,8 @@ public class ProjectManager {
 		});
 		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			MyEvent ev = (MyEvent) message.getMessageObject();
-			System.out.println("EXECUTOR STATS for queue [" + ev.getProjectId() + "]: Tasks waiting in queue -> " + ev.getContent());
+			System.out.println("EXECUTOR STATS for queue [" + ev.getProjectId() + "]: Tasks waiting in queue -> "
+					+ ev.getContent());
 			Project p = this.projects.get(ev.getProjectId());
 			p.setTasksQueued((int) ev.getContent());
 		});
@@ -63,6 +71,20 @@ public class ProjectManager {
 
 	public Project getProject(String projectId) {
 		return this.projects.get(projectId);
+	}
+
+	@Override
+	public void memberAdded(MembershipEvent membershipEvent) {
+		System.out.println("NEW MEMBER [" + membershipEvent.getMember().toString() + "] ADDED TO CLUSTER");
+	}
+
+	@Override
+	public void memberAttributeChanged(MemberAttributeEvent arg0) {
+	}
+
+	@Override
+	public void memberRemoved(MembershipEvent membershipEvent) {
+		System.out.println("NEW MEMBER [" + membershipEvent.getMember().toString() + "] REMOVED FROM CLUSTER");
 	}
 
 }

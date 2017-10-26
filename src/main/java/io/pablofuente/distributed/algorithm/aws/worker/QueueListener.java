@@ -2,6 +2,7 @@ package io.pablofuente.distributed.algorithm.aws.worker;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -21,6 +22,9 @@ public class QueueListener implements ItemListener<ProjectTask> {
 	AtomicBoolean subscribed = new AtomicBoolean(true);
 	String id;
 
+	Map<String, Boolean> addEventChecking = new ConcurrentHashMap<>();
+	Map<String, Boolean> removedEventChecking = new ConcurrentHashMap<>();
+
 	public QueueListener(IQueue<ProjectTask> queue, ThreadPoolExecutor executor, Map<String, QueueListener> listeners,
 			HazelcastInstance hazelcastInstance) {
 		this.queue = queue;
@@ -35,26 +39,35 @@ public class QueueListener implements ItemListener<ProjectTask> {
 
 	@Override
 	public void itemAdded(ItemEvent<ProjectTask> item) {
-		synchronized (this) {
-			System.out.println("Item [" + item.getItem().toString() + "] added to queue [" + this.queue.getName()
-					+ "] by member [" + item.getMember() + "]");
-			int activeTasks = executor.getActiveCount();
-			System.out.println("ACTIVE TASKS: " + activeTasks);
-			if (activeTasks < Runtime.getRuntime().availableProcessors()) {
-				ProjectTask task = queue.poll();
-				if (task != null) {
-					runTask(task);
-				}
-			} else if (this.subscribed.get()) {
-				this.unsubscribeFromAllListeners();
-			}
+		if (this.addEventChecking.putIfAbsent(item.getItem().toString(), true) != null) {
+			System.err.println("DUPLICATE ADD OPERATION FOR ITEM [" + item.getItem().toString() + "]");
 		}
+
+		System.out.println("Item [" + item.getItem().toString() + "] added to queue [" + this.queue.getName()
+				+ "] by member [" + item.getMember() + "]");
+		this.checkQueue();
 	}
 
 	@Override
 	public void itemRemoved(ItemEvent<ProjectTask> item) {
+		if (this.removedEventChecking.putIfAbsent(item.getItem().toString(), true) != null) {
+			System.err.println("DUPLICATE REMOVE OPERATION FOR ITEM [" + item.getItem().toString() + "]");
+		}
+
 		System.out.println("Item [" + item.getItem().toString() + "] removed from queue [" + this.queue.getName()
 				+ "] by member [" + item.getMember() + "]");
+	}
+
+	public synchronized void checkQueue() {
+		int activeTasks = executor.getActiveCount();
+		if (activeTasks < Runtime.getRuntime().availableProcessors()) {
+			ProjectTask task = queue.poll();
+			if (task != null) {
+				runTask(task);
+			}
+		} else if (this.subscribed.get()) {
+			this.unsubscribeFromAllListeners();
+		}
 	}
 
 	private void runTask(ProjectTask task) {
