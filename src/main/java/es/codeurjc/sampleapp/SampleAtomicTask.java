@@ -29,7 +29,7 @@ public class SampleAtomicTask extends Task<String> {
 
 	@Override
 	public void process() throws Exception {
-		Thread.sleep(1000);
+		Thread.sleep(6000);
 		
 		this.setResult("20");
 		

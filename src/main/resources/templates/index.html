@@ -42,7 +42,7 @@
 					</p>
 					<p>
 						<label>Priority ( 1 > 2 > 3 ... )</label>
-						<input id="priority1" class="form-control" type="number" name="priority1" required="true" placeholder="0"></input>
+						<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="1"></input>
 					</p>
 				</div>
 			</div>
@@ -79,7 +79,7 @@
 				'name="inputData' + nAlgorithms + '" required="true"></input></p>' +
 				'<p><label>Priority</label><input id="priority' + nAlgorithms +
 				'" class="form-control" type="number" ' +
-				'name="priority' + nAlgorithms + '" required="true"></input></p></div>';
+				'name="priority' + nAlgorithms + '" required="true" value="1"></input></p></div>';
 			var node = $.parseHTML(str);
 			$('#algorithms-div').append(str);
 			$('#submit-btn').prop("disabled", false);

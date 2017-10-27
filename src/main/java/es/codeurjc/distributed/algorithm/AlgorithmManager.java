@@ -3,6 +3,7 @@ package es.codeurjc.distributed.algorithm;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -18,7 +19,7 @@ public class AlgorithmManager<R> {
 	private HazelcastInstance hzClient;
 	private Map<String, Algorithm<R>> algorithms;
 	private IMap<String, Integer> QUEUES;
-	
+		
 	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
 		
 		ClientConfig config = new ClientConfig();
@@ -41,8 +42,9 @@ public class AlgorithmManager<R> {
 			alg.setFinishTime(System.currentTimeMillis());
 			try {
 				alg.setResult((R) ev.getContent());
+				alg.runCallback();
 			} catch(Exception e) {
-				App.logger.error("Casting exception: " + e.getMessage());
+				App.logger.error(e.getMessage());
 			}
 			
 			// Remove distributed queue
@@ -66,9 +68,19 @@ public class AlgorithmManager<R> {
 	public Algorithm<R> getAlgorithm(String algorithmId) {
 		return this.algorithms.get(algorithmId);
 	}
-
-	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority/*, Function callback*/) throws Exception {
+	
+	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask);
+		this.algorithms.put(id, alg);
+		
+		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
+		QUEUES.put(alg.getId(), alg.getPriority());
+		
+		alg.solve(queue);
+	}
+
+	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority, Consumer<R> callback) throws Exception {
+		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask, callback);
 		this.algorithms.put(id, alg);
 		
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());

@@ -2,6 +2,7 @@ package es.codeurjc.distributed.algorithm;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import com.hazelcast.core.IQueue;
 
@@ -23,7 +24,8 @@ public class Algorithm<R> implements Serializable {
 	private Long finishTime;
 
 	private Task<?> initialTask;
-
+	private Consumer<R> callback;
+	
 	public Algorithm(String id, Integer priority, Task<?> initialTask) {
 		this.id = id;
 		this.priority = priority;
@@ -31,6 +33,16 @@ public class Algorithm<R> implements Serializable {
 		
 		initialTask.setAlgorithm(this);
 		this.initialTask = initialTask;
+	}
+
+	public Algorithm(String id, Integer priority, Task<?> initialTask, Consumer<R> callback) {
+		this.id = id;
+		this.priority = priority;
+		this.tasksCompleted = new AtomicInteger(0);
+		
+		initialTask.setAlgorithm(this);
+		this.initialTask = initialTask;
+		this.callback = callback;
 	}
 	
 	public String getId() {
@@ -83,6 +95,12 @@ public class Algorithm<R> implements Serializable {
 			return (this.finishTime - this.initTime) / 1000;
 		} else {
 			return 0L;
+		}
+	}
+	
+	public void runCallback() throws Exception {
+		if (this.callback != null) {
+			this.callback.accept(this.result);
 		}
 	}
 
