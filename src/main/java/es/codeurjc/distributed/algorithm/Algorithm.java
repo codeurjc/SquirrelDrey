@@ -1,61 +1,49 @@
-package io.pablofuente.distributed.algorithm.aws.project;
+package es.codeurjc.distributed.algorithm;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.hazelcast.core.IAtomicLong;
 import com.hazelcast.core.IQueue;
 
 /**
- * Each project has 3 different types of tasks:
- * 
- * 1) Preparation task: generates all the atomic tasks, performing the necessary
- * data processing
- * 
- * 2) Atomic task: performs one abstract atomic operation
- * 
- * 3) Solve task: gathers all the results and calculates the final value with
- * all of them
- * 
- * To initialize the resolution of the project, only preparationTask must be
- * called. preparationTask will call all atomicTasks. Last atomicTask will call
- * solveTask, which finally returns the result
- * 
  * @author Pablo Fuente (pablo.fuente@urjc.es)
  */
-public class Project implements Serializable {
+public class Algorithm<R> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
 	private String id;
-	private String data;
-	private String result;
+	private Integer priority;
+	
+	private R result;
+	
 	private Integer tasksQueued;
 	private AtomicInteger tasksCompleted;
 	private Long initTime;
 	private Long finishTime;
 
-	private ProjectPreparationTask preparationTask;
+	private Task<?> initialTask;
 
-	public Project(String id, String data) {
+	public Algorithm(String id, Integer priority, Task<?> initialTask) {
 		this.id = id;
-		this.data = data;
+		this.priority = priority;
 		this.tasksCompleted = new AtomicInteger(0);
-		this.preparationTask = new ProjectPreparationTask(this);
+		
+		initialTask.setAlgorithm(this);
+		this.initialTask = initialTask;
 	}
-
+	
 	public String getId() {
 		return this.id;
 	}
-
-	public String getData() {
-		return this.data;
+	
+	public Integer getPriority() {
+		return this.priority;
 	}
 
-	public void solve(IQueue<ProjectTask> queue, IAtomicLong atomicLong) throws Exception {
-		this.preparationTask.setAtomicLong(atomicLong);
+	public void solve(IQueue<Task<?>> queue) throws Exception {
 		this.initTime = System.currentTimeMillis();
-		queue.add(this.preparationTask);
+		queue.add(this.initialTask);
 	}
 
 	public Integer getTasksQueued() {
@@ -78,11 +66,11 @@ public class Project implements Serializable {
 		this.tasksCompleted.incrementAndGet();
 	}
 
-	public String getResult() {
+	public R getResult() {
 		return result;
 	}
 
-	public void setResult(String result) {
+	public void setResult(R result) {
 		this.result = result;
 	}
 

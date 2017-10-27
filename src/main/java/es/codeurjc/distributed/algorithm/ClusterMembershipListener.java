@@ -1,24 +1,26 @@
-package io.pablofuente.distributed.algorithm.aws.web;
+package es.codeurjc.distributed.algorithm;
 
 import com.hazelcast.core.MemberAttributeEvent;
 import com.hazelcast.core.MembershipEvent;
 import com.hazelcast.core.MembershipListener;
 
+import es.codeurjc.sampleapp.App;
+
 public class ClusterMembershipListener implements MembershipListener {
 
 	@Override
 	public void memberAdded(MembershipEvent membershipEvent) {
-		System.out.println("MEMBER [" + membershipEvent.getMember().toString() + "] ADDED TO CLUSTER");
+		App.logger.info("MEMBER [" + membershipEvent.getMember().toString() + "] ADDED TO CLUSTER");
 	}
 
 	@Override
 	public void memberAttributeChanged(MemberAttributeEvent membershipEvent) {
-		System.out.println("MEMBER [" + membershipEvent.getMember().toString() + "] CHANGED AN ATTRIBUTE");
+		App.logger.info("MEMBER [" + membershipEvent.getMember().toString() + "] CHANGED AN ATTRIBUTE");
 	}
 
 	@Override
 	public void memberRemoved(MembershipEvent membershipEvent) {
-		System.out.println("MEMBER [" + membershipEvent.getMember().toString() + "] REMOVED FROM CLUSTER");
+		App.logger.info("MEMBER [" + membershipEvent.getMember().toString() + "] REMOVED FROM CLUSTER");
 	}
 
 }

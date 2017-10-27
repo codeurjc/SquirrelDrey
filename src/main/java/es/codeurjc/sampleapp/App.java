@@ -1,11 +1,12 @@
-package io.pablofuente.distributed.algorithm.aws;
+package es.codeurjc.sampleapp;
 
 import java.util.Arrays;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 
-import io.pablofuente.distributed.algorithm.aws.web.Web;
-import io.pablofuente.distributed.algorithm.aws.worker.Node;
+import es.codeurjc.distributed.algorithm.Node;
 
 /**
  * Sample application to split the execution of one expensive algorithm into
@@ -25,6 +26,8 @@ import io.pablofuente.distributed.algorithm.aws.worker.Node;
  * @author Pablo Fuente (pablo.fuente@urjc.es)
  */
 public class App {
+	
+	public static final Logger logger = LoggerFactory.getLogger(App.class);
 
 	public static void main(String[] args) {
 		
@@ -32,13 +35,14 @@ public class App {
 		String modeOfExecution;
 		String hazelcastConfigPath;
 		
-		System.out.println(Arrays.asList(args));
+		App.logger.warn(Arrays.asList(args).toString());
 		
 		if (args[0].equals("--spring.output.ansi.enabled=always")) {
 			// Eclipse execution
 			modeOfExecution = args[1];
 			hazelcastConfigPath = args[2];
 		} else {
+			// Command line execution
 			modeOfExecution = args[0];
 			hazelcastConfigPath = args[1];
 		}

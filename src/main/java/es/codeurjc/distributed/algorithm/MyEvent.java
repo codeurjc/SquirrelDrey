@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.project;
+package es.codeurjc.distributed.algorithm;
 
 import java.io.Serializable;
 
@@ -6,22 +6,22 @@ public class MyEvent implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	String projectId;
+	String algorithmId;
 	String name;
 	Object content;
 
-	public MyEvent(String projectId, String name, Object content) {
-		this.projectId = projectId;
+	public MyEvent(String algorithmId, String name, Object content) {
+		this.algorithmId = algorithmId;
 		this.name = name;
 		this.content = content;
 	}
 
-	public String getProjectId() {
-		return projectId;
+	public String getAlgorithmId() {
+		return algorithmId;
 	}
 
-	public void setProjectId(String projectId) {
-		this.projectId = projectId;
+	public void setAlgorithmId(String algorithmId) {
+		this.algorithmId = algorithmId;
 	}
 
 	public String getName() {

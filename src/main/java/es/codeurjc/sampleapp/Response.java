@@ -1,4 +1,4 @@
-package io.pablofuente.distributed.algorithm.aws.web;
+package es.codeurjc.sampleapp;
 
 public class Response {
 
