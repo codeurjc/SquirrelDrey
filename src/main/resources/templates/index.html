@@ -34,15 +34,43 @@
 				<div class="algorithm">
 					<p>
 						<label>Algorithm</label>
-						<input id="algorithm1" class="form-control" type="text" name="algorithm1" required="true"></input>
+						<input id="algorithm1" class="form-control" type="text" name="algorithm1" required="true" value="AA"></input>
 					</p>
 					<p>
 						<label>Input Data</label>
-						<input id="inputData1" class="form-control" type="text" name="inputData1" required="true"></input>
+						<input id="inputData1" class="form-control" type="text" name="inputData1" required="true" value="AA"></input>
 					</p>
 					<p>
 						<label>Priority ( 1 > 2 > 3 ... )</label>
-						<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="1"></input>
+						<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="3"></input>
+					</p>
+				</div>
+				<div class="algorithm">
+					<p>
+						<label>Algorithm</label>
+						<input id="algorithm2" class="form-control" type="text" name="algorithm2" required="true" value="BB"></input>
+					</p>
+					<p>
+						<label>Input Data</label>
+						<input id="inputData2" class="form-control" type="text" name="inputData2" required="true" value="BB"></input>
+					</p>
+					<p>
+						<label>Priority ( 1 > 2 > 3 ... )</label>
+						<input id="priority2" class="form-control" type="number" name="priority2" required="true" value="2"></input>
+					</p>
+				</div>
+				<div class="algorithm">
+					<p>
+						<label>Algorithm</label>
+						<input id="algorithm3" class="form-control" type="text" name="algorithm3" required="true" value="CC"></input>
+					</p>
+					<p>
+						<label>Input Data</label>
+						<input id="inputData3" class="form-control" type="text" name="inputData3" required="true" value="CC"></input>
+					</p>
+					<p>
+						<label>Priority ( 1 > 2 > 3 ... )</label>
+						<input id="priority3" class="form-control" type="number" name="priority3" required="true" value="1"></input>
 					</p>
 				</div>
 			</div>
@@ -67,7 +95,7 @@
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
-		var nAlgorithms = 1;
+		var nAlgorithms = 3;
 
 		function addAlgorithm() {
 			nAlgorithms++;

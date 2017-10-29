@@ -33,7 +33,6 @@ public class SampleAtomicTask extends Task<String> {
 		
 		this.setResult("20");
 		
-		App.logger.info("> Atomic task [" + this.workDescription + "] finished. Result: " + this.result);
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
 		results.put(Integer.parseInt(this.workDescription), Integer.parseInt(this.result));

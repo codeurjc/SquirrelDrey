@@ -2,16 +2,18 @@ package es.codeurjc.distributed.algorithm;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.EntryEvent;
 
 import com.hazelcast.map.listener.EntryAddedListener;
 import com.hazelcast.map.listener.EntryRemovedListener;
 
-import es.codeurjc.sampleapp.App;
-
 public class MapOfQueuesListener implements EntryAddedListener<String, String>, EntryRemovedListener<String, String> {
+	
+	private static final Logger log = LoggerFactory.getLogger(MapOfQueuesListener.class);
 	
 	QueuesManager manager;
 	
@@ -22,18 +24,19 @@ public class MapOfQueuesListener implements EntryAddedListener<String, String>, 
 	@Override
 	public void entryAdded(EntryEvent<String, String> event) {
 		String queueId = (String) event.getKey();
-		App.logger.info("Queue added [" + queueId + "]");
-		Set<String> set = new HashSet<>(Arrays.asList(queueId));
-		manager.subscribeToQueues(set);
+		log.info("LISTENER: Queue added [{}]", queueId);
 		
-		/*// If the worker joins the cluster when there are no more task additions to the queue, 
-		// it wouldn't poll any from the queue (it only does when 'itemAdded' event fires)
-		l.checkQueue();*/
+		if (this.manager.hasAvailableProcessors()) {
+			manager.subscribeToQueues(new HashSet<>(Arrays.asList(queueId)));
+		}
 	}
 
 	@Override
 	public void entryRemoved(EntryEvent<String, String> event) {
-		App.logger.info("Queue removed [" + event.getKey() + "]");
+		String queueId = (String) event.getKey();
+		log.info("LISTENER: Queue removed [{}]", queueId);
+		
+		manager.unsubscribeFromQueues(new HashSet<>(Arrays.asList(queueId)));
 	}
 
 }

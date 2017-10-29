@@ -8,11 +8,10 @@ import com.hazelcast.core.HazelcastInstanceAware;
 import com.hazelcast.core.IQueue;
 import com.hazelcast.core.ITopic;
 
-import es.codeurjc.sampleapp.App;
-
 public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceAware {
 
 	private static final long serialVersionUID = 1L;
+	
 	protected transient HazelcastInstance hazelcastInstance;
 	
 	protected Algorithm<?> algorithm;
@@ -45,13 +44,10 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 
 	@Override
 	public Void call() throws Exception {
-		App.logger.debug("Call task [" + this + "]");
-		this.publishQueueStats();
 		return null;
 	}
 
 	public void callback() {
-		App.logger.debug("Callback task [" + this + "]");
 		this.publishQueueStats();
 		this.publishCompletedTask();
 	}

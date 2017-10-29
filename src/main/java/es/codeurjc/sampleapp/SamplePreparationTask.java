@@ -6,6 +6,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.hazelcast.core.IAtomicLong;
 
 import es.codeurjc.distributed.algorithm.Task;
@@ -13,6 +16,8 @@ import es.codeurjc.distributed.algorithm.Task;
 public class SamplePreparationTask extends Task<Void> {
 
 	private static final long serialVersionUID = 1L;
+	private static final Logger log = LoggerFactory.getLogger(SamplePreparationTask.class);
+	
 	private String inputData;
 	private String atomicLongId;
 
@@ -32,7 +37,7 @@ public class SamplePreparationTask extends Task<Void> {
 				addNewTask(t);
 				publishQueueStats();
 			} catch (Exception e) {
-				App.logger.error("Error while processing task [" + t.getWorkDescription() + "]");
+				log.error("Error while processing task [" + t.getWorkDescription() + "]");
 				e.printStackTrace();
 			}
 		}
@@ -46,12 +51,10 @@ public class SamplePreparationTask extends Task<Void> {
 		Random random = new Random(hash);
 		BigInteger i = new BigInteger(256, random);
 
-		App.logger.info("> Number to process: " + i);
-
 		List<String> s = new ArrayList<String>(Arrays.asList(i.toString().split("(?<=\\G.{5})")));
 		s.addAll(s);
 
-		App.logger.info("> Tasks to execute: " + s);
+		log.info("NUMBER OF TASKS TO EXECUTE IN ALGORITHM [{}]: {}", this.algorithm.getId(), s.size());
 		return s;
 	}
 
