@@ -44,7 +44,6 @@ public class QueueListener implements ItemListener<Task<?>> {
 				+ "] by member [" + item.getMember() + "]");
 		
 		manager.lookQueuesForTask();
-		//this.checkQueue();
 	}
 
 	@Override
