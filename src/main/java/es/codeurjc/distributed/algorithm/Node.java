@@ -23,7 +23,7 @@ public class Node {
 			e.printStackTrace();
 		}
 
-		this.queuesManager = new QueuesManager();
+		this.queuesManager = new QueuesManager(Mode.RANDOM);
 
 		MapOfQueuesListener mapOfQueuesListener = new MapOfQueuesListener(queuesManager);
 

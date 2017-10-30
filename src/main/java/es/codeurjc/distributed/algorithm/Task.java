@@ -5,6 +5,7 @@ import java.util.concurrent.Callable;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
+import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
 import com.hazelcast.core.ITopic;
 
@@ -66,6 +67,12 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	protected void addNewTask(Task<?> t) {
 		t.setAlgorithm(this.algorithmId);
 		IQueue<Task<?>> queue = hazelcastInstance.getQueue(this.algorithmId);
-		queue.add(t);		
+		queue.add(t);
+		
+		// Update last addition time
+		IMap<String, QueueProperty> map = hazelcastInstance.getMap("QUEUES");
+		QueueProperty properties = map.get(this.algorithmId);
+		properties.lastTimeUpdated.set((int) System.currentTimeMillis());
+		map.set(this.algorithmId, properties);
 	}
 }

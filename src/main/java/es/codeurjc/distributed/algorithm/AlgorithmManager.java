@@ -3,6 +3,7 @@ package es.codeurjc.distributed.algorithm;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.hazelcast.client.HazelcastClient;
@@ -18,7 +19,8 @@ public class AlgorithmManager<R> {
 	
 	private HazelcastInstance hzClient;
 	private Map<String, Algorithm<R>> algorithms;
-	private IMap<String, Integer> QUEUES;
+	private Map<String, WorkerStats> workers;
+	private IMap<String, QueueProperty> QUEUES;
 		
 	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
 		
@@ -74,7 +76,7 @@ public class AlgorithmManager<R> {
 		this.algorithms.put(id, alg);
 		
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
-		QUEUES.put(alg.getId(), alg.getPriority());
+		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
 		alg.solve(queue);
 	}
@@ -84,7 +86,7 @@ public class AlgorithmManager<R> {
 		this.algorithms.put(id, alg);
 		
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
-		QUEUES.put(alg.getId(), alg.getPriority());
+		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
 		alg.solve(queue);
 	}
