@@ -134,6 +134,11 @@ tr.first-row {
     margin: 25px;
 }
 
+.form-row p {
+	display: inline-block;
+	width: 180px;
+}
+
 
 /* Loader */
 

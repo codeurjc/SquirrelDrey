@@ -32,46 +32,94 @@
 		<form class="form-group jumbotron">
 			<div id="algorithms-div">
 				<div class="algorithm">
-					<p>
-						<label>Algorithm</label>
-						<input id="algorithm1" class="form-control" type="text" name="algorithm1" required="true" value="AA"></input>
-					</p>
-					<p>
-						<label>Input Data</label>
-						<input id="inputData1" class="form-control" type="text" name="inputData1" required="true" value="AA"></input>
-					</p>
-					<p>
-						<label>Priority ( 1 > 2 > 3 ... )</label>
-						<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="3"></input>
-					</p>
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm1" class="form-control" type="text" name="algorithm1" required="true" value="AA"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData1" class="form-control" type="text" name="inputData1" required="true" value="AA"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="3"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks1" class="form-control" type="number" name="tasks1" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration1" class="form-control" type="number" name="duration1" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout1" class="form-control" type="number" name="timeout1" required="true" value="0"></input>
+						</p>
+					</div>
 				</div>
 				<div class="algorithm">
-					<p>
-						<label>Algorithm</label>
-						<input id="algorithm2" class="form-control" type="text" name="algorithm2" required="true" value="BB"></input>
-					</p>
-					<p>
-						<label>Input Data</label>
-						<input id="inputData2" class="form-control" type="text" name="inputData2" required="true" value="BB"></input>
-					</p>
-					<p>
-						<label>Priority ( 1 > 2 > 3 ... )</label>
-						<input id="priority2" class="form-control" type="number" name="priority2" required="true" value="2"></input>
-					</p>
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm2" class="form-control" type="text" name="algorithm2" required="true" value="BB"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData2" class="form-control" type="text" name="inputData2" required="true" value="BB"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority2" class="form-control" type="number" name="priority2" required="true" value="2"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks2" class="form-control" type="number" name="tasks2" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration2" class="form-control" type="number" name="duration2" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout2" class="form-control" type="number" name="timeout2" required="true" value="0"></input>
+						</p>
+					</div>
 				</div>
 				<div class="algorithm">
-					<p>
-						<label>Algorithm</label>
-						<input id="algorithm3" class="form-control" type="text" name="algorithm3" required="true" value="CC"></input>
-					</p>
-					<p>
-						<label>Input Data</label>
-						<input id="inputData3" class="form-control" type="text" name="inputData3" required="true" value="CC"></input>
-					</p>
-					<p>
-						<label>Priority ( 1 > 2 > 3 ... )</label>
-						<input id="priority3" class="form-control" type="number" name="priority3" required="true" value="1"></input>
-					</p>
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm3" class="form-control" type="text" name="algorithm3" required="true" value="CC"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData3" class="form-control" type="text" name="inputData3" required="true" value="CC"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority3" class="form-control" type="number" name="priority3" required="true" value="1"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks3" class="form-control" type="number" name="tasks3" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration3" class="form-control" type="number" name="duration3" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout3" class="form-control" type="number" name="timeout3" required="true" value="0"></input>
+						</p>
+					</div>
 				</div>
 			</div>
 			<p class="text-center">
@@ -100,14 +148,23 @@
 		function addAlgorithm() {
 			nAlgorithms++;
 			var str =
-				'<div class="algorithm"><p><label>Algorithm</label><input id="algorithm' + nAlgorithms +
+				'<div class="algorithm"><div class="form-row"><p><label>Algorithm</label><input id="algorithm' + nAlgorithms +
 				'" class="form-control" type="text" name="algorithm' + nAlgorithms +
 				'" required="true"></input></p><p><label>Input Data</label><input id="inputData' + nAlgorithms +
 				'" class="form-control" type="text" ' +
 				'name="inputData' + nAlgorithms + '" required="true"></input></p>' +
 				'<p><label>Priority</label><input id="priority' + nAlgorithms +
 				'" class="form-control" type="number" ' +
-				'name="priority' + nAlgorithms + '" required="true" value="1"></input></p></div>';
+				'name="priority' + nAlgorithms + '" required="true" value="1"></input></p></div><div class="form-row">' +
+				'<p><label>Number of tasks</label><input id="tasks' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="tasks' + nAlgorithms + '" required="true" value="30"></input></p>' +
+				'<p><label>Task duration</label><input id="duration' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="duration' + nAlgorithms + '" required="true" value="6"></input></p>' +
+				'<p><label>Timeout before start</label><input id="timeout' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="timeout' + nAlgorithms + '" required="true" value="0"></input></p></div></div>';
 			var node = $.parseHTML(str);
 			$('#algorithms-div').append(str);
 			$('#submit-btn').prop("disabled", false);
@@ -131,7 +188,10 @@
 				algorithmsData[i - 1] = {
 					id: ($('#algorithm' + i)).val(),
 					inputData: ($('#inputData' + i)).val(),
-					priority: ($('#priority' + i)).val()
+					priority: ($('#priority' + i)).val(),
+					numberOfTasks: ($('#tasks' + i)).val(),
+					taskDuration: ($('#duration' + i)).val(),
+					timeout: ($('#timeout' + i)).val(),
 				};
 			}
 			console.log(algorithmsData);

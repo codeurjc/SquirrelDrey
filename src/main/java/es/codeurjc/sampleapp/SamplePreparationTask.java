@@ -1,8 +1,6 @@
 package es.codeurjc.sampleapp;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
@@ -20,18 +18,25 @@ public class SamplePreparationTask extends Task<Void> {
 	
 	private String inputData;
 	private String atomicLongId;
+	private Integer numberOfTasks;
+	private Integer taskDuration;
+	private Integer timeout;
 
-	public SamplePreparationTask(String inputData, String atomicLongId) {
+	public SamplePreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, Integer timeout, String atomicLongId) {
 		this.inputData = inputData;
 		this.atomicLongId = atomicLongId;
+		this.numberOfTasks = numberOfTasks;
+		this.taskDuration = taskDuration;
+		this.timeout = timeout;
 	}
 
 	@Override
 	public void process() throws Exception {
-		List<String> works = this.obtainWorksFromData(inputData);
+		Thread.sleep(this.timeout * 1000);
+		
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
-		List<SampleAtomicTask> atomicTasks = this.generateAtomicTasks(works);
-		atomicLong.set(atomicTasks.size());
+		List<SampleAtomicTask> atomicTasks = this.generateAtomicTasks();
+		atomicLong.set(this.numberOfTasks);
 		for (SampleAtomicTask t : atomicTasks) {
 			try {
 				addNewTask(t);
@@ -43,25 +48,11 @@ public class SamplePreparationTask extends Task<Void> {
 		}
 	}
 
-	private List<String> obtainWorksFromData(String data) {
-		long hash = 0;
-		for (char c : data.toCharArray()) {
-			hash = 31L * hash + c;
-		}
-		Random random = new Random(hash);
-		BigInteger i = new BigInteger(256, random);
-
-		List<String> s = new ArrayList<String>(Arrays.asList(i.toString().split("(?<=\\G.{5})")));
-		s.addAll(s);
-
-		log.info("NUMBER OF TASKS TO EXECUTE IN ALGORITHM [{}]: {}", this.algorithm.getId(), s.size());
-		return s;
-	}
-
-	private List<SampleAtomicTask> generateAtomicTasks(List<String> works) {
+	private List<SampleAtomicTask> generateAtomicTasks() {
 		List<SampleAtomicTask> atomicTasks = new ArrayList<>();
-		for (int i = 0; i < works.size(); i++) {
-			SampleAtomicTask t = new SampleAtomicTask("results-" + this.algorithm.getId(), this.atomicLongId, works.get(i), Integer.toString(i));
+		Random rand = new Random(Math.abs(Long.valueOf(this.inputData.hashCode())));
+		for (int i = 0; i < this.numberOfTasks; i++) {
+			SampleAtomicTask t = new SampleAtomicTask("results-" + this.algorithm.getId(), this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
 			atomicTasks.add(t);
 		}
 		return atomicTasks;

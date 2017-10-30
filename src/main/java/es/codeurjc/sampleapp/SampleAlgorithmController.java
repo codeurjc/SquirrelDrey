@@ -32,7 +32,8 @@ public class SampleAlgorithmController {
 		List<SampleAlgorithmParameters> algorithmFields = new ArrayList<>();
 		for (SampleAlgorithmParameters algorithm : algorithms) {
 			try {
-				Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), "countdown-" + algorithm.getId());
+				Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
+						algorithm.getTaskDuration(), algorithm.getTimeout(), "countdown-" + algorithm.getId());
 				algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority()/*, (result) -> {
 					System.out.println("RESULT: " + result.toString());
 				}*/);
@@ -41,9 +42,14 @@ public class SampleAlgorithmController {
 			}
 			
 			SampleAlgorithmParameters algParams = new SampleAlgorithmParameters();
+			
 			algParams.setId(algorithm.getId());
 			algParams.setInputData(algorithm.getInputData());
 			algParams.setPriority(algorithm.getPriority());
+			algParams.setNumberOfTasks(algorithm.getNumberOfTasks());
+			algParams.setTaskDuration(algorithm.getTaskDuration());
+			algParams.setTimeout(algorithm.getTimeout());
+			
 			algorithmFields.add(algParams);
 		}
 

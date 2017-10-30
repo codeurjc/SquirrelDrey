@@ -10,12 +10,14 @@ public class SampleAtomicTask extends Task<String> {
 	private String resultMapId;
 	private String atomicLongId;
 	private String workData;
+	private Integer taskDuration;
 	private String workDescription;
 
-	public SampleAtomicTask(String resultMapId, String atomicLongId, String workData, String workDescription) {
+	public SampleAtomicTask(String resultMapId, String atomicLongId, String workData, Integer taskDuration, String workDescription) {
 		this.resultMapId = resultMapId;
 		this.atomicLongId = atomicLongId;
 		this.workData = workData;
+		this.taskDuration = taskDuration;
 		this.workDescription = workDescription;
 	}
 
@@ -29,9 +31,9 @@ public class SampleAtomicTask extends Task<String> {
 
 	@Override
 	public void process() throws Exception {
-		Thread.sleep(6000);
+		Thread.sleep(taskDuration * 1000);
 		
-		this.setResult("20");
+		this.setResult("10");
 		
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
