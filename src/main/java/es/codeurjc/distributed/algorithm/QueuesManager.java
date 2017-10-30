@@ -163,7 +163,7 @@ public class QueuesManager {
 			Task<?> task = q.poll();
 			if (task != null) {
 				runTask(task);
-				log.info("Task [{}] submitted for algorithm [{}]", task, task.algorithm.getId());
+				log.info("Task [{}] submitted for algorithm [{}]", task, task.algorithmId);
 				taskAvailable = true;
 				break;
 			}
@@ -179,7 +179,7 @@ public class QueuesManager {
 		task.setHazelcastInstance(this.hc);
 		CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> {
 			try {
-				log.info("Starting task [{}] for algorithm [{}]", task, task.algorithm.getId());
+				log.info("Starting task [{}] for algorithm [{}]", task, task.algorithmId);
 				task.process();
 			} catch (Exception e) {
 				log.error("ERROR: " + e);
@@ -189,7 +189,7 @@ public class QueuesManager {
 		future.thenAcceptAsync(result -> {
 			try {
 				task.callback();
-				log.info("Finished task [{}] for algorithm [{}] with result [{}]", task, task.algorithm.getId(), task.getResult());
+				log.info("Finished task [{}] for algorithm [{}] with result [{}]", task, task.algorithmId, task.getResult());
 				lookQueuesForTask();
 			} catch (Exception e) {
 				e.printStackTrace();

@@ -52,7 +52,7 @@ public class SamplePreparationTask extends Task<Void> {
 		List<SampleAtomicTask> atomicTasks = new ArrayList<>();
 		Random rand = new Random(Math.abs(Long.valueOf(this.inputData.hashCode())));
 		for (int i = 0; i < this.numberOfTasks; i++) {
-			SampleAtomicTask t = new SampleAtomicTask("results-" + this.algorithm.getId(), this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
+			SampleAtomicTask t = new SampleAtomicTask("results-" + this.algorithmId, this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
 			atomicTasks.add(t);
 		}
 		return atomicTasks;

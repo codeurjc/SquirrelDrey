@@ -14,15 +14,15 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	
 	protected transient HazelcastInstance hazelcastInstance;
 	
-	protected Algorithm<?> algorithm;
+	protected String algorithmId;
 	protected T result;
 
 	public void setHazelcastInstance(HazelcastInstance hazelcastInstance) {
 		this.hazelcastInstance = hazelcastInstance;
 	}
 	
-	public void setAlgorithm(Algorithm<?> algorithm) {
-		this.algorithm = algorithm;
+	public void setAlgorithm(String algorithmId) {
+		this.algorithmId = algorithmId;
 	}
 	
 	public void setResult(T result) {
@@ -35,7 +35,7 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	
 	public void algorithmSolved(T finalResult) {
 		ITopic<MyEvent> topic = hazelcastInstance.getTopic("algorithm-solved");
-		topic.publish(new MyEvent(this.algorithm.getId(), "algorithm-solved", finalResult));
+		topic.publish(new MyEvent(this.algorithmId, "algorithm-solved", finalResult));
 	}
 	
 	public void process() throws Exception {
@@ -53,19 +53,19 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	}
 
 	protected void publishQueueStats() {
-		IQueue<Task<T>> queue = hazelcastInstance.getQueue(this.algorithm.getId());
+		IQueue<Task<T>> queue = hazelcastInstance.getQueue(this.algorithmId);
 
 		hazelcastInstance.getTopic("queue-stats")
-				.publish(new MyEvent(this.algorithm.getId(), "queue-stats", queue.size()));
+				.publish(new MyEvent(this.algorithmId, "queue-stats", queue.size()));
 	}
 
 	private void publishCompletedTask() {
-		hazelcastInstance.getTopic("task-completed").publish(new MyEvent(this.algorithm.getId(), "task-completed", this));
+		hazelcastInstance.getTopic("task-completed").publish(new MyEvent(this.algorithmId, "task-completed", this));
 	}
 
 	protected void addNewTask(Task<?> t) {
-		t.setAlgorithm(algorithm);
-		IQueue<Task<?>> queue = hazelcastInstance.getQueue(this.algorithm.getId());
+		t.setAlgorithm(this.algorithmId);
+		IQueue<Task<?>> queue = hazelcastInstance.getQueue(this.algorithmId);
 		queue.add(t);		
 	}
 }

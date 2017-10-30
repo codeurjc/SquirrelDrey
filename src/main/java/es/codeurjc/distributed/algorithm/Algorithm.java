@@ -1,6 +1,5 @@
 package es.codeurjc.distributed.algorithm;
 
-import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -9,9 +8,7 @@ import com.hazelcast.core.IQueue;
 /**
  * @author Pablo Fuente (pablo.fuente@urjc.es)
  */
-public class Algorithm<R> implements Serializable {
-
-	private static final long serialVersionUID = 1L;
+public class Algorithm<R> {
 
 	private String id;
 	private Integer priority;
@@ -31,7 +28,7 @@ public class Algorithm<R> implements Serializable {
 		this.priority = priority;
 		this.tasksCompleted = new AtomicInteger(0);
 		
-		initialTask.setAlgorithm(this);
+		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 	}
 
@@ -40,7 +37,7 @@ public class Algorithm<R> implements Serializable {
 		this.priority = priority;
 		this.tasksCompleted = new AtomicInteger(0);
 		
-		initialTask.setAlgorithm(this);
+		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.callback = callback;
 	}

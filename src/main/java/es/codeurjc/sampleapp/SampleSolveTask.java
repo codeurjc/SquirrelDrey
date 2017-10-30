@@ -11,7 +11,7 @@ public class SampleSolveTask extends Task<String> {
 
 	@Override
 	public void process() throws Exception {
-		Map<Integer, Integer> results = hazelcastInstance.getMap("results-" + this.algorithm.getId());
+		Map<Integer, Integer> results = hazelcastInstance.getMap("results-" + this.algorithmId);
 		
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {

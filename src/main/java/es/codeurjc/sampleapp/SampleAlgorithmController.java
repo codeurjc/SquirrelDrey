@@ -34,9 +34,9 @@ public class SampleAlgorithmController {
 			try {
 				Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
 						algorithm.getTaskDuration(), algorithm.getTimeout(), "countdown-" + algorithm.getId());
-				algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority()/*, (result) -> {
+				algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
 					System.out.println("RESULT: " + result.toString());
-				}*/);
+				});
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
