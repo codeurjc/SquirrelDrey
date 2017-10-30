@@ -34,6 +34,7 @@ public class App {
 		// Environment variables
 		String modeOfExecution;
 		String hazelcastConfigPath;
+		String mode;
 		
 		App.logger.warn(Arrays.asList(args).toString());
 		
@@ -41,16 +42,17 @@ public class App {
 			// Eclipse execution
 			modeOfExecution = args[1];
 			hazelcastConfigPath = args[2];
+			mode = args[3];
 		} else {
 			// Command line execution
 			modeOfExecution = args[0];
 			hazelcastConfigPath = args[1];
+			mode = args[2];
 		}
-		args = new String[]{hazelcastConfigPath, hazelcastConfigPath};
 		if (modeOfExecution.equals("--web=true")) {
 			SpringApplication.run(Web.class, hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1));
 		} else {
-			new Node().start(hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1));
+			new Node().start(hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1), mode.substring(mode.lastIndexOf("=") + 1));
 		}
 	}
 

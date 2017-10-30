@@ -14,7 +14,7 @@ public class Node {
 	HazelcastInstance hc;
 	QueuesManager queuesManager;
 
-	public void start(String HAZELCAST_CONFIG) {
+	public void start(String HAZELCAST_CONFIG, String mode) {
 
 		Config cfg = new Config();
 		try {
@@ -23,7 +23,7 @@ public class Node {
 			e.printStackTrace();
 		}
 
-		this.queuesManager = new QueuesManager(Mode.RANDOM);
+		this.queuesManager = new QueuesManager(Mode.valueOf(mode));
 
 		MapOfQueuesListener mapOfQueuesListener = new MapOfQueuesListener(queuesManager);
 

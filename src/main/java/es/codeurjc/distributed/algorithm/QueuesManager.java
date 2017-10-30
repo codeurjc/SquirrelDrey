@@ -54,6 +54,7 @@ public class QueuesManager {
 		// Initialize thread pool
 		int processors = Runtime.getRuntime().availableProcessors();
 		log.info("Number of cores: " + processors);
+		log.info("Using " + this.mode + " task selection strategy");
 		
 		this.executor = new ThreadPoolExecutor(processors, processors, 0L, TimeUnit.MILLISECONDS,
 				new LinkedBlockingQueue<Runnable>());
