@@ -44,6 +44,8 @@ public class QueueListener implements ItemListener<Task<?>> {
 				+ "] by member [" + item.getMember() + "]");
 		
 		manager.lookQueuesForTask();
+		
+		item.getItem().publishQueueStats();
 	}
 
 	@Override
@@ -54,5 +56,7 @@ public class QueueListener implements ItemListener<Task<?>> {
 
 		log.info("LISTENER: Item [" + item.getItem().toString() + "] removed from queue [" + this.queue.getName()
 				+ "] by member [" + item.getMember() + "]");
+		
+		item.getItem().publishQueueStats();
 	}
 }

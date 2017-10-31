@@ -38,8 +38,13 @@ public class SampleAtomicTask extends Task<String> {
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
 		results.put(Integer.parseInt(this.workDescription), Integer.parseInt(this.result));
-
-		if (atomicLong.decrementAndGet() == 0L) {
+		
+		long l = atomicLong.decrementAndGet();
+		
+		App.logger.info("Must finish {} atomic tasks for algorithm {} yet", l, this.algorithmId );
+		
+		if (l == 0L) {
+			App.logger.info("ADDING SOLVE TASK FOR ALGORITHM [{}]", this.algorithmId);
 			addNewTask(new SampleSolveTask());
 		}
 	}

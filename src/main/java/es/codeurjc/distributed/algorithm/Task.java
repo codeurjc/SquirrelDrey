@@ -1,6 +1,7 @@
 package es.codeurjc.distributed.algorithm;
 
 import java.io.Serializable;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 
 import com.hazelcast.core.HazelcastInstance;
@@ -10,13 +11,17 @@ import com.hazelcast.core.IQueue;
 import com.hazelcast.core.ITopic;
 
 public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceAware {
-
-	private static final long serialVersionUID = 1L;
 	
 	protected transient HazelcastInstance hazelcastInstance;
 	
 	protected String algorithmId;
 	protected T result;
+	
+	protected final int uniqueId = UUID.randomUUID().hashCode();
+	
+	public int getId() {
+		return this.uniqueId;
+	}
 
 	public void setHazelcastInstance(HazelcastInstance hazelcastInstance) {
 		this.hazelcastInstance = hazelcastInstance;
@@ -74,5 +79,15 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 		QueueProperty properties = map.get(this.algorithmId);
 		properties.lastTimeUpdated.set((int) System.currentTimeMillis());
 		map.set(this.algorithmId, properties);
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.uniqueId;
+	}
+	
+	@Override
+	public boolean equals(Object o) {
+		return (this.uniqueId == ((Task<T>)o).uniqueId);
 	}
 }

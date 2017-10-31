@@ -6,6 +6,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.client.config.XmlClientConfigBuilder;
@@ -16,6 +19,8 @@ import com.hazelcast.core.IQueue;
 import es.codeurjc.sampleapp.App;
 
 public class AlgorithmManager<R> {
+	
+	private static final Logger log = LoggerFactory.getLogger(AlgorithmManager.class);
 	
 	private HazelcastInstance hzClient;
 	private Map<String, Algorithm<R>> algorithms;
@@ -32,21 +37,21 @@ public class AlgorithmManager<R> {
 		}
 		this.hzClient = HazelcastClient.newHazelcastClient(config);
 		
-		this.hzClient.getCluster().addMembershipListener(new ClusterMembershipListener());
+		this.hzClient.getCluster().addMembershipListener(new ClusterMembershipListener(hzClient));
 
 		this.algorithms = new ConcurrentHashMap<>();
 		this.QUEUES = this.hzClient.getMap("QUEUES");
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			MyEvent ev = (MyEvent) message.getMessageObject();
-			App.logger.info("ALGORITHM SOLVED: Algorithm: " + ev.getAlgorithmId() + ", Result: " + ev.getContent());
+			log.info("ALGORITHM SOLVED: Algorithm: " + ev.getAlgorithmId() + ", Result: " + ev.getContent());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 			alg.setFinishTime(System.currentTimeMillis());
 			try {
 				alg.setResult((R) ev.getContent());
 				alg.runCallback();
 			} catch(Exception e) {
-				App.logger.error(e.getMessage());
+				log.error(e.getMessage());
 			}
 			
 			// Remove distributed queue
@@ -54,14 +59,14 @@ public class AlgorithmManager<R> {
 		});
 		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			MyEvent ev = (MyEvent) message.getMessageObject();
-			App.logger.info("EXECUTOR STATS for queue [" + ev.getAlgorithmId() + "]: Tasks waiting in queue -> "
+			log.info("EXECUTOR STATS for queue [" + ev.getAlgorithmId() + "]: Tasks waiting in queue -> "
 					+ ev.getContent());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 			alg.setTasksQueued((int) ev.getContent());
 		});
 		hzClient.getTopic("task-completed").addMessageListener((message) -> {
 			MyEvent ev = (MyEvent) message.getMessageObject();
-			App.logger.info("TASK [" + ev.getContent() + "] completed for algorithm [" + ev.getAlgorithmId() + "] with result [" + ((Task<?>)ev.getContent()).getResult() + "]");
+			log.info("TASK [" + ev.getContent() + "] completed for algorithm [" + ev.getAlgorithmId() + "] with result [" + ((Task<?>)ev.getContent()).getResult() + "]");
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 			alg.incrementTasksCompleted();
 		});

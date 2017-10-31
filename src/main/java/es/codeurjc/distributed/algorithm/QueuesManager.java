@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
+import com.hazelcast.core.Member;
 
 public class QueuesManager {
 
@@ -34,15 +36,21 @@ public class QueuesManager {
 
 	HazelcastInstance hc;
 
-	IMap<String, QueueProperty> mapOfQueues; 		// Distributed map storing all the distributed queues and their priority and last time updated
+	/* Distributed structures */
+	IMap<String, QueueProperty> mapOfQueues; 		// Map storing all the distributed queues and their properties (priority, last time pushed)
+	IQueue<Task<?>> maxPriorityQueue;				// Queue for tasks with maximum priority. It will always be the first queue checked on polling
+	IMap<Integer, Task<?>> runningTasks;			// Map of running tasks in this node <taskUniqueId, task>
+	
+	/* Local structures */
 	MapOfQueuesListener mapOfQueuesListener; 		// Listener for distributed map of queues
-	Map<String, QueueListener> queuesListeners;		// Local map storing all the listeners for all distributed queues
+	Map<String, QueueListener> queuesListeners;		// Map storing all the listeners for all distributed queues
+	
 	ThreadPoolExecutor executor; 					// Local thread pool to run tasks retrieved from distributed queues
+	ExecutorService executorCallbacks;				// Single thread executor for task's callbacks
+	Member localMember;								// Local hazelcast member
+	Mode mode;										// Mode of execution (RANDOM / PRIORITY)
+	AtomicBoolean isSubscribed = new AtomicBoolean(false); // true if worker is subscribed to at least one queue
 	
-	ExecutorService executorCallbacks;
-	
-	AtomicBoolean isSubscribed = new AtomicBoolean(false);
-	Mode mode;
 	
 	public QueuesManager(Mode mode) {
 		this.mode = mode;
@@ -62,10 +70,14 @@ public class QueuesManager {
 		this.executorCallbacks = Executors.newSingleThreadExecutor();
 		
 		Executors.newFixedThreadPool(processors);
-
+		
+		localMember = this.hc.getCluster().getLocalMember();
 		queuesListeners = new ConcurrentHashMap<>();
 		mapOfQueues = hc.getMap("QUEUES");
-		
+		maxPriorityQueue = hc.getQueue("MAX_PRIORITY_QUEUE");
+
+		runningTasks = hc.getMap("RUNNING_TASKS_" + localMember.getAddress().toString());
+				
 		log.info("Queues on startup {}", mapOfQueues.keySet().toString());
 
 		// Start looking for tasks
@@ -136,10 +148,14 @@ public class QueuesManager {
 			
 			Map<String, Integer> orderedMap = null;
 			if (mode.equals(Mode.PRIORITY)) {
+				log.info("Sorting by priority: {}", mapOfQueues.keySet().toString());
 				orderedMap = sortMapByPriority(mapOfQueues);
 			} else if ((mode.equals(Mode.RANDOM))){
+				log.info("Sorting by random: {}", mapOfQueues.keySet().toString());
 				orderedMap = sortMapByWeightedRandom(mapOfQueues);
 			}
+			
+			log.info("ORDERED MAP: {}", orderedMap.keySet().toString());
 
 			taskAvailable = submitTaskIfAvailable(orderedMap);
 
@@ -171,16 +187,22 @@ public class QueuesManager {
 
 	private boolean submitTaskIfAvailable(Map<String, Integer> orderedMap) {
 		boolean taskAvailable = false;
-		for (String queueId : orderedMap.keySet()) {
+		boolean hasNext = true;
+		String queueId = "MAX_PRIORITY_QUEUE";
+		Iterator<String> iterator = orderedMap.keySet().iterator();
+		do {
+			log.info("Trying search on queue [{}]", queueId);
 			IQueue<Task<?>> q = hc.getQueue(queueId);
 			Task<?> task = q.poll();
 			if (task != null) {
 				runTask(task);
-				log.info("Task [{}] submitted for algorithm [{}]", task, task.algorithmId);
+				log.info("Task [{}] submitted for algorithm [{}] from queue [{}]", task, task.algorithmId, queueId);
 				taskAvailable = true;
-				break;
 			}
-		}
+			hasNext = iterator.hasNext();
+			if (hasNext) queueId = iterator.next();
+			log.info("New iterator [{}]", queueId);
+		} while (hasNext && !taskAvailable);
 		return taskAvailable;
 	}
 
@@ -190,18 +212,29 @@ public class QueuesManager {
 
 	public void runTask(Task<?> task) {
 		task.setHazelcastInstance(this.hc);
+
 		CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> {
 			try {
 				log.info("Starting task [{}] for algorithm [{}]", task, task.algorithmId);
+				
+				// Add task to distributed map of running tasks
+				runningTasks.put(task.getId(), task);
+				log.info("XXX1 " + runningTasks.size());
+				
 				task.process();
 			} catch (Exception e) {
-				log.error("ERROR: " + e);
+				e.printStackTrace();
 			}
 			return null;
 		}, executor);
 		future.thenAcceptAsync(result -> {
 			try {
 				task.callback();
+				
+				// Remove task from distributed map of running tasks
+				runningTasks.remove(task.getId());
+				log.info("XXX2 " + runningTasks.size());
+
 				log.info("Finished task [{}] for algorithm [{}] with result [{}]", task, task.algorithmId, task.getResult());
 				lookQueuesForTask();
 			} catch (Exception e) {
