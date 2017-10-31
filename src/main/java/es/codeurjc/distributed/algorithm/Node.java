@@ -34,6 +34,7 @@ public class Node {
 		
 		this.hc = Hazelcast.newHazelcastInstance(cfg);
 		this.queuesManager.initializeHazelcast(hc);
+		
 	}
 
 }

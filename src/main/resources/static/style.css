@@ -74,9 +74,9 @@ tr.first-row {
 	width: 40%;
 }
 
-canvas {
-	/*width: 100% !important;
-	height: 500px !important;*/
+.stop-btn {
+	margin-left: 5px;
+    margin-bottom: 10px;
 }
 
 .horizontal-center {

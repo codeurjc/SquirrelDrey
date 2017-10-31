@@ -59,7 +59,7 @@ public class QueuesManager {
 	
 	public void initializeHazelcast(HazelcastInstance hc) {
 		this.hc = hc;
-
+		
 		// Initialize thread pool
 		this.nThreads = Runtime.getRuntime().availableProcessors();
 		log.info("Number of cores: " + nThreads);
@@ -69,9 +69,7 @@ public class QueuesManager {
 				new LinkedBlockingQueue<Runnable>());
 		
 		this.executorCallbacks = Executors.newSingleThreadExecutor();
-		
-		Executors.newFixedThreadPool(nThreads);
-		
+				
 		localMember = this.hc.getCluster().getLocalMember();
 		queuesListeners = new ConcurrentHashMap<>();
 		mapOfQueues = hc.getMap("QUEUES");
@@ -80,6 +78,38 @@ public class QueuesManager {
 		runningTasks = hc.getMap("RUNNING_TASKS_" + localMember.getAddress().toString());
 				
 		log.info("Queues on startup {}", mapOfQueues.keySet().toString());
+		
+		// Prepare an active stop of algorithms
+		hc.getTopic("stop-algorithms").addMessageListener((message) -> {
+			log.info("STOPPING ALL ALGORITHMS...");
+			
+			this.unsubscribeFromQueues(mapOfQueues.keySet());
+			
+			for(String queueId : mapOfQueues.keySet()) {
+				IQueue<Task<?>> queue = hc.getQueue(queueId);
+				queue.clear();
+			}
+			
+			queuesListeners.clear();
+			runningTasks.clear();
+			mapOfQueues.clear();
+			maxPriorityQueue.clear();
+			
+			executor.shutdown();
+			executorCallbacks.shutdown();
+			
+			try {
+				executor.awaitTermination(3, TimeUnit.SECONDS);
+				executorCallbacks.awaitTermination(3, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+				
+			}
+			
+			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+					new LinkedBlockingQueue<Runnable>());
+			this.executorCallbacks = Executors.newSingleThreadExecutor();
+			
+		});
 
 		// Start looking for tasks
 		lookQueuesForTask();

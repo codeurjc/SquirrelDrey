@@ -103,5 +103,9 @@ public class AlgorithmManager<R> {
 	public Map<String, WorkerStats> getWorkers() {
 		return this.workers;
 	}
+	
+	public void terminateAlgorithms() {
+		this.hzClient.getTopic("stop-algorithms").publish("");
+	}
 
 }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import es.codeurjc.distributed.algorithm.Algorithm;
 import es.codeurjc.distributed.algorithm.AlgorithmManager;
 import es.codeurjc.distributed.algorithm.Task;
+import es.codeurjc.distributed.algorithm.WorkerEvent;
 import es.codeurjc.distributed.algorithm.WorkerStats;
 
 @Controller
@@ -83,6 +84,12 @@ public class SampleAlgorithmController {
 		
 		Response response = new Response(l1, l2);
 		return ResponseEntity.ok(response);
+	}
+	
+	@RequestMapping(value = "/stop", method = RequestMethod.POST)
+	public ResponseEntity<String> stopAlgorithms() throws InterruptedException {
+		this.algorithmManager.terminateAlgorithms();
+		return ResponseEntity.ok("STOPPED");
 	}
 
 }
