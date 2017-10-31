@@ -21,7 +21,7 @@ Any Task can act as a solving task just by calling `Task.algorithmSolved()` meth
 #### AlgorithmManager< T > 
 
 | Method  | Params | Returns  | Description |
-|---|---|---|
+|---|---|---|---|
 | `solveAlgorithm`  | `String algorithmId`<br>`Task<?> initialTask`<br>`Integer priority`<br>`Consumer<R> callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Tassk to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
 | `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
 | `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not empty and properly stopped |
@@ -29,11 +29,12 @@ Any Task can act as a solving task just by calling `Task.algorithmSolved()` meth
 #### Task< T > 
 
 | Method  | Params | Returns  | Description |
-|---|---|---|
+|---|---|---|---|
 | `addNewTask`  | `Task<?> task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
 | `setResult`  | `T result` | void | Sets the final result for this task. Usually this method is called inside `Task.process` method |
 | `algorithmSolved`  | `R finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
+| `getId`  | void | `int` | Returns the unique identifier for this task |
 
 ## Example
 
