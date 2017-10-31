@@ -2,7 +2,7 @@ package es.codeurjc.distributed.algorithm;
 
 import java.io.Serializable;
 
-public class MyEvent implements Serializable {
+public class AlgorithmEvent implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -10,7 +10,7 @@ public class MyEvent implements Serializable {
 	String name;
 	Object content;
 
-	public MyEvent(String algorithmId, String name, Object content) {
+	public AlgorithmEvent(String algorithmId, String name, Object content) {
 		this.algorithmId = algorithmId;
 		this.name = name;
 		this.content = content;

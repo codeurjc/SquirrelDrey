@@ -40,8 +40,8 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	}
 	
 	public void algorithmSolved(T finalResult) {
-		ITopic<MyEvent> topic = hazelcastInstance.getTopic("algorithm-solved");
-		topic.publish(new MyEvent(this.algorithmId, "algorithm-solved", finalResult));
+		ITopic<AlgorithmEvent> topic = hazelcastInstance.getTopic("algorithm-solved");
+		topic.publish(new AlgorithmEvent(this.algorithmId, "algorithm-solved", finalResult));
 	}
 	
 	public void process() throws Exception {
@@ -62,11 +62,11 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 		IQueue<Task<T>> queue = hazelcastInstance.getQueue(this.algorithmId);
 
 		hazelcastInstance.getTopic("queue-stats")
-				.publish(new MyEvent(this.algorithmId, "queue-stats", queue.size()));
+				.publish(new AlgorithmEvent(this.algorithmId, "queue-stats", queue.size()));
 	}
 
 	private void publishCompletedTask() {
-		hazelcastInstance.getTopic("task-completed").publish(new MyEvent(this.algorithmId, "task-completed", this));
+		hazelcastInstance.getTopic("task-completed").publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 
 	protected void addNewTask(Task<?> t) {

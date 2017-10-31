@@ -35,7 +35,7 @@ p {
 }
 
 th {
-	padding: 20px 40px 20px 0;
+	padding: 12px 25px 12px 0;
 }
 
 label {
@@ -50,12 +50,33 @@ tr.first-row {
 	border-top: none;
 }
 
-
 .vertical-center {
 	width: -webkit-fit-content;
 	width: fit-content;
 	margin-top: 5em;
 	margin-bottom: 5em;
+}
+
+.solve-container {
+	padding-top: 2em;
+	padding-bottom: 2em;
+	width: 100%;
+	display: flex;
+}
+
+.half-screen {
+	max-width: 47%;
+	display: inline-block;
+	margin-left: 2em;
+}
+
+#chart {
+	width: 40%;
+}
+
+canvas {
+	/*width: 100% !important;
+	height: 500px !important;*/
 }
 
 .horizontal-center {
@@ -129,9 +150,10 @@ tr.first-row {
 
 .table-container {
 	display: inline-block;
-    padding: 0 25px 0 25px;
-    background-color: #eee;
-    margin: 25px;
+	max-width: 48%;
+	padding: 0 15px 0 15px;
+	background-color: #eee;
+	margin: 5px;
 }
 
 .form-row p {

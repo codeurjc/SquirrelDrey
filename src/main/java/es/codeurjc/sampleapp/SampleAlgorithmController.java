@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import es.codeurjc.distributed.algorithm.Algorithm;
 import es.codeurjc.distributed.algorithm.AlgorithmManager;
 import es.codeurjc.distributed.algorithm.Task;
+import es.codeurjc.distributed.algorithm.WorkerStats;
 
 @Controller
 public class SampleAlgorithmController {
@@ -57,9 +58,11 @@ public class SampleAlgorithmController {
 		return "solve";
 	}
 
-	@RequestMapping(value = "/result", method = RequestMethod.GET)
-	public ResponseEntity<List<Response>> getResult(@RequestParam(value = "algorithmIds[]") String[] algorithmIds) {
-		List<Response> l = new ArrayList<>();
+	@RequestMapping(value = "/statistics", method = RequestMethod.GET)
+	public ResponseEntity<Response> getResult(@RequestParam(value = "algorithmIds[]") String[] algorithmIds) {
+		
+		// Algorithms statistics
+		List<AlgorithmStats> l1 = new ArrayList<>();
 		for (String id : algorithmIds) {
 			Algorithm<String> alg = this.algorithmManager.getAlgorithm(id);
 			if (alg != null) {
@@ -68,10 +71,18 @@ public class SampleAlgorithmController {
 				Integer tasksCompleted = alg.getTasksCompleted();
 				Long time = alg.getTimeOfProcessing();
 
-				l.add(new Response(result == null ? "" : result, tasksQueued == null ? 0 : tasksQueued, tasksCompleted == null ? 0 : tasksCompleted, time));
+				l1.add(new AlgorithmStats(result == null ? "" : result, tasksQueued == null ? 0 : tasksQueued, tasksCompleted == null ? 0 : tasksCompleted, time));
 			}
 		}
-		return ResponseEntity.ok(l);
+		
+		// Workers statistics
+		List<WorkerStats> l2 = new ArrayList<>();
+		for (String id : this.algorithmManager.getWorkers().keySet()) {
+			l2.add(this.algorithmManager.getWorkers().get(id));
+		}
+		
+		Response response = new Response(l1, l2);
+		return ResponseEntity.ok(response);
 	}
 
 }

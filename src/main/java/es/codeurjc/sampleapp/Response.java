@@ -1,49 +1,33 @@
 package es.codeurjc.sampleapp;
 
+import java.util.List;
+
+import es.codeurjc.distributed.algorithm.WorkerStats;
+
 public class Response {
+	
+	List<AlgorithmStats> algorithmStats;
+	List<WorkerStats> workerStats;
 
-	int taskQueued;
-	int taskCompleted;
-	String result;
-	long timeOfProcessing;
-
-	public Response(String result, int taskQueued, int taskCompleted, long timeOfProcessing) {
-		this.result = result;
-		this.taskQueued = taskQueued;
-		this.taskCompleted = taskCompleted;
-		this.timeOfProcessing = timeOfProcessing;
+	public Response(List<AlgorithmStats> algorithmStats, List<WorkerStats> workerStats) {
+		this.algorithmStats = algorithmStats;
+		this.workerStats = workerStats;
 	}
 	
-	public String getResult() {
-		return result;
+	public List<AlgorithmStats> getAlgorithmStats() {
+		return this.algorithmStats;
 	}
 	
-	public int getTaskQueued() {
-		return taskQueued;
+	public void setAlgorithmStats(List<AlgorithmStats> algorithmStats) {
+		this.algorithmStats = algorithmStats;
 	}
 	
-	public int getTaskCompleted() {
-		return taskCompleted;
+	public List<WorkerStats> getWorkerStats() {
+		return this.workerStats;
 	}
 	
-	public long getTimeOfProcessing() {
-		return timeOfProcessing;
-	}
-	
-	public void setResult(String result){
-		this.result = result;
-	}
-	
-	public void setTaskQueued(int taskQueued){
-		this.taskQueued = taskQueued;
-	}
-	
-	public void setTaskCompleted(int taskCompleted){
-		this.taskCompleted = taskCompleted;
-	}
-	
-	public void setTimeOfProcessing(long timeOfProcessing){
-		this.timeOfProcessing = timeOfProcessing;
+	public void setWorkerStats(List<WorkerStats> workerStats) {
+		this.workerStats = workerStats;
 	}
 
 }

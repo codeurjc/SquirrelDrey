@@ -50,6 +50,7 @@ public class QueuesManager {
 	Member localMember;								// Local hazelcast member
 	Mode mode;										// Mode of execution (RANDOM / PRIORITY)
 	AtomicBoolean isSubscribed = new AtomicBoolean(false); // true if worker is subscribed to at least one queue
+	int nThreads;
 	
 	
 	public QueuesManager(Mode mode) {
@@ -60,16 +61,16 @@ public class QueuesManager {
 		this.hc = hc;
 
 		// Initialize thread pool
-		int processors = Runtime.getRuntime().availableProcessors();
-		log.info("Number of cores: " + processors);
+		this.nThreads = Runtime.getRuntime().availableProcessors();
+		log.info("Number of cores: " + nThreads);
 		log.info("Using " + this.mode + " task selection strategy");
 		
-		this.executor = new ThreadPoolExecutor(processors, processors, 0L, TimeUnit.MILLISECONDS,
+		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
 				new LinkedBlockingQueue<Runnable>());
 		
 		this.executorCallbacks = Executors.newSingleThreadExecutor();
 		
-		Executors.newFixedThreadPool(processors);
+		Executors.newFixedThreadPool(nThreads);
 		
 		localMember = this.hc.getCluster().getLocalMember();
 		queuesListeners = new ConcurrentHashMap<>();
@@ -127,7 +128,7 @@ public class QueuesManager {
 	}
 
 	public boolean hasAvailableProcessors() {
-		return executor.getActiveCount() < Runtime.getRuntime().availableProcessors();
+		return executor.getActiveCount() < nThreads;
 	}
 
 	public IQueue<Task<?>> getQueue(String queueId) {
@@ -144,7 +145,7 @@ public class QueuesManager {
 		while (hasAvailableProcessors()) {
 
 			log.info("This node can execute more tasks (Has {} task executing of {} max tasks)",
-					executor.getActiveCount(), Runtime.getRuntime().availableProcessors());
+					executor.getActiveCount(), nThreads);
 			
 			Map<String, Integer> orderedMap = null;
 			if (mode.equals(Mode.PRIORITY)) {
@@ -173,7 +174,7 @@ public class QueuesManager {
 
 		if (taskAvailable) {
 			log.info("This node can NOT execute more tasks (Has {} task executing of {} max tasks)",
-					executor.getActiveCount(), Runtime.getRuntime().availableProcessors());
+					executor.getActiveCount(), nThreads);
 			
 			// If there's no space available, unsubscribe from all queues
 			if (this.isSubscribed.compareAndSet(true, true)) {
@@ -203,6 +204,8 @@ public class QueuesManager {
 			if (hasNext) queueId = iterator.next();
 			log.info("New iterator [{}]", queueId);
 		} while (hasNext && !taskAvailable);
+		
+		this.publishWorkerStats();
 		return taskAvailable;
 	}
 
@@ -245,7 +248,13 @@ public class QueuesManager {
 	
 	
 	
-
+	private void publishWorkerStats() {
+		this.hc.getTopic("worker-stats").publish(new WorkerEvent(
+				this.localMember.getAddress().toString(), 
+				"worker-stats", 
+				new WorkerStats(this.localMember.getAddress().toString(), this.nThreads, executor.getActiveCount())
+		));
+	}
 	
 	
 	public Map<String, Integer> sortMapByPriority(Map<String, QueueProperty> map) {
