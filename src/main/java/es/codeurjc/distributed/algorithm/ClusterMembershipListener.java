@@ -46,7 +46,7 @@ public class ClusterMembershipListener implements MembershipListener {
 			IQueue<Task<?>> maxPriorityQueue = this.manager.hzClient.getQueue("MAX_PRIORITY_QUEUE");
 			maxPriorityQueue.addAll(runningTasks.values());
 
-			log.info("Moved {} running tasks to max priority queue: {}", runningTasks.size(), runningTasks.values());
+			log.info("Moved {} running tasks to max priority queue from worker {}. Tasks: {}", runningTasks.size(), memberId, runningTasks.values());
 			runningTasks.clear();
 		}
 		

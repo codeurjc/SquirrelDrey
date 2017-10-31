@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -15,7 +16,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import es.codeurjc.distributed.algorithm.Algorithm;
 import es.codeurjc.distributed.algorithm.AlgorithmManager;
 import es.codeurjc.distributed.algorithm.Task;
-import es.codeurjc.distributed.algorithm.WorkerEvent;
 import es.codeurjc.distributed.algorithm.WorkerStats;
 
 @Controller
@@ -87,9 +87,13 @@ public class SampleAlgorithmController {
 	}
 	
 	@RequestMapping(value = "/stop", method = RequestMethod.POST)
-	public ResponseEntity<String> stopAlgorithms() throws InterruptedException {
-		this.algorithmManager.terminateAlgorithms();
-		return ResponseEntity.ok("STOPPED");
+	public ResponseEntity<String> stopAlgorithms() {
+		try {
+			this.algorithmManager.blockingTerminateAlgorithms();
+		} catch (InterruptedException e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+		return ResponseEntity.status(HttpStatus.OK).build();
 	}
 
 }

@@ -3,6 +3,7 @@ package es.codeurjc.distributed.algorithm;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -24,6 +25,9 @@ public class AlgorithmManager<R> {
 	Map<String, Algorithm<R>> algorithms;
 	Map<String, WorkerStats> workers;
 	IMap<String, QueueProperty> QUEUES;
+	
+	CountDownLatch terminateBlockingLatch;
+	long timeForTerminate;
 		
 	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
 		
@@ -74,6 +78,10 @@ public class AlgorithmManager<R> {
 			log.info("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
 		});
+		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
+			log.info("Algorithms succesfully terminated on {} milliseconds", System.currentTimeMillis() - this.timeForTerminate);
+			this.terminateBlockingLatch.countDown();
+		});
 	}
 
 	public Algorithm<R> getAlgorithm(String algorithmId) {
@@ -106,6 +114,13 @@ public class AlgorithmManager<R> {
 	
 	public void terminateAlgorithms() {
 		this.hzClient.getTopic("stop-algorithms").publish("");
+	}
+	
+	public void blockingTerminateAlgorithms() throws InterruptedException {
+		this.terminateBlockingLatch = new CountDownLatch(1);
+		timeForTerminate = System.currentTimeMillis();
+		this.hzClient.getTopic("stop-algorithms-blocking").publish("");
+		this.terminateBlockingLatch.await();
 	}
 
 }

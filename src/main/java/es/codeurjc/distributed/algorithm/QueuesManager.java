@@ -81,34 +81,12 @@ public class QueuesManager {
 		
 		// Prepare an active stop of algorithms
 		hc.getTopic("stop-algorithms").addMessageListener((message) -> {
-			log.info("STOPPING ALL ALGORITHMS...");
-			
-			this.unsubscribeFromQueues(mapOfQueues.keySet());
-			
-			for(String queueId : mapOfQueues.keySet()) {
-				IQueue<Task<?>> queue = hc.getQueue(queueId);
-				queue.clear();
-			}
-			
-			queuesListeners.clear();
-			runningTasks.clear();
-			mapOfQueues.clear();
-			maxPriorityQueue.clear();
-			
-			executor.shutdown();
-			executorCallbacks.shutdown();
-			
-			try {
-				executor.awaitTermination(3, TimeUnit.SECONDS);
-				executorCallbacks.awaitTermination(3, TimeUnit.SECONDS);
-			} catch (InterruptedException e) {
-				
-			}
-			
-			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
-					new LinkedBlockingQueue<Runnable>());
-			this.executorCallbacks = Executors.newSingleThreadExecutor();
-			
+			this.terminateAlgorithmsNotBlocking();
+		});
+		
+		// Prepare an active stop of algorithms
+		hc.getTopic("stop-algorithms-blocking").addMessageListener((message) -> {
+			this.terminateAlgorithmsBlocking();
 		});
 
 		// Start looking for tasks
@@ -407,6 +385,93 @@ public class QueuesManager {
 		public String toString() {
 			return ("(" + bottom + ", " + top + ")");
 		}
+	}
+	
+	private void terminateAlgorithmsNotBlocking() {
+		log.info("STOPPING ALL ALGORITHMS...");
+		
+		this.unsubscribeFromQueues(mapOfQueues.keySet());
+		
+		for(String queueId : mapOfQueues.keySet()) {
+			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			queue.clear();
+		}
+		
+		queuesListeners.clear();
+		runningTasks.clear();
+		mapOfQueues.clear();
+		maxPriorityQueue.clear();
+		
+		executor.shutdown();
+		executorCallbacks.shutdown();
+		
+		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<Runnable>());
+		this.executorCallbacks = Executors.newSingleThreadExecutor();
+		
+		hc.getTopic("stop-algorithms-done").publish("");
+	}
+	
+	private void terminateAlgorithmsBlocking() {
+		log.info("STOPPING ALL ALGORITHMS...");
+		
+		this.unsubscribeFromQueues(mapOfQueues.keySet());
+		
+		for(String queueId : mapOfQueues.keySet()) {
+			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			queue.clear();
+		}
+		
+		// Active wait for all algorithm queues to be empty
+		boolean queuesEmpty = true;
+		while(!queuesEmpty){
+			for(String queueId : mapOfQueues.keySet()) {
+				IQueue<Task<?>> queue = hc.getQueue(queueId);
+				queuesEmpty = queuesEmpty && queue.isEmpty();
+			}
+			if (queuesEmpty) break;
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		queuesListeners.clear();
+		runningTasks.clear();
+		mapOfQueues.clear();
+		maxPriorityQueue.clear();
+		
+		executor.shutdown();
+		executorCallbacks.shutdown();
+		
+		try {
+			executor.awaitTermination(7, TimeUnit.SECONDS);
+			executorCallbacks.awaitTermination(7, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<Runnable>());
+		this.executorCallbacks = Executors.newSingleThreadExecutor();
+		
+		// Active wait for all data structures to be empty
+		boolean allEmpty = false;
+		while (!allEmpty) {
+			allEmpty = queuesListeners.isEmpty() && 
+				runningTasks.isEmpty() && 
+				mapOfQueues.isEmpty() && 
+				maxPriorityQueue.isEmpty();
+			if (allEmpty) break;
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		hc.getTopic("stop-algorithms-done").publish("");
 	}
 
 }

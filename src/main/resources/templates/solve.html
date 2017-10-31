@@ -1,3 +1,5 @@
+<div id="overlay-loader" class="loading" hidden="true">Loading&#8230;</div>
+
 <nav class="navbar navbar-default">
 	<div class="container">
 		<div class="navbar-header">
@@ -9,7 +11,7 @@
 <div class="solve-container">
 	<div class="half-screen" id="algorithm-results">
 		<div class="stop-btn">
-			<button id="stop-btn" type="button" class="btn btn-danger btn-sm" onclick="$.post('stop'); window.location.href='/'">STOP ALL EXECUTIONS</button>
+			<button id="stop-btn" type="button" class="btn btn-danger btn-sm" onclick="terminateAlgorithms()">STOP ALL EXECUTIONS</button>
 		</div>
 	</div>
 	<div class="half-screen" id="chart">
@@ -133,71 +135,15 @@
 	}
 
 
-	function stopAlgoritms() {
+	function terminateAlgorithms() {
+		$('#stop-btn').prop("disabled", true);
+		$('#overlay-loader').show();
 		$.ajax({
-			type: "GET",
-			url: window.location.origin + "/statistics",
-			data: {
-				algorithmIds: algorithmIds
-			},
-			success: function (response) {
-				nPetitions++;
-				
-				if (nPetitions % 2 == 0) {
-					myLabels[nPetitions-1] = '';
-				} else {
-					myLabels[nPetitions-1] = nPetitions;
-				}
-
-				console.log(response);
-				var workerStats = response.workerStats;
-				var algorithmStats = response.algorithmStats;
-
-				for (var i = 0; i < workerStats.length; i++) {
-					var stat = workerStats[i];
-					if (stat.workerId) {
-						var pos = existingWorkerPosition(myDatasets, stat.workerId);
-						if (pos >= 0) {
-							// Worker already exists
-							myDatasets[pos].data.push(stat.workingCores);
-						} else {
-							// New worker
-							var newData = [];
-							for (var k = 0; k < nPetitions - 1; k++) {
-								newData[k] = '';
-							}
-							newData[nPetitions-1] = stat.workingCores;
-							var randomColor =  getRandomColor();
-							myDatasets.push({
-								label: stat.workerId + " (" + stat.totalCores + " cores)",
-								fill: false,
-								borderColor: randomColor,
-								backgroundColor: randomColor,
-								data: newData
-							});
-						}
-					}
-				}
-
-				myChart.update();
-
-				var allSolved = true;
-				for (var i = 0; i < algorithmStats.length; i++) {
-					var r = algorithmStats[i];
-					$('#tasks-queue-' + i).text(r.taskQueued);
-					$('#tasks-completed-' + i).text(r.taskCompleted);
-					if (r.result && r.timeOfProcessing) {
-						$('#time-processing-' + i).text(r.timeOfProcessing + ' s');
-						$('#final-result-' + i).text(r.result);
-						$('#result-row-' + i).show();
-						$('#time-row-' + i).show();
-						$('#loader-' + i).hide();
-						allSolved = allSolved && true;
-					} else {
-						allSolved = allSolved && false;
-					}
-				}
-				if (allSolved) window.clearInterval(interval);
+			type: 'POST',
+			url: 'stop',
+			success: function(xhr) {
+				console.log('TERMINATED ALL ALGORITHMS');
+				window.location.href='/';
 			},
 			error: function (xhr) {
 				console.error("ERROR: ", xhr);
