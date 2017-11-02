@@ -54,8 +54,6 @@ public class QueuesManager {
 	AtomicBoolean isSubscribed = new AtomicBoolean(false); // true if worker is subscribed to at least one queue
 	int nThreads;
 	
-	CloudWatchModule cloudWatchModule;
-	
 	
 	public QueuesManager(Mode mode) {
 		this.mode = mode;
@@ -63,7 +61,6 @@ public class QueuesManager {
 	
 	public void initializeHazelcast(HazelcastInstance hc) {
 		this.hc = hc;
-		//this.cloudWatchModule = new CloudWatchModule();
 		
 		// Initialize thread pool
 		this.nThreads = Runtime.getRuntime().availableProcessors();

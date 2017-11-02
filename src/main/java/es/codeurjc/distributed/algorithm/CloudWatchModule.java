@@ -1,5 +1,8 @@
 package es.codeurjc.distributed.algorithm;
 
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.cloudwatch.model.Dimension;
@@ -10,21 +13,23 @@ import com.amazonaws.services.cloudwatch.model.StandardUnit;
 
 public class CloudWatchModule {
 	
-	final AmazonCloudWatch cw = AmazonCloudWatchClientBuilder.defaultClient();
+	final AmazonCloudWatch cw = AmazonCloudWatchClientBuilder.standard()
+			.withRegion("eu-west-1")
+			.build();
 	
 	public void publishMetrics(Double value) {
-		Dimension dimension = new Dimension()
+		/*Dimension dimension = new Dimension()
 			    .withName("UNIQUE_PAGES")
-			    .withValue("URLS");
+			    .withValue("URLS");*/
 
 		MetricDatum datum = new MetricDatum()
 		    .withMetricName("TASKS_QUEUED")
 		    .withUnit(StandardUnit.None)
 		    .withValue(value)
-		    .withDimensions(dimension);
+		    /*.withDimensions(dimension)*/;
 
 		PutMetricDataRequest request = new PutMetricDataRequest()
-		    .withNamespace("SITE/TRAFFIC")
+		    .withNamespace("HAZELCAST_METRIC")
 		    .withMetricData(datum);
 
 		PutMetricDataResult response = cw.putMetricData(request);
