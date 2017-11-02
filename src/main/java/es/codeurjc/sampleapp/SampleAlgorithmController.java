@@ -95,5 +95,14 @@ public class SampleAlgorithmController {
 		}
 		return ResponseEntity.status(HttpStatus.OK).build();
 	}
-
+	
+	@RequestMapping(value = "/stop-one", method = RequestMethod.POST)
+	public ResponseEntity<String> stopOneAlgorithm(@RequestParam(value = "algorithmId", required = true) String algorithmId) {
+		try {
+			this.algorithmManager.blockingTerminateOneAlgorithm(algorithmId);
+		} catch (InterruptedException e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+		}
+		return ResponseEntity.status(HttpStatus.OK).build();
+	}
 }

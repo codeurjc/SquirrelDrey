@@ -2,6 +2,7 @@ package es.codeurjc.distributed.algorithm;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ public class QueuesManager {
 	/* Local structures */
 	MapOfQueuesListener mapOfQueuesListener; 		// Listener for distributed map of queues
 	Map<String, QueueListener> queuesListeners;		// Map storing all the listeners for all distributed queues
+	QueueListener maxPriorityQueueListener;			// Listener for max priority queue
 	
 	ThreadPoolExecutor executor; 					// Local thread pool to run tasks retrieved from distributed queues
 	ExecutorService executorCallbacks;				// Single thread executor for task's callbacks
@@ -52,6 +54,8 @@ public class QueuesManager {
 	AtomicBoolean isSubscribed = new AtomicBoolean(false); // true if worker is subscribed to at least one queue
 	int nThreads;
 	
+	CloudWatchModule cloudWatchModule;
+	
 	
 	public QueuesManager(Mode mode) {
 		this.mode = mode;
@@ -59,6 +63,7 @@ public class QueuesManager {
 	
 	public void initializeHazelcast(HazelcastInstance hc) {
 		this.hc = hc;
+		//this.cloudWatchModule = new CloudWatchModule();
 		
 		// Initialize thread pool
 		this.nThreads = Runtime.getRuntime().availableProcessors();
@@ -74,6 +79,8 @@ public class QueuesManager {
 		queuesListeners = new ConcurrentHashMap<>();
 		mapOfQueues = hc.getMap("QUEUES");
 		maxPriorityQueue = hc.getQueue("MAX_PRIORITY_QUEUE");
+		maxPriorityQueueListener = new QueueListener(maxPriorityQueue, this);
+		maxPriorityQueue.addItemListener(maxPriorityQueueListener, true);
 
 		runningTasks = hc.getMap("RUNNING_TASKS_" + localMember.getAddress().toString());
 				
@@ -87,6 +94,10 @@ public class QueuesManager {
 		// Prepare an active stop of algorithms
 		hc.getTopic("stop-algorithms-blocking").addMessageListener((message) -> {
 			this.terminateAlgorithmsBlocking();
+		});
+		
+		hc.getTopic("stop-one-algorithm-blocking").addMessageListener((message) -> {
+			this.terminateOneAlgorithmBlocking((String) message.getMessageObject());
 		});
 
 		// Start looking for tasks
@@ -472,6 +483,30 @@ public class QueuesManager {
 		}
 		
 		hc.getTopic("stop-algorithms-done").publish("");
+		
+		log.info("GRACEFULLY TERMINATED ALL ALGORITHMS");
+	}
+	
+	
+	public void terminateOneAlgorithmBlocking(String algorithmId) {
+		log.info("STOPPING ALGORITHM [{}]...", algorithmId);
+		
+		this.unsubscribeFromQueues(new HashSet<>(Arrays.asList(algorithmId)));
+		IQueue<Task<?>> queue = hc.getQueue(algorithmId);
+		queue.clear();
+		
+		// Active wait for algorithm queue to be empty
+		while(!queue.isEmpty()){
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		hc.getTopic("stop-one-algorithm-done").publish(algorithmId);
+		
+		log.info("GRACEFULLY TERMINATED ALGORITHM [{}]", algorithmId);
 	}
 
 }

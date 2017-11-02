@@ -58,8 +58,8 @@ tr.first-row {
 }
 
 .solve-container {
-	padding-top: 2em;
-	padding-bottom: 2em;
+	margin-top: 3em;
+	margin-bottom: 6em;
 	width: 100%;
 	display: flex;
 }
@@ -71,7 +71,7 @@ tr.first-row {
 }
 
 #chart {
-	width: 40%;
+	width: 600px;
 }
 
 .stop-btn {

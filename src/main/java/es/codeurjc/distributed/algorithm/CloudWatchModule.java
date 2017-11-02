@@ -12,22 +12,22 @@ public class CloudWatchModule {
 	
 	final AmazonCloudWatch cw = AmazonCloudWatchClientBuilder.defaultClient();
 	
-	public void publishMetrics() {
-		/*Dimension dimension = new Dimension()
+	public void publishMetrics(Double value) {
+		Dimension dimension = new Dimension()
 			    .withName("UNIQUE_PAGES")
 			    .withValue("URLS");
 
 		MetricDatum datum = new MetricDatum()
-		    .withMetricName("PAGES_VISITED")
+		    .withMetricName("TASKS_QUEUED")
 		    .withUnit(StandardUnit.None)
-		    .withValue(data_point)
+		    .withValue(value)
 		    .withDimensions(dimension);
 
 		PutMetricDataRequest request = new PutMetricDataRequest()
 		    .withNamespace("SITE/TRAFFIC")
 		    .withMetricData(datum);
 
-		PutMetricDataResult response = cw.putMetricData(request);*/
+		PutMetricDataResult response = cw.putMetricData(request);
 	}
 
 }

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -27,6 +28,7 @@ public class AlgorithmManager<R> {
 	IMap<String, QueueProperty> QUEUES;
 	
 	CountDownLatch terminateBlockingLatch;
+	Map<String, CountDownLatch> terminateOneBlockingLatches;
 	long timeForTerminate;
 		
 	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
@@ -45,6 +47,8 @@ public class AlgorithmManager<R> {
 		this.workers = new ConcurrentHashMap<>();
 		
 		this.QUEUES = this.hzClient.getMap("QUEUES");
+		
+		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -81,6 +85,10 @@ public class AlgorithmManager<R> {
 		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
 			log.info("Algorithms succesfully terminated on {} milliseconds", System.currentTimeMillis() - this.timeForTerminate);
 			this.terminateBlockingLatch.countDown();
+		});
+		hzClient.getTopic("stop-one-algorithm-done").addMessageListener((message) -> {
+			log.info("Algorithm [{}] succesfully terminated", message.getMessageObject());
+			this.terminateOneBlockingLatches.get((String)message.getMessageObject()).countDown();
 		});
 	}
 
@@ -120,7 +128,14 @@ public class AlgorithmManager<R> {
 		this.terminateBlockingLatch = new CountDownLatch(1);
 		timeForTerminate = System.currentTimeMillis();
 		this.hzClient.getTopic("stop-algorithms-blocking").publish("");
-		this.terminateBlockingLatch.await();
+		this.terminateBlockingLatch.await(12, TimeUnit.SECONDS);
+	}
+	
+	public void blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException {
+		System.out.println("TERMINATING ONE ALGORITHM " + algorithmId);
+		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
+		this.hzClient.getTopic("stop-one-algorithm-blocking").publish(algorithmId);
+		this.terminateOneBlockingLatches.get(algorithmId).await(12, TimeUnit.SECONDS);
 	}
 
 }
