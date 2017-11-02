@@ -132,7 +132,6 @@ public class AlgorithmManager<R> {
 	}
 	
 	public void blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException {
-		System.out.println("TERMINATING ONE ALGORITHM " + algorithmId);
 		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
 		this.hzClient.getTopic("stop-one-algorithm-blocking").publish(algorithmId);
 		this.terminateOneBlockingLatches.get(algorithmId).await(12, TimeUnit.SECONDS);

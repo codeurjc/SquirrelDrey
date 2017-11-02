@@ -3,6 +3,8 @@ package es.codeurjc.sampleapp;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,8 @@ import es.codeurjc.distributed.algorithm.WorkerStats;
 
 @Controller
 public class SampleAlgorithmController {
+	
+	private static final Logger log = LoggerFactory.getLogger(SampleAlgorithmController.class);
 
 	@Autowired
 	AlgorithmManager<String> algorithmManager;
@@ -37,7 +41,7 @@ public class SampleAlgorithmController {
 				Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
 						algorithm.getTaskDuration(), algorithm.getTimeout(), "countdown-" + algorithm.getId());
 				algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
-					System.out.println("RESULT: " + result.toString());
+					log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result.toString());
 				});
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -88,21 +92,25 @@ public class SampleAlgorithmController {
 	
 	@RequestMapping(value = "/stop", method = RequestMethod.POST)
 	public ResponseEntity<String> stopAlgorithms() {
+		log.info("TERMINATING ALL ALGORITHMS...");
 		try {
 			this.algorithmManager.blockingTerminateAlgorithms();
 		} catch (InterruptedException e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 		}
+		log.info("...ALL ALGORITHMS TERMINATED");
 		return ResponseEntity.status(HttpStatus.OK).build();
 	}
 	
 	@RequestMapping(value = "/stop-one", method = RequestMethod.POST)
 	public ResponseEntity<String> stopOneAlgorithm(@RequestParam(value = "algorithmId", required = true) String algorithmId) {
+		log.info("TERMINATING ALGORITHM {}...", algorithmId);
 		try {
 			this.algorithmManager.blockingTerminateOneAlgorithm(algorithmId);
 		} catch (InterruptedException e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 		}
+		log.info("...ALGORITHM {} TERMINATED", algorithmId);
 		return ResponseEntity.status(HttpStatus.OK).build();
 	}
 }
