@@ -128,17 +128,23 @@ public class SolveTask extends Task<String> {
 To run the sample application (**sampleapp**), execute the following commands:
 
 **Clone and build the project**
-`git clone https://github.com/codeurjc/distributed-algorithm-aws.git`
-`cd distributed-algorithm-aws/distributed-algorithm-aws`
-`mvn install`
-`cd ../sampleapp`
-`mvn -DskipTests=true package`
+```
+git clone https://github.com/codeurjc/distributed-algorithm-aws.git`
+cd distributed-algorithm-aws/distributed-algorithm-aws
+mvn install
+cd ../sampleapp
+mvn -DskipTests=true package
+```
 
 **Launch a worker**
-`java -jar distributed-algorithm-aws-saleapp-0.0.1-SNAPSHOT.jar "--worker=true" "--hazelcast-config=src/main/resources/hazelcast-config.xml" "--mode=RANDOM"`
+```
+java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=true" "--hazelcast-config=src/main/resources/hazelcast-config.xml" "--mode=RANDOM"
+```
 
 **Launch sampleapp** *(different console window)*
-`java -jar distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=false" "--hazelcast-client-config=/home/pablo/Documents/Git/distributed-algorithm-aws/sampleapp/src/main/resources/hazelcast-client-config.xml" "--aws=false"`
+```
+java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=false" "--hazelcast-client-config=/home/pablo/Documents/Git/distributed-algorithm-aws/sampleapp/src/main/resources/hazelcast-client-config.xml" "--aws=false"
+```
 
 You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
 
