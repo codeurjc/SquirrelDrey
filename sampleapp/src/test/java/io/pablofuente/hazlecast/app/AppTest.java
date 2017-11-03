@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -80,7 +81,6 @@ public class AppTest {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
-				assertEquals(results.get(algId), "100");
 			});
 			threads.add(t);
 		}
@@ -91,15 +91,18 @@ public class AppTest {
 		}
 		es.shutdown();
 		assertTrue(es.awaitTermination(40, TimeUnit.SECONDS));
+		for (Entry<String, String> entry : this.results.entrySet()) {
+			assertEquals(results.get(entry.getKey()), "100");
+		}
 	}
 	
 	private void launchWorker(Mode mode) {
-		String[] args = {"--web=false", "--hazelcast-config=src/main/resources/hazelcast-config.xml", "--mode=" + mode};
+		String[] args = {"--worker=true", "--hazelcast-config=src/main/resources/hazelcast-config.xml", "--mode=" + mode};
 		App.main(args);
 	}
 	
 	private void launchApp() {
-		String[] args = {"--web=true", "--hazelcast-client-config=src/main/resources/hazelcast-client-config.xml", "--aws=false"};
+		String[] args = {"--worker=false", "--hazelcast-client-config=src/main/resources/hazelcast-client-config.xml", "--aws=false"};
 		App.main(args);
 	}
 	
