@@ -30,17 +30,17 @@ public class AlgorithmManager<R> {
 	CountDownLatch terminateBlockingLatch;
 	Map<String, CountDownLatch> terminateOneBlockingLatches;
 	long timeForTerminate;
+	
+	boolean withAWSCloudWatch = false;
+	CloudWatchModule cloudWatchModule;
 		
-	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
+	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG, boolean withAWSCloudWatch) {
 		
 		ClientConfig config = new ClientConfig();
-		if (HAZELCAST_CLIENT_CONFIG != null && HAZELCAST_CLIENT_CONFIG != "") {
-			try {
-				config = new XmlClientConfigBuilder(HAZELCAST_CLIENT_CONFIG).build();
-			} catch (IOException e) {
-				e.printStackTrace();
-				config = new ClientConfig();
-			}
+		try {
+			config = new XmlClientConfigBuilder(HAZELCAST_CLIENT_CONFIG).build();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 		this.hzClient = HazelcastClient.newHazelcastClient(config);
 		
@@ -52,6 +52,9 @@ public class AlgorithmManager<R> {
 		this.QUEUES = this.hzClient.getMap("QUEUES");
 		
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
+		
+		this.withAWSCloudWatch = withAWSCloudWatch;
+		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule();
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -67,6 +70,10 @@ public class AlgorithmManager<R> {
 			
 			// Remove distributed queue
 			this.QUEUES.remove(ev.getAlgorithmId());
+			
+			if (this.withAWSCloudWatch) {
+				this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+			}
 		});
 		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -106,6 +113,10 @@ public class AlgorithmManager<R> {
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
+		if (this.withAWSCloudWatch) {
+			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		}
+		
 		alg.solve(queue);
 	}
 
@@ -115,6 +126,10 @@ public class AlgorithmManager<R> {
 		
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
+		
+		if (this.withAWSCloudWatch) {
+			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		}
 		
 		alg.solve(queue);
 	}

@@ -34,6 +34,7 @@ public class App {
 		// Environment variables
 		String modeOfExecution = "--web=false";
 		String hazelcastConfigPath = "--hazelcast-config=src/main/resources/hazelcast-config.xml";
+		String mode = "--mode=RANDOM";
 		String withAWS = "--aws=false";
 		
 		App.logger.warn(Arrays.asList(args).toString());
@@ -42,11 +43,13 @@ public class App {
 			// Eclipse execution
 			if (args.length > 1) modeOfExecution = args[1];
 			if (args.length > 2) hazelcastConfigPath = args[2];
+			if (args.length > 3 && modeOfExecution.equals("--worker=true")) mode = args[3];
 			if (args.length > 3 && modeOfExecution.equals("--worker=false")) withAWS = args[3];
 		} else {
 			// Command line execution
 			if (args.length > 0) modeOfExecution = args[0];
 			if (args.length > 1) hazelcastConfigPath = args[1];
+			if (args.length > 2 && modeOfExecution.equals("--worker=true")) mode = args[2];
 			if (args.length > 2 && modeOfExecution.equals("--worker=false")) withAWS = args[2];
 		}
 		if (modeOfExecution.equals("--worker=false")) {
