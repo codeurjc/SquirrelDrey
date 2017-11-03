@@ -129,7 +129,7 @@ To run the sample application (**sampleapp**), execute the following commands:
 
 **Clone and build the project**
 ```
-git clone https://github.com/codeurjc/distributed-algorithm-aws.git`
+git clone https://github.com/codeurjc/distributed-algorithm-aws.git
 cd distributed-algorithm-aws/distributed-algorithm-aws
 mvn install
 cd ../sampleapp
