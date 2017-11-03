@@ -11,7 +11,7 @@ public class Web {
 	
 	@Bean
 	public AlgorithmManager<String> clusterManager(final ApplicationArguments args) {
-		return new AlgorithmManager<>(args.getSourceArgs()[0]);
+		return new AlgorithmManager<>(args.getSourceArgs()[0], Boolean.valueOf(args.getSourceArgs()[1]));
 	}
 
 }

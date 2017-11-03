@@ -32,25 +32,28 @@ public class App {
 	public static void main(String[] args) {
 		
 		// Environment variables
-		String modeOfExecution;
-		String hazelcastConfigPath;
-		String mode = null;
+		String modeOfExecution = "--web=false";
+		String hazelcastConfigPath = "--hazelcast-config=src/main/resources/hazelcast-config.xml";
+		String mode = "--mode=RANDOM";
+		String withAWS = "--aws=false";
 		
 		App.logger.warn(Arrays.asList(args).toString());
 		
 		if (args[0].equals("--spring.output.ansi.enabled=always")) {
 			// Eclipse execution
-			modeOfExecution = args[1];
-			hazelcastConfigPath = args[2];
-			if (!modeOfExecution.equals("--web=true")) mode = args[3];
+			if (args.length > 1) modeOfExecution = args[1];
+			if (args.length > 2) hazelcastConfigPath = args[2];
+			if (args.length > 3 && !modeOfExecution.equals("--web=true")) mode = args[3];
+			if (args.length > 3 && modeOfExecution.equals("--web=true")) withAWS = args[3];
 		} else {
 			// Command line execution
-			modeOfExecution = args[0];
-			hazelcastConfigPath = args[1];
-			if (!modeOfExecution.equals("--web=true")) mode = args[2];
+			if (args.length > 0) modeOfExecution = args[0];
+			if (args.length > 1) hazelcastConfigPath = args[1];
+			if (args.length > 2 && !modeOfExecution.equals("--web=true")) mode = args[2];
+			if (args.length > 2 && modeOfExecution.equals("--web=true")) withAWS = args[2];
 		}
 		if (modeOfExecution.equals("--web=true")) {
-			SpringApplication.run(Web.class, hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1));
+			SpringApplication.run(Web.class, hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1), withAWS.substring(withAWS.lastIndexOf("=") + 1));
 		} else {
 			new Node().start(hazelcastConfigPath.substring(hazelcastConfigPath.lastIndexOf("=") + 1), mode.substring(mode.lastIndexOf("=") + 1));
 		}

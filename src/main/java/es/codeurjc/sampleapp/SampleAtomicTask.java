@@ -33,7 +33,7 @@ public class SampleAtomicTask extends Task<String> {
 	public void process() throws Exception {
 		Thread.sleep(taskDuration * 1000);
 		
-		this.setResult("10");
+		this.setResult("1");
 		
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);

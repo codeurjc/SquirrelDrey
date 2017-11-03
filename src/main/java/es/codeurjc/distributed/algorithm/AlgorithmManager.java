@@ -30,10 +30,11 @@ public class AlgorithmManager<R> {
 	CountDownLatch terminateBlockingLatch;
 	Map<String, CountDownLatch> terminateOneBlockingLatches;
 	long timeForTerminate;
-		
+	
+	boolean withAWSCloudWatch = false;
 	CloudWatchModule cloudWatchModule;
 		
-	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG) {
+	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG, boolean withAWSCloudWatch) {
 		
 		ClientConfig config = new ClientConfig();
 		try {
@@ -52,7 +53,8 @@ public class AlgorithmManager<R> {
 		
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		
-		this.cloudWatchModule = new CloudWatchModule();
+		this.withAWSCloudWatch = withAWSCloudWatch;
+		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule();
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -69,7 +71,9 @@ public class AlgorithmManager<R> {
 			// Remove distributed queue
 			this.QUEUES.remove(ev.getAlgorithmId());
 			
-			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+			if (this.withAWSCloudWatch) {
+				this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+			}
 		});
 		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -109,7 +113,9 @@ public class AlgorithmManager<R> {
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
-		this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		if (this.withAWSCloudWatch) {
+			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		}
 		
 		alg.solve(queue);
 	}
@@ -121,7 +127,9 @@ public class AlgorithmManager<R> {
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
-		this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		if (this.withAWSCloudWatch) {
+			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
+		}
 		
 		alg.solve(queue);
 	}
