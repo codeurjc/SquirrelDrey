@@ -1,0 +1,228 @@
+<div id="overlay-loader" class="loading" hidden="true">Loading&#8230;</div>
+
+<nav class="navbar navbar-default">
+	<div class="container">
+		<div class="navbar-header">
+			<a class="navbar-brand" href="/">Hazelcast Web App</a>
+		</div>
+	</div>
+</nav>
+
+<div class="solve-container">
+	<div class="half-screen" id="algorithm-results">
+		<div class="stop-btn">
+			<button id="stop-btn" type="button" class="btn btn-danger btn-sm" onclick="terminateAlgorithms()">STOP ALL EXECUTIONS</button>
+		</div>
+	</div>
+	<div class="half-screen" id="chart">
+		<canvas id="myChart" width="400" height="400"></canvas>
+	</div>
+</div>
+
+<footer class="footer">
+	<div class="container">
+		<div class="text-muted">CodeURJC</div>
+		<a href="http://www.codeurjc.es/" target="_blank">
+			<img class="footer-logo" src="images/code.png" />
+		</a>
+	</div>
+</footer>
+
+<script th:inline="javascript">
+	/*<![CDATA[*/
+	var algorithms = [[${algorithms}]];
+	var algorithmIds = [];
+	for (var i = 0; i < algorithms.length; i++) {
+		algorithmIds[i] = algorithms[i].id;
+		var strHtml = '<div class="table-container"><table id="table-' + i + '"><tr class="first-row"><th>Algorithm</th><td>' +
+			algorithms[i].id +
+			'</td><td></td></tr><tr><th>Input Data</th><td>' + algorithms[i].inputData +
+			'</td><td></td></tr><tr><th>Priority</th><td>' + algorithms[i].priority +
+			'</td><td></td></tr><tr><th>Number of tasks</th><td>' + algorithms[i].numberOfTasks +
+			'</td><td></td></tr><tr><th>Task duration</th><td>' + algorithms[i].taskDuration + ' s' +
+			'</td><td></td></tr><tr><th>Timeout before start</th><td>' + algorithms[i].timeout + ' s' +
+			'</td><td></td></tr><tr><th>Tasks completed</th><td id="tasks-completed-' + i + '"></td><td></td></tr>' +
+			'<tr><th>Tasks in the queue</th><td id="tasks-queue-' + i +
+			'"></td><td><div class="loader" id="loader-' + i + '"></div></td></tr><tr id="result-row-' + i +
+			'" hidden="true"><th>Final result</th><td id="final-result-' +
+			i + '"></td><td></td></tr><tr id="time-row-' + i +
+			'" hidden="true"><th>Time of processing</th><td id="time-processing-' + i +
+			'"></td><td></td></tr><tr><th>STOP</th><td><button id="stop-btn-' + i + '" type="button" class="btn btn-danger btn-sm btn-stop-one" onclick="terminateOneAlgorithm(' + i + ', \'' + algorithms[i].id + '\')">STOP EXECUTION</button></td><td></td></tr></table></div>'
+		var node = $.parseHTML(strHtml);
+		$('#algorithm-results').append(node);
+	}
+
+	var nPetitions = 0;
+	var myLabels = [1, '', 3, '', 5, '', 7, '', 9];
+	var myDatasets = [];
+	var myChart;
+	var stoppedAlgorithms = {};
+
+	var interval = setInterval(ajaxGet, 1000);
+
+	function ajaxGet() {
+		$.ajax({
+			type: "GET",
+			url: window.location.origin + "/statistics",
+			data: {
+				algorithmIds: algorithmIds
+			},
+			success: function (response) {
+				nPetitions++;
+				
+				if (nPetitions % 2 == 0) {
+					myLabels[nPetitions-1] = '';
+				} else {
+					myLabels[nPetitions-1] = nPetitions;
+				}
+
+				console.log(response);
+				var workerStats = response.workerStats;
+				var algorithmStats = response.algorithmStats;
+
+				for (var i = 0; i < workerStats.length; i++) {
+					var stat = workerStats[i];
+					if (stat.workerId) {
+						var pos = existingWorkerPosition(myDatasets, stat.workerId);
+						if (pos >= 0) {
+							// Worker already exists
+							myDatasets[pos].data.push(stat.workingCores);
+						} else {
+							// New worker
+							var newData = [];
+							for (var k = 0; k < nPetitions - 1; k++) {
+								newData[k] = '';
+							}
+							newData[nPetitions-1] = stat.workingCores;
+							var randomColor =  getRandomColor();
+							myDatasets.push({
+								label: stat.workerId + " (" + stat.totalCores + " cores)",
+								fill: false,
+								borderColor: randomColor,
+								backgroundColor: randomColor,
+								data: newData
+							});
+						}
+					}
+				}
+
+				myChart.update();
+
+				var allSolved = true;
+				for (var i = 0; i < algorithmStats.length; i++) {
+					var r = algorithmStats[i];
+					$('#tasks-queue-' + i).text(r.taskQueued);
+					$('#tasks-completed-' + i).text(r.taskCompleted);
+					if (r.result && r.timeOfProcessing) {
+						$('#time-processing-' + i).text(r.timeOfProcessing + ' s');
+						$('#final-result-' + i).text(r.result);
+						$('#result-row-' + i).show();
+						$('#time-row-' + i).show();
+						$('#loader-' + i).hide();
+						allSolved = allSolved && true;
+					} else {
+						allSolved = allSolved && stoppedAlgorithms[i];
+					}
+				}
+				if (allSolved) {
+					window.clearInterval(interval);
+					$('#stop-btn').prop("disabled", true);
+					$(".btn-stop-one").each(function(index, btn){
+						$(btn).prop("disabled", true);
+					});
+				}
+			},
+			error: function (xhr) {
+				console.error("ERROR: ", xhr);
+			}
+		});
+	}
+
+
+	function terminateAlgorithms() {
+		$('#stop-btn').prop("disabled", true);
+		$('#overlay-loader').show();
+		$.ajax({
+			type: 'POST',
+			url: 'stop',
+			success: function(xhr) {
+				console.log('TERMINATED ALL ALGORITHMS');
+				window.location.href='/';
+			},
+			error: function (xhr) {
+				console.error("ERROR: ", xhr);
+			}
+		});
+	}
+
+	function terminateOneAlgorithm(i, algorithmId) {
+		$.ajax({
+			type: 'POST',
+			data: {
+        		algorithmId: algorithmId
+			},
+			url: 'stop-one',
+			success: function(xhr) {
+				console.log('TERMINATED ALGORITHM ' + algorithmId);
+				$('#loader-' + i).hide();
+				$('#stop-btn-' + i).prop("disabled", true);
+				stoppedAlgorithms[i] = true;
+			},
+			error: function (xhr) {
+				console.error("ERROR: ", xhr);
+			}
+		});
+	}
+
+	function getRandomColor() {
+		return 'hsla(' + Math.floor(Math.random()*360) + ', 100%, 70%, 1)';
+	} 
+
+	function existingWorkerPosition(dataset, workerId) {
+		var contains = false;
+		var i = 0;
+		while (i < dataset.length && !contains) {
+			contains = dataset[i].label.indexOf(workerId) !== -1;
+			i++;
+		}
+		if (!contains) return -1;
+		else return (i-1);
+	}
+
+	var ctx = document.getElementById("myChart").getContext('2d');
+	myChart = new Chart(ctx, {
+		type: 'line',
+		responsive: true, 
+		maintainAspectRatio: false,
+		data: {
+			labels: myLabels,
+			datasets: myDatasets,
+			fill: false
+		},
+		options: {
+			scales: {
+				xAxes: [{
+						display: true,
+						scaleLabel: {
+							display: true,
+							labelString: 'TIME'
+						}
+					}],
+				yAxes: [{
+						display: true,
+						ticks: {
+							beginAtZero: true,
+							stepSize: 1,
+							max: 12
+						},
+						scaleLabel: {
+							display: true,
+							labelString: 'WORKING CORES'
+						}
+					}]
+			},
+		}
+	});
+
+	/*]]>*/
+</script>

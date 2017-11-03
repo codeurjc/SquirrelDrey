@@ -1,0 +1,219 @@
+<html>
+
+<head>
+	<title>Hazelcast Web App</title>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" charset="utf-8"></meta>
+
+	<!-- Bootstrap -->
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+	    crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+	    crossorigin="anonymous"></link>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+		crossorigin="anonymous"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js"></script>
+	
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"></link>
+	<!-- Bootstrap -->
+
+	<link rel="styleSheet" href="style.css" type="text/css" media="screen"></link>
+</head>
+
+<body>
+
+	<nav class="navbar navbar-default">
+		<div class="container">
+			<div class="navbar-header">
+				<a class="navbar-brand" href="/">Hazelcast Web App</a>
+			</div>
+		</div>
+	</nav>
+
+	<div class="container vertical-center">
+		<form class="form-group jumbotron">
+			<div id="algorithms-div">
+				<div class="algorithm">
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm1" class="form-control" type="text" name="algorithm1" required="true" value="AA"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData1" class="form-control" type="text" name="inputData1" required="true" value="AA"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority1" class="form-control" type="number" name="priority1" required="true" value="3"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks1" class="form-control" type="number" name="tasks1" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration1" class="form-control" type="number" name="duration1" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout1" class="form-control" type="number" name="timeout1" required="true" value="0"></input>
+						</p>
+					</div>
+				</div>
+				<div class="algorithm">
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm2" class="form-control" type="text" name="algorithm2" required="true" value="BB"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData2" class="form-control" type="text" name="inputData2" required="true" value="BB"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority2" class="form-control" type="number" name="priority2" required="true" value="2"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks2" class="form-control" type="number" name="tasks2" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration2" class="form-control" type="number" name="duration2" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout2" class="form-control" type="number" name="timeout2" required="true" value="0"></input>
+						</p>
+					</div>
+				</div>
+				<div class="algorithm">
+					<div class="form-row">
+						<p>
+							<label>Algorithm</label>
+							<input id="algorithm3" class="form-control" type="text" name="algorithm3" required="true" value="CC"></input>
+						</p>
+						<p>
+							<label>Input Data</label>
+							<input id="inputData3" class="form-control" type="text" name="inputData3" required="true" value="CC"></input>
+						</p>
+						<p>
+							<label>Priority ( 1 > 2 > 3 ... )</label>
+							<input id="priority3" class="form-control" type="number" name="priority3" required="true" value="1"></input>
+						</p>
+					</div>
+					<div class="form-row">
+						<p>
+							<label>Number of tasks</label>
+							<input id="tasks3" class="form-control" type="number" name="tasks3" required="true" value="30"></input>
+						</p>
+						<p>
+							<label>Task duration</label>
+							<input id="duration3" class="form-control" type="number" name="duration3" required="true" value="6"></input>
+						</p>
+						<p>
+							<label>Timeout before start</label>
+							<input id="timeout3" class="form-control" type="number" name="timeout3" required="true" value="0"></input>
+						</p>
+					</div>
+				</div>
+			</div>
+			<p class="text-center">
+				<button id="add-btn" type="button" class="btn btn-lg btn-info" onclick="addAlgorithm()">Add</button>
+				<button id="remove-btn" type="button" class="btn btn-lg btn-warning" onclick="removeAlgorithm()">Remove</button>
+			</p>
+			<p class="text-center">
+				<button id="submit-btn" type="button" class="btn btn-lg btn-success" onclick="post()">Go</button>
+			</p>
+		</form>
+	</div>
+
+	<footer class="footer">
+		<div class="container">
+			<div class="text-muted">CodeURJC</div>
+			<a href="http://www.codeurjc.es/" target="_blank">
+				<img class="footer-logo" src="images/code.png" />
+			</a>
+		</div>
+	</footer>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+		var nAlgorithms = 3;
+
+		function addAlgorithm() {
+			nAlgorithms++;
+			var str =
+				'<div class="algorithm"><div class="form-row"><p><label>Algorithm</label><input id="algorithm' + nAlgorithms +
+				'" class="form-control" type="text" name="algorithm' + nAlgorithms +
+				'" required="true"></input></p><p><label>Input Data</label><input id="inputData' + nAlgorithms +
+				'" class="form-control" type="text" ' +
+				'name="inputData' + nAlgorithms + '" required="true"></input></p>' +
+				'<p><label>Priority</label><input id="priority' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="priority' + nAlgorithms + '" required="true" value="1"></input></p></div><div class="form-row">' +
+				'<p><label>Number of tasks</label><input id="tasks' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="tasks' + nAlgorithms + '" required="true" value="30"></input></p>' +
+				'<p><label>Task duration</label><input id="duration' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="duration' + nAlgorithms + '" required="true" value="6"></input></p>' +
+				'<p><label>Timeout before start</label><input id="timeout' + nAlgorithms +
+				'" class="form-control" type="number" ' +
+				'name="timeout' + nAlgorithms + '" required="true" value="0"></input></p></div></div>';
+			var node = $.parseHTML(str);
+			$('#algorithms-div').append(str);
+			$('#submit-btn').prop("disabled", false);
+			$('#remove-btn').prop("disabled", false);
+			return false;
+		}
+
+		function removeAlgorithm() {
+			$('#algorithms-div .algorithm').last().remove();
+			nAlgorithms--;
+			if (nAlgorithms === 0) {
+				$('#submit-btn').prop("disabled", true);
+				$('#remove-btn').prop("disabled", true);
+			}
+			return false;
+		}
+
+		function post() {
+			var algorithmsData = [];
+			for (var i = 1; i <= nAlgorithms; i++) {
+				algorithmsData[i - 1] = {
+					id: ($('#algorithm' + i)).val(),
+					inputData: ($('#inputData' + i)).val(),
+					priority: ($('#priority' + i)).val(),
+					numberOfTasks: ($('#tasks' + i)).val(),
+					taskDuration: ($('#duration' + i)).val(),
+					timeout: ($('#timeout' + i)).val(),
+				};
+			}
+			console.log(algorithmsData);
+			$.ajax({
+				type: "POST",
+				url: window.location.origin + "/solve",
+				headers: {
+					'Accept': 'application/json',
+					'Content-Type': 'application/json'
+				},
+				data: JSON.stringify(algorithmsData),
+				success: function (response, textStatus, jqXHR) {
+					window.history.pushState("Result page", "Results", "/solve");
+					$("body").html(response);
+				}
+			});
+		}
+		/*]]>*/
+	</script>
+
+</body>
+
+</html>
