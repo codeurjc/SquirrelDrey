@@ -6,7 +6,7 @@ This project is a Java framework aimed to support distributed execution of algor
 - Every **Algorithm** must have one initial **Task**
 - Every **Algorithm** must have one solving **Task**
 
-The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks. All of them will be executed in a distributed cluster. To control the internal logic of the custom algorithm Hazelcast objects may be used. For example, a distributed Latch can be used to make certain task generate another different one. Or a distributed Map can be useful for storing results. For further information, see [Hazelcast Docs](http://docs.hazelcast.org/docs/latest-development/manual/html/Preface/Hazelcast_IMDG_Editions.html).
+The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks. All of them will be executed in a distributed cluster. To control the internal logic of the custom algorithm Hazelcast objects may be used. For example, a distributed Latch can be used to make certain task generate another different one only when certain condition is met. Or a distributed Map can be useful for storing any intermediate task's result. For further information, see [Hazelcast Docs](http://docs.hazelcast.org/docs/latest-development/manual/html/Preface/Hazelcast_IMDG_Editions.html).
 
 Any Task can act as a solving task just by calling `Task.algorithmSolved()` method.
 
