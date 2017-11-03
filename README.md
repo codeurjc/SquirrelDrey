@@ -143,7 +143,7 @@ java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worke
 
 **Launch sampleapp** *(different console window)*
 ```
-java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=false" "--hazelcast-client-config=/home/pablo/Documents/Git/distributed-algorithm-aws/sampleapp/src/main/resources/hazelcast-client-config.xml" "--aws=false"
+java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=false" "--hazelcast-client-config=src/main/resources/hazelcast-client-config.xml" "--aws=false"
 ```
 
 You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
