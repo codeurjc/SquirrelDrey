@@ -35,7 +35,7 @@ public class CloudWatchModule {
 
 		PutMetricDataResult response = cw.putMetricData(request);
 		
-		//System.out.println("METRICS: " + nAlgorithms/nInstances);
+		System.out.println("METRICS PUSHED: " + nAlgorithms/nInstances);
 	}
 	
 	public void startPublishMetricsThread() {
