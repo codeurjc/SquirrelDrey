@@ -54,7 +54,7 @@ public class AlgorithmManager<R> {
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		
 		this.withAWSCloudWatch = withAWSCloudWatch;
-		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.QUEUES);
+		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.hzClient, this.QUEUES);
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -104,6 +104,14 @@ public class AlgorithmManager<R> {
 
 	public Algorithm<R> getAlgorithm(String algorithmId) {
 		return this.algorithms.get(algorithmId);
+	}
+	
+	public Algorithm<R> removeAlgorithm(String algorithmId) {
+		return this.algorithms.remove(algorithmId);
+	}
+	
+	public void clearAlgorithms() {
+		this.algorithms.clear();
 	}
 	
 	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority) throws Exception {

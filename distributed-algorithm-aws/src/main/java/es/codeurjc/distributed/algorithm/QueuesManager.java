@@ -63,7 +63,6 @@ public class QueuesManager {
 	
 	public void initializeHazelcast(HazelcastInstance hc) {
 		this.hc = hc;
-		//this.cloudWatchModule = new CloudWatchModule();
 		
 		// Initialize thread pool
 		this.nThreads = Runtime.getRuntime().availableProcessors();
@@ -503,6 +502,8 @@ public class QueuesManager {
 				e.printStackTrace();
 			}
 		}
+		
+		this.mapOfQueues.remove(algorithmId);
 		
 		hc.getTopic("stop-one-algorithm-done").publish(algorithmId);
 		

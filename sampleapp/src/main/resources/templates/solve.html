@@ -29,6 +29,7 @@
 </footer>
 
 <script th:inline="javascript">
+
 	/*<![CDATA[*/
 	var algorithms = [[${algorithms}]];
 	var algorithmIds = [];
@@ -47,7 +48,7 @@
 			'" hidden="true"><th>Final result</th><td id="final-result-' +
 			i + '"></td><td></td></tr><tr id="time-row-' + i +
 			'" hidden="true"><th>Time of processing</th><td id="time-processing-' + i +
-			'"></td><td></td></tr><tr><th>STOP</th><td><button id="stop-btn-' + i + '" type="button" class="btn btn-danger btn-sm btn-stop-one" onclick="terminateOneAlgorithm(' + i + ', \'' + algorithms[i].id + '\')">STOP EXECUTION</button></td><td></td></tr></table></div>'
+			'"></td><td></td></tr><tr><th>STOP</th><td><button id="stop-btn-' + i + '" type="button" class="btn btn-danger btn-sm btn-stop-one" onclick="terminateOneAlgorithm(' + i + ', \'' + algorithms[i].id + '\')">STOP</button></td><td></td></tr></table></div>'
 		var node = $.parseHTML(strHtml);
 		$('#algorithm-results').append(node);
 	}
@@ -108,7 +109,7 @@
 
 				myChart.update();
 
-				var allSolved = true;
+				var allSolved = algorithms.length === algorithmStats.length;
 				for (var i = 0; i < algorithmStats.length; i++) {
 					var r = algorithmStats[i];
 					$('#tasks-queue-' + i).text(r.taskQueued);
@@ -119,6 +120,7 @@
 						$('#result-row-' + i).show();
 						$('#time-row-' + i).show();
 						$('#loader-' + i).hide();
+						$('#stop-btn-' + i).prop("disabled", true);
 						allSolved = allSolved && true;
 					} else {
 						allSolved = allSolved && stoppedAlgorithms[i];

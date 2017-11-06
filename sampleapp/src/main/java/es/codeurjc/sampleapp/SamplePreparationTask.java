@@ -20,20 +20,16 @@ public class SamplePreparationTask extends Task<Void> {
 	private String atomicLongId;
 	private Integer numberOfTasks;
 	private Integer taskDuration;
-	private Integer timeout;
 
-	public SamplePreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, Integer timeout, String atomicLongId) {
+	public SamplePreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, String atomicLongId) {
 		this.inputData = inputData;
 		this.atomicLongId = atomicLongId;
 		this.numberOfTasks = numberOfTasks;
 		this.taskDuration = taskDuration;
-		this.timeout = timeout;
 	}
 
 	@Override
 	public void process() throws Exception {
-		Thread.sleep(this.timeout * 1000);
-		
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
 		List<SampleAtomicTask> atomicTasks = this.generateAtomicTasks();
 		atomicLong.set(this.numberOfTasks);

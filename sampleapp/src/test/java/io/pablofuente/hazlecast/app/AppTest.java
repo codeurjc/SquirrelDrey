@@ -69,7 +69,7 @@ public class AppTest {
 				String algId = "testAlgorithm" + j;
 				latches.put(algId, new CountDownLatch(1));
 				try {
-					manager.solveAlgorithm(algId, new SamplePreparationTask("test_input_data" + j, 10, 3, 0, "test_atomic_long_id" + j), 1, (r) -> {
+					manager.solveAlgorithm(algId, new SamplePreparationTask("test_input_data" + j, 10, 3, "test_atomic_long_id" + j), 1, (r) -> {
 						results.put(algId, r);
 						latches.get(algId).countDown();
 					});

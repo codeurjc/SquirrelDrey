@@ -30,6 +30,7 @@ public class SampleAlgorithmController {
 
 	@RequestMapping(value = "/")
 	public String index() {
+		algorithmManager.clearAlgorithms();
 		return "index";
 	}
 
@@ -38,11 +39,22 @@ public class SampleAlgorithmController {
 		List<SampleAlgorithmParameters> algorithmFields = new ArrayList<>();
 		for (SampleAlgorithmParameters algorithm : algorithms) {
 			try {
-				Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
-						algorithm.getTaskDuration(), algorithm.getTimeout(), "countdown-" + algorithm.getId());
-				algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
-					log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result.toString());
-				});
+				new Thread(() -> {
+					try {
+						Thread.sleep(1000 * algorithm.getTimeout());
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
+							algorithm.getTaskDuration(), "countdown-" + algorithm.getId());
+					try {
+						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
+							log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result.toString());
+						});
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				}).start();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
