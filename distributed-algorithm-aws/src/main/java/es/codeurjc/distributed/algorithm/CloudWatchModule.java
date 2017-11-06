@@ -35,14 +35,20 @@ public class CloudWatchModule {
 	
 	public void startPublishMetricsThread() {
 		this.publishMetricsThread = new Thread(() -> {
-			this.publishMetrics((double) this.queues.size());
-			try {
-				Thread.sleep(10000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			while (true) {
+				this.publishMetrics((double) this.queues.size());
+				try {
+					Thread.sleep(10000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 		});
 		this.publishMetricsThread.start();
+	}
+	
+	public void stopPublishMetricsThread() {
+		this.publishMetricsThread.interrupt();
 	}
 	
 
