@@ -3,17 +3,19 @@ package io.pablofuente.hazlecast.app;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.junit.platform.runner.JUnitPlatform;
@@ -29,8 +31,9 @@ import es.codeurjc.sampleapp.SamplePreparationTask;
 @RunWith(JUnitPlatform.class)
 public class AppTest {
 	
-	Map<String, String> results = new ConcurrentHashMap<>();
-	Map<String, CountDownLatch> latches = new ConcurrentHashMap<>();
+	Map<String, String> results = new HashMap<>();
+	Map<String, CountDownLatch> latches = new HashMap<>();
+	Map<String, Long> times = new HashMap<>();
 	
 	@AfterEach
 	void dispose() {
@@ -38,6 +41,7 @@ public class AppTest {
 	}
 	
 	@Test
+	@Disabled
 	public void testApp() throws InterruptedException {
 		launchWorker(Mode.RANDOM);
 		Thread.sleep(4000);
@@ -45,20 +49,32 @@ public class AppTest {
 	}
 	
 	@Test
+	@Disabled
 	public void testSimpleSolveOneAlgorithm() throws Exception {
 		testAlgorithmsWorkers(1, 1, Mode.PRIORITY);
 	}
 	
 	@Test
 	public void testRandomThreeAlgorithms() throws Exception {
-		testAlgorithmsWorkers(3, 3, Mode.RANDOM);
+		testAlgorithmsWorkers(3, 1, Mode.RANDOM);
+		checkTimeDifferences(0, 5, times.values());
+	}
+	
+	@Test
+	public void tesPriorityThreeAlgorithms() throws Exception {
+		testAlgorithmsWorkers(3, 1, Mode.PRIORITY);
+		checkTimeDifferences(7, 100, times.values());
 	}
 	
 	private void testAlgorithmsWorkers(int nAlgorithms, int nWorkers, Mode mode) throws InterruptedException {
 		
-		for (int i = 0; i < nWorkers; i++) {
+		int nTasks = 20;
+		
+		for (int i = 0; i < nWorkers - 1; i++) {
 			launchWorker(mode);
 		}
+		// Last worker launched synchronously
+		launchWorker(mode);
 		
 		AlgorithmManager<String> manager = new AlgorithmManager<>("src/main/resources/hazelcast-client-config.xml", false);
 		
@@ -69,15 +85,17 @@ public class AppTest {
 				String algId = "testAlgorithm" + j;
 				latches.put(algId, new CountDownLatch(1));
 				try {
-					manager.solveAlgorithm(algId, new SamplePreparationTask("test_input_data" + j, 10, 3, "test_atomic_long_id" + j), 1, (r) -> {
+					times.put(algId, System.currentTimeMillis());
+					manager.solveAlgorithm(algId, new SamplePreparationTask("test_input_data" + j, nTasks, 5, "test_atomic_long_id" + j), j + 1, (r) -> {
 						results.put(algId, r);
 						latches.get(algId).countDown();
+						times.put(algId, System.currentTimeMillis() - times.get(algId));
 					});
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 				try {
-					assertTrue(latches.get(algId).await(30, TimeUnit.SECONDS));
+					assertTrue(latches.get(algId).await(50, TimeUnit.SECONDS));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -90,20 +108,33 @@ public class AppTest {
 		    es.execute(t);
 		}
 		es.shutdown();
-		assertTrue(es.awaitTermination(40, TimeUnit.SECONDS));
+		assertTrue(es.awaitTermination(60, TimeUnit.SECONDS));
 		for (Entry<String, String> entry : this.results.entrySet()) {
-			assertEquals(results.get(entry.getKey()), "100");
+			assertEquals(results.get(entry.getKey()), Integer.toString(nTasks*10));
+		}
+	}
+	
+	private void checkTimeDifferences(int min, int max, Iterable<Long> it){
+		Iterator<Long> iterator = it.iterator();
+		long prev = 0;
+		if (iterator.hasNext()) prev = iterator.next();
+		while (iterator.hasNext()) {
+			long next = iterator.next();
+			int difference = (int) Math.abs(prev/1000-next/1000);
+			assertTrue((difference >= min) && (difference <= max));
+			prev = next;
 		}
 	}
 	
 	private void launchWorker(Mode mode) {
-		String[] args = {"--worker=true", "--hazelcast-config=src/main/resources/hazelcast-config.xml", "--mode=" + mode};
-		App.main(args);
+		System.setProperty("mode", mode.toString());
+		System.setProperty("isWorker", "true");
+		App.main(new String[0]);
 	}
 	
 	private void launchApp() {
-		String[] args = {"--worker=false", "--hazelcast-client-config=src/main/resources/hazelcast-client-config.xml", "--aws=false"};
-		App.main(args);
+		System.setProperty("isWorker", "false");
+		App.main(new String[0]);
 	}
 	
 	private void disposeAll() {
@@ -118,8 +149,10 @@ public class AppTest {
 				e.printStackTrace();
 			}
 		}
-		System.out.println("...ALL INSTANCES ARE DOWN");
 		this.results.clear();
 		this.latches.clear();
+		this.times.clear();
+		System.out.println("...ALL INSTANCES ARE DOWN");
 	}
+	
 }
