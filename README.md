@@ -1,6 +1,20 @@
 distributed-algorithm-aws
 ===
 
+----------
+
+## Table of contents
+
+* [Introduction](#introduction)
+* [Code example](#code-example)
+* [Running *sampleapp*](#running-sampleapp)
+* [Building your own app](#building-your-own-app)
+* [API](#api)
+
+----------
+
+## Introduction
+
 This project is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. It is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means:
 
 - Every **Algorithm** must have one initial **Task**
@@ -10,6 +24,7 @@ The initial Task will generate as much other tasks as needed. In the same manner
 
 Any Task can act as a solving task just by calling `Task.algorithmSolved()` method.
 
+----------
 
 ## Code example
 
@@ -106,6 +121,8 @@ public class SolveTask extends Task<String> {
 }
 ```
 
+----------
+
 ## Running *sampleapp*
 
 To run the sample application (**sampleapp**), execute the following commands:
@@ -130,6 +147,8 @@ java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-clien
 ```
 
 You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
+
+----------
 
 ## Building your own app
 
@@ -170,6 +189,7 @@ But one **worker** will be launched if done like this:
 
 `java -Dworker=true -jar sampleapp.jar`
 
+----------
 
 ## API
 
