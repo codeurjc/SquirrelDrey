@@ -54,7 +54,7 @@ public class AlgorithmManager<R> {
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		
 		this.withAWSCloudWatch = withAWSCloudWatch;
-		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule();
+		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.QUEUES);
 
 		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -71,9 +71,9 @@ public class AlgorithmManager<R> {
 			// Remove distributed queue
 			this.QUEUES.remove(ev.getAlgorithmId());
 			
-			if (this.withAWSCloudWatch) {
+			/*if (this.withAWSCloudWatch) {
 				this.cloudWatchModule.publishMetrics((double) QUEUES.size());
-			}
+			}*/
 		});
 		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
@@ -113,9 +113,9 @@ public class AlgorithmManager<R> {
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
-		if (this.withAWSCloudWatch) {
+		/*if (this.withAWSCloudWatch) {
 			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
-		}
+		}*/
 		
 		alg.solve(queue);
 	}
@@ -127,9 +127,9 @@ public class AlgorithmManager<R> {
 		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
-		if (this.withAWSCloudWatch) {
+		/*if (this.withAWSCloudWatch) {
 			this.cloudWatchModule.publishMetrics((double) QUEUES.size());
-		}
+		}*/
 		
 		alg.solve(queue);
 	}
