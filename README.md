@@ -1,8 +1,6 @@
 distributed-algorithm-aws
 ===
 
-----------
-
 ## Table of contents
 
 * [Introduction](#introduction)
