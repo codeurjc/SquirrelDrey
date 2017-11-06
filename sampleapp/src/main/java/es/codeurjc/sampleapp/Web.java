@@ -15,7 +15,7 @@ public class Web {
 		String hazelcastConfigPath = System.getProperty("hazelcast-client-config") != null ? 
 				System.getProperty("hazelcast-client-config") : 
 				"src/main/resources/hazelcast-client-config.xml";
-		boolean withAWS = System.getProperty("aws") != null ? Boolean.getBoolean(System.getProperty("aws")) : false;
+		boolean withAWS = System.getProperty("aws") != null ? Boolean.valueOf(System.getProperty("aws")) : false;
 		
 		return new AlgorithmManager<>(hazelcastConfigPath, withAWS);
 	}
