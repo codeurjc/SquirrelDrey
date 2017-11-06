@@ -1,4 +1,4 @@
-distributed-algorithm-aws
+SquirrelDrey
 ===
 
 ## Table of contents
@@ -13,7 +13,7 @@ distributed-algorithm-aws
 
 ## Introduction
 
-This project is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. It is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means:
+SquirrelDrey is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. SquirrelDrey is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means:
 
 - Every **Algorithm** must have one initial **Task**
 - Every **Algorithm** must have one solving **Task**
