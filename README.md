@@ -10,37 +10,20 @@ The initial Task will generate as much other tasks as needed. In the same manner
 
 Any Task can act as a solving task just by calling `Task.algorithmSolved()` method.
 
-## API
-
-| Class  | T | Description  |
-|---|---|---|
-| `AlgorithmManager<T>`  | Class of the algorithm's final result. Must be a Serializable object  | Centralized manager object for launching algorithms and getting their result   |
-| `Task<T>`  | Class of the task's final result. Must be a Serializable object  | Callable objects that will be executed asynchronously in a distributed cluster |
-
-
-#### AlgorithmManager< T > 
-
-| Method  | Params | Returns  | Description |
-|---|---|---|---|
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task<?>:initialTask`<br>`Integer:priority`<br>`Consumer<R>:callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Tassk to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
-| `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
-| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not empty and properly stopped |
-| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not empty and properly stopped |
-
-
-#### Task< T > 
-
-| Method  | Params | Returns  | Description |
-|---|---|---|---|
-| `addNewTask`  | `Task<?>:task` | void | Add a new Task to the algorithm |
-| `process`  |  | void | Main code of the distributed task |
-| `setResult`  | `T:result` | void | Sets the final result for this task. Usually this method is called inside `Task.process` method |
-| `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
-| `getId`  | void | `int` | Returns the unique identifier for this task |
 
 ## Code example
 
-This is an Algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. Our PreparationTask will act as the initial task for the algorithm. It generates 10 SampleTask, that simply wait for 5 seconds and set their result as '1'. The last SampleTask will generate one SolveTask, which sums all the results from all AtomicTasks and ends the algorithm (the final result will be the number of AtomicTasks executed).
+This is an Algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
+
+Our **PreparationTask** will act as the initial task for the algorithm. It generates 10 **AtomicTask**, that simply wait for 5 seconds and set their result as '1'. The last executed **AtomicTask** will generate one **SolveTask**, which sums all the results from all **AtomicTask** and ends the algorithm (the final result will be the number of AtomicTasks executed).
+
+<p align="center">
+  <img src="https://docs.google.com/uc?id=1AQIGutVrqJLyq4JgezMAmTmoaeK65p8o">
+</p>
+
+To control which **AtomicTask** should generate the only **SolveTask**, we make use of a distributed *AtomicLong*, provided by Hazelcast. **PreparationTask** initilizes this parameter to the number of **AtomicTasks** and each **AtomicTask** decrements it at the end of its `process()` method. When any **AtomicTask** decrements the value to 0 it will mean that it is indeed the last of its kind and it will add one **SolveTask**.
+
+This flow means that both **PreparationTask** and **SolveTask** block the execution: **PreparationTask** will always be the first Task executed and **SolveTask** the last one. In principle, we don't know (and we don't mind) the order of execution of the **AtomicTasks**.
 
 ```
 AlgorithmManager<String> manager = new AlgorithmManager<>();
@@ -138,12 +121,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=true" "--hazelcast-config=src/main/resources/hazelcast-config.xml" "--mode=RANDOM"
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar "--worker=false" "--hazelcast-client-config=src/main/resources/hazelcast-client-config.xml" "--aws=false"
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar
 ```
 
 You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
@@ -168,11 +151,12 @@ An easy way of managing this situation is by using command line options to choos
 ```
 public static void main(String[] args) {
 
-	String modeOfExecution = args[0];
-	if (modeOfExecution.equals("app")) {
+	boolean isWorker = Boolean.valueOf(System.getProperty("worker"));
+
+	if (!isWorker) {
 		SpringApplication.run(Web.class);
-	} else if (modeOfExecution.equals("worker")) {
-		Worker.main(args);
+	} else {
+		Worker.launch();
 	}
 	
 }
@@ -180,8 +164,38 @@ public static void main(String[] args) {
 
 So, our **application** will start up if we launch the JAR the following way:
 
-`java -jar sampleapp.jar "app"`
+`java -Dworker=false -jar sampleapp.jar`
 
 But one **worker** will be launched if done like this:
 
-`java -jar sampleapp.jar "worker"`
+`java -Dworker=true -jar sampleapp.jar`
+
+
+## API
+
+| Class  | T | Description  |
+|---|---|---|
+| `AlgorithmManager<T>`  | Class of the algorithm's final result. Must be a Serializable object  | Centralized manager object for launching algorithms and getting their result   |
+| `Task<T>`  | Class of the task's final result. Must be a Serializable object  | Callable objects that will be executed asynchronously in a distributed cluster |
+
+
+#### AlgorithmManager< T > 
+
+| Method  | Params | Returns  | Description |
+|---|---|---|---|
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task<?>:initialTask`<br>`Integer:priority`<br>`Consumer<R>:callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Tassk to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
+| `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
+| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not empty and properly stopped |
+| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not empty and properly stopped |
+
+
+#### Task< T > 
+
+| Method  | Params | Returns  | Description |
+|---|---|---|---|
+| `addNewTask`  | `Task<?>:task` | void | Add a new Task to the algorithm |
+| `process`  |  | void | Main code of the distributed task |
+| `setResult`  | `T:result` | void | Sets the final result for this task. Usually this method is called inside `Task.process` method |
+| `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
+| `getId`  | void | `int` | Returns the unique identifier for this task |
+
