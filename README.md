@@ -123,25 +123,25 @@ public class SolveTask extends Task<String> {
 
 ## Running *sampleapp*
 
-To run the sample application (**sampleapp**), execute the following commands:
+To run the sample application (**squirrel-drey-sampleapp**), execute the following commands:
 
 **Clone and build the project**
 ```
-git clone https://github.com/codeurjc/distributed-algorithm-aws.git
-cd distributed-algorithm-aws/distributed-algorithm-aws
+git clone https://github.com/codeurjc/SquirrelDrey.git
+cd SquirrelDrey/squirrel-drey
 mvn install
-cd ../sampleapp
+cd ../squirrel-drey-sampleapp
 mvn -DskipTests=true package
 ```
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-0.0.1-SNAPSHOT.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/distributed-algorithm-aws-sampleapp-0.0.1-SNAPSHOT.jar
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-0.0.1-SNAPSHOT.jar
 ```
 
 You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
@@ -155,7 +155,7 @@ Your project must have the following dependency:
 ```
 <dependency>
 	<groupId>es.codeurjc</groupId>
-	<artifactId>distributed-algorithm-aws</artifactId>
+	<artifactId>squirrel-drey</artifactId>
 	<version>0.0.1</version>
 </dependency>
 ```
@@ -163,7 +163,7 @@ Your project must have the following dependency:
 Because of the way Hazelcast manages distributed objects, your application will have to be responsible of launching the workers (for security reasons, custom objects cannot be sent between nodes if their classes are not purposely declared and available on the node's classpath).
 An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.main()`).
 
-*sampleapp* does it just like this. Summarizing its `main` method:
+*squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
 ```
 public static void main(String[] args) {
