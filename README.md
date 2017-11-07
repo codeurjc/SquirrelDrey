@@ -4,8 +4,8 @@ SquirrelDrey
 ## Table of contents
 
 * [Introduction](#introduction)
-* [Code example](#code-example)
-* [Running *sampleapp*](#running-sampleapp)
+* [Code example](#code-example-squirrel-drey-hello-world)
+* [Running sample applications](#running-sample-applications)
 * [Building your own app](#building-your-own-app)
 * [API](#api)
 
@@ -24,9 +24,9 @@ Any Task can act as a solving task just by calling `Task.algorithmSolved()` meth
 
 ----------
 
-## Code example
+## Code example (*squirrel-drey-hello-world*)
 
-This is an Algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
+We will explain our _hello-world_ sample app (***squirrel-drey-hello-world***). This app runs an algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
 
 Our **PreparationTask** will act as the initial task for the algorithm. It generates 10 **AtomicTask**, that simply wait for 5 seconds and set their result as '1'. The last executed **AtomicTask** will generate one **SolveTask**, which sums all the results from all **AtomicTask** and ends the algorithm (the final result will be the number of AtomicTasks executed).
 
@@ -121,16 +121,36 @@ public class SolveTask extends Task<String> {
 
 ----------
 
-## Running *sampleapp*
+## Running sample applications
 
-To run the sample application (**squirrel-drey-sampleapp**), execute the following commands:
+### squirrel-drey-hello-world
 
 **Clone and build the project**
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
-cd SquirrelDrey/squirrel-drey
-mvn install
-cd ../squirrel-drey-sampleapp
+cd SquirrelDrey/squirrel-drey-hello-world
+mvn -DskipTests=true package
+```
+
+**Launch a worker**
+```
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-hello-world-0.0.1.jar
+```
+
+**Launch app** *(different console window)*
+```
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-hello-world-0.0.1.jar
+```
+
+The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
+
+
+### squirrel-drey-sample-app
+
+**Clone and build the project**
+```
+git clone https://github.com/codeurjc/SquirrelDrey.git
+cd SquirrelDrey/squirrel-drey-sampleapp
 mvn -DskipTests=true package
 ```
 
@@ -144,7 +164,7 @@ java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -D
 java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-0.0.1-SNAPSHOT.jar
 ```
 
-You will have the app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
+You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
 
 ----------
 
