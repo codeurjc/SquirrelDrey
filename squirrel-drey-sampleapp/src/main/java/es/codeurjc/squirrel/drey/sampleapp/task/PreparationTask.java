@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey.sampleapp;
+package es.codeurjc.squirrel.drey.sampleapp.task;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,17 +11,17 @@ import com.hazelcast.core.IAtomicLong;
 
 import es.codeurjc.squirrel.drey.Task;
 
-public class SamplePreparationTask extends Task<Void> {
+public class PreparationTask extends Task<Void> {
 
 	private static final long serialVersionUID = 1L;
-	private static final Logger log = LoggerFactory.getLogger(SamplePreparationTask.class);
+	private static final Logger log = LoggerFactory.getLogger(PreparationTask.class);
 	
 	private String inputData;
 	private String atomicLongId;
 	private Integer numberOfTasks;
 	private Integer taskDuration;
 
-	public SamplePreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, String atomicLongId) {
+	public PreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, String atomicLongId) {
 		this.inputData = inputData;
 		this.atomicLongId = atomicLongId;
 		this.numberOfTasks = numberOfTasks;
@@ -31,9 +31,9 @@ public class SamplePreparationTask extends Task<Void> {
 	@Override
 	public void process() throws Exception {
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
-		List<SampleAtomicTask> atomicTasks = this.generateAtomicTasks();
+		List<AtomicTask> atomicTasks = this.generateAtomicTasks();
 		atomicLong.set(this.numberOfTasks);
-		for (SampleAtomicTask t : atomicTasks) {
+		for (AtomicTask t : atomicTasks) {
 			try {
 				addNewTask(t);
 				publishQueueStats();
@@ -44,11 +44,11 @@ public class SamplePreparationTask extends Task<Void> {
 		}
 	}
 
-	private List<SampleAtomicTask> generateAtomicTasks() {
-		List<SampleAtomicTask> atomicTasks = new ArrayList<>();
+	private List<AtomicTask> generateAtomicTasks() {
+		List<AtomicTask> atomicTasks = new ArrayList<>();
 		Random rand = new Random(Math.abs(Long.valueOf(this.inputData.hashCode())));
 		for (int i = 0; i < this.numberOfTasks; i++) {
-			SampleAtomicTask t = new SampleAtomicTask("results-" + this.algorithmId, this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
+			AtomicTask t = new AtomicTask("results-" + this.algorithmId, this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
 			atomicTasks.add(t);
 		}
 		return atomicTasks;

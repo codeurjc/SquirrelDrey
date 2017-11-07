@@ -1,11 +1,12 @@
-package es.codeurjc.squirrel.drey.sampleapp;
+package es.codeurjc.squirrel.drey.sampleapp.task;
 
 import java.util.Map;
 import com.hazelcast.core.IAtomicLong;
 
 import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.sampleapp.App;
 
-public class SampleAtomicTask extends Task<String> {
+public class AtomicTask extends Task<String> {
 
 	private static final long serialVersionUID = 1L;
 	private String resultMapId;
@@ -14,7 +15,7 @@ public class SampleAtomicTask extends Task<String> {
 	private Integer taskDuration;
 	private String workDescription;
 
-	public SampleAtomicTask(String resultMapId, String atomicLongId, String workData, Integer taskDuration, String workDescription) {
+	public AtomicTask(String resultMapId, String atomicLongId, String workData, Integer taskDuration, String workDescription) {
 		this.resultMapId = resultMapId;
 		this.atomicLongId = atomicLongId;
 		this.workData = workData;
@@ -34,7 +35,8 @@ public class SampleAtomicTask extends Task<String> {
 	public void process() throws Exception {
 		Thread.sleep(taskDuration * 1000);
 		
-		this.setResult("10");
+		//this.setResult(this.workData);
+		this.setResult("1");
 		
 		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
@@ -46,7 +48,7 @@ public class SampleAtomicTask extends Task<String> {
 		
 		if (l == 0L) {
 			App.logger.info("ADDING SOLVE TASK FOR ALGORITHM [{}]", this.algorithmId);
-			addNewTask(new SampleSolveTask());
+			addNewTask(new ResultTask());
 		}
 	}
 	

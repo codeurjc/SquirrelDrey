@@ -26,7 +26,7 @@ import com.hazelcast.core.HazelcastInstance;
 import es.codeurjc.squirrel.drey.AlgorithmManager;
 import es.codeurjc.squirrel.drey.Mode;
 import es.codeurjc.squirrel.drey.sampleapp.App;
-import es.codeurjc.squirrel.drey.sampleapp.SamplePreparationTask;
+import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
 @RunWith(JUnitPlatform.class)
 public class AppTest {
@@ -86,7 +86,7 @@ public class AppTest {
 				latches.put(algId, new CountDownLatch(1));
 				try {
 					times.put(algId, System.currentTimeMillis());
-					manager.solveAlgorithm(algId, new SamplePreparationTask("test_input_data" + j, nTasks, 5, "test_atomic_long_id" + j), j + 1, (r) -> {
+					manager.solveAlgorithm(algId, new PreparationTask("test_input_data" + j, nTasks, 5, "test_atomic_long_id" + j), j + 1, (r) -> {
 						results.put(algId, r);
 						latches.get(algId).countDown();
 						times.put(algId, System.currentTimeMillis() - times.get(algId));

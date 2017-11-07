@@ -134,12 +134,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-hello-world-0.0.1.jar
+java -Dworker=true -jar target/squirrel-drey-hello-world-0.0.1.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-hello-world-0.0.1.jar
+java -Dworker=false -jar target/squirrel-drey-hello-world-0.0.1.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.

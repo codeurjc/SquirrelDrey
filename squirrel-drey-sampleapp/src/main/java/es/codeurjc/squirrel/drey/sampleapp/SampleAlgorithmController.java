@@ -19,6 +19,7 @@ import es.codeurjc.squirrel.drey.Algorithm;
 import es.codeurjc.squirrel.drey.AlgorithmManager;
 import es.codeurjc.squirrel.drey.Task;
 import es.codeurjc.squirrel.drey.WorkerStats;
+import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
 @Controller
 public class SampleAlgorithmController {
@@ -45,7 +46,7 @@ public class SampleAlgorithmController {
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-					Task<Void> initialTask = new SamplePreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
+					Task<Void> initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
 							algorithm.getTaskDuration(), "countdown-" + algorithm.getId());
 					try {
 						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
