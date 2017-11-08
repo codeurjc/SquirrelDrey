@@ -240,7 +240,7 @@ But one **worker** will be launched if done like this:
 
 ## Some thoughts about Hazelcast approach compared to other alternatives
 
-SquirrelDrey framework relies on Hazelcast, but other alternatives could be used. In this section we will compare the two current main options available to deal with distribution of algorithms on clusters, taking Hazelcast and Apache Flink as representatives for each approach. We will discuss why Hazelcast is the final chosen technology.
+SquirrelDrey framework relies on Hazelcast, but other alternatives could be used. In this section we will compare the two current main options available to deal with distribution of algorithms on clusters, taking Hazelcast and Apache Flink as representatives for each approach. We will also discuss why Hazelcast is the final chosen technology.
 
 First of all, both frameworks share similar architecures. Users can launch slave nodes to build one cluster, and clients that can communicate with the cluster are available to use in Java applications.
 
@@ -326,4 +326,7 @@ Both of them support **fault tolerance**: Apache Flink can store the execution s
 
 #### Scalability
 In terms of **scalability**, Apache Flink has a very important restriction: the parallelism must be declared on the cluster configuration or on the pipeline code. This means that when any node is dynamically added to the cluster, a whole reset of the cluster and re-configuration is needed for the new node to be fully exploited. This is supposed in a AWS scenario using a cluster made up of simple EC2 machines. That being said, Amazon offers a service called EMR (Elastic MapReduce) that can be used along Apache Flink and suitable for (returning to what has been said before) some specific kind of algorithms. SquirrelDrey behaviour makes scalability pretty easy: since nodes simply poll from the distributed queue, a new node will start polling when launched. Nobody cares about configuring parallelism: nodes are configured by default to accept as many tasks as cores to maximize performance and CPU usage. The only difference to other nodes is that maybe the task that one of them was going to poll can now be taken by the new node.
+
+
+As a final thought, both Hazelcast and Apache offer opposite frameworks: Apache Ignite is very similar to Hazelcast IMDG, and Hazelcast Jet is very similar to Apache Flink.
 
