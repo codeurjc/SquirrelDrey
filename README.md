@@ -8,6 +8,7 @@ SquirrelDrey
 * [Running sample applications](#running-sample-applications)
 * [Building your own app](#building-your-own-app)
 * [API](#api)
+* [Some thoughts about Hazelcast approach compared to other alternatives](#some-thoughts-about-hazelcast-approach-compared-to-other-alternatives)
 
 ----------
 
@@ -236,4 +237,93 @@ But one **worker** will be launched if done like this:
 | `setResult`  | `T:result` | void | Sets the final result for this task. Usually this method is called inside `Task.process` method |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
 | `getId`  | void | `int` | Returns the unique identifier for this task |
+
+## Some thoughts about Hazelcast approach compared to other alternatives
+
+SquirrelDrey framework relies on Hazelcast, but other alternatives could be used. In this section we will compare the two current main options available to deal with distribution of algorithms on clusters, taking Hazelcast and Apache Flink as representatives for each approach. We will discuss why Hazelcast is the final chosen technology.
+
+First of all, both frameworks share similar architecures. Users can launch slave nodes to build one cluster, and clients that can communicate with the cluster are available to use in Java applications.
+
+*Hazelcast* stands for the **imperative** approach, while *Apache Flink* represents the **declarative** approach. A good analogy to ilustrate this statement can be set with Java 8 Stream API. These code snippets will return the same result *("4", "16", "36")* :
+
+```
+public List<Double> imperative() {
+	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
+	List<Double> resultList = new ArrayList<>();
+    for (Integer i : input) {
+        if (i % 2 == 0){
+            resultList.add(Math.sqrt(i));
+        }
+    }
+    return result;
+}
+
+public List<Double> declarative() {
+	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
+    return sourceList.stream()
+            .filter(i -> i % 2 == 0)
+            .map(Math::sqrt)
+            .collect(Collectors.toCollection(
+                () -> new ArrayList<>()));
+}
+```
+
+Both functions return the same list, but the second one makes use of the Stream API and lambda functions as compared with the traditional loop of the first one.
+
+Now let's outline the distribution of a list of tasks (`Callable` objects) on a cluster. Let's suppose our tasks are:
+
+```
+public class Task implements Callable<Void>, Serializable {
+	@Override
+	public Void call() throws Exception {
+		System.out.println("Task running!");
+		return null;
+	}
+}
+```
+
+#### With Hazelcast
+
+The client may insert tasks on a distributed queue (got thanks to a `HazelcastInstance` object):
+
+```
+public void imperativeHAZELCAST(List<Task> tasks) {
+	Queue<Task> distributedQueue = hazelcastInstance.getQueue("queue");
+    for (Task task : tasks) {
+       distributedQueue.put(task);
+    }
+}
+```
+
+Slave nodes just need to indefinitely poll from the distributed queue and run the `call` method of the task.
+
+#### With Apache Flink
+
+```
+public void declarativeFLINK(List<Task> tasks) {
+	ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+	DataSet<Task> tasks = environment.fromCollection(tasks);
+    tasks.flatMap((task) -> {
+		task.call();
+	});
+	env.execute("my_app");
+}
+```
+
+Client uses the Java API offered by Flink to build the execution pipeline and launch the job.
+
+For this extremely simple code, Flink option may seem like a good, clean choice, but things get much tougher when extending the pipeline and implementing scalability:
+
+- With Hazelcast approach users have **total control over the tasks**. It is a mandatory requirement to implement some logic in order to let slave nodes know when to poll from the queue of tasks, but that's precisely what SquirrelDrey offers. Just by implementing the task's logic, users can dynamically build pipelines to be distributed among nodes. And because Hazelcast offers a *In Memory Data Grid* framework, sharing information between nodes is very easy. Do you want the 10th *MyTask* to generate a *MyOtherTask*? Hazelcast offers an `AtomicLong` object that can be set to 10 and can be decremented by every *MyTask*, and directly after in the code check if that value is 0. If so, just make *MyTask* push a new *MyOtherTask* to the distributed queue. Or maybe you want to store the results of every *MyTask* to be consumed by a future task. No problem: just store them in the same code of *MyTask* in a distributed Map.  In short: *MyTask* custom code can handle all this logic in an easy, traditional way.
+- On the other hand, Apache Flink is at first much more limited regarding the control users have. Because of the declarative format, our pipeline must be fully declared on the client so Flink can build its internal DAG ([Directed Acyclic Graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph)). The previous examples would work in a different way: Flink pipeline needs to receive a list of 10 *MyTask*, and thanks to a *reduce* function wait to all of them to be finished. To store the results, every *MyTask* should add its own to a *Collector* object, and the inner magic of Flink can handle the retrieval of the final result on the *reduce* function.
+
+To sum up,  for algorithms implemented with Java, using the imperative Hazelcast approach means to have a comfortable, dynamic and object-oriented way of building the execution pipeline, while by using the functional Apache Flink approach means to deal with a framework ideal for processing huge data streams, such as search algorithms or word processing applications (in fact any algorithm based on a huge amount of similar and simple inputs on which to apply some transformation or reduction). But not so convenient for algorithms of other nature, containing tasks with more complex inputs, processing and communications among them.
+
+To conclude, it is also worth mentioning the state of **scalability** and **fault tolerance** on both technologies. 
+
+#### Fault tolerance
+Both of them support **fault tolerance**: Apache Flink can store the execution state of one pipeline, and SquirrelDrey adds some logic to ensure that if one node unexpectedly goes down, other node will execute the running tasks lost on the terminated node. The main difference between them is that Apache Flink requires a hard restart in order to be able to resume the execution. Our Hazelcast approach is implemented so the cluster status doesn't change in the event of a node crash: every other node will smoothly continue its execution, and the lost tasks will be executed (with high priority) over the next iterations of the remaining nodes.
+
+#### Scalability
+In terms of **scalability**, Apache Flink has a very important restriction: the parallelism must be declared on the cluster configuration or on the pipeline code. This means that when any node is dynamically added to the cluster, a whole reset of the cluster and re-configuration is needed for the new node to be fully exploited. This is supposed in a AWS scenario using a cluster made up of simple EC2 machines. That being said, Amazon offers a service called EMR (Elastic MapReduce) that can be used along Apache Flink and suitable for (returning to what has been said before) some specific kind of algorithms. SquirrelDrey behaviour makes scalability pretty easy: since nodes simply poll from the distributed queue, a new node will start polling when launched. Nobody cares about configuring parallelism: nodes are configured by default to accept as many tasks as cores to maximize performance and CPU usage. The only difference to other nodes is that maybe the task that one of them was going to poll can now be taken by the new node.
 
