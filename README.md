@@ -244,21 +244,20 @@ First of all, both frameworks share similar architecures. Users can launch slave
 public List<Double> imperative() {
 	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
 	List<Double> resultList = new ArrayList<>();
-    for (Integer i : input) {
-        if (i % 2 == 0){
-            resultList.add(Math.sqrt(i));
-        }
-    }
-    return result;
+	for (Integer i : input) {
+		if (i % 2 == 0) {
+			resultList.add(Math.sqrt(i));
+		}
+	}
+	return result;
 }
 
 public List<Double> declarative() {
 	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
-    return sourceList.stream()
-            .filter(i -> i % 2 == 0)
-            .map(Math::sqrt)
-            .collect(Collectors.toCollection(
-                () -> new ArrayList<>()));
+	return sourceList.stream()
+		.filter(i -> i % 2 == 0)
+		.map(Math::sqrt)
+		.collect(Collectors.toCollection(() -> new ArrayList<>()));
 }
 ```
 
@@ -283,9 +282,9 @@ The client may insert tasks on a distributed queue (got thanks to a `HazelcastIn
 ```
 public void imperativeHAZELCAST(List<Task> tasks) {
 	Queue<Task> distributedQueue = hazelcastInstance.getQueue("queue");
-    for (Task task : tasks) {
-       distributedQueue.put(task);
-    }
+	for (Task task : tasks) {
+		distributedQueue.put(task);
+	}
 }
 ```
 
@@ -297,7 +296,7 @@ Slave nodes just need to indefinitely poll from the distributed queue and run th
 public void declarativeFLINK(List<Task> tasks) {
 	ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 	DataSet<Task> tasks = environment.fromCollection(tasks);
-    tasks.flatMap((task) -> {
+	tasks.flatMap((task) -> {
 		task.call();
 	});
 	env.execute("my_app");
