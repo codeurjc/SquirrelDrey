@@ -33,8 +33,14 @@ public class AlgorithmManager<R> {
 	
 	boolean withAWSCloudWatch = false;
 	CloudWatchModule cloudWatchModule;
-		
+	
 	public AlgorithmManager(String HAZELCAST_CLIENT_CONFIG, boolean withAWSCloudWatch) {
+		
+		boolean developmentMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode")) : false;
+		
+		if (developmentMode) {
+			Worker.launch();
+		}
 		
 		ClientConfig config = new ClientConfig();
 		try {

@@ -404,7 +404,7 @@ public class QueuesManager {
 		
 		for(String queueId : mapOfQueues.keySet()) {
 			IQueue<Task<?>> queue = hc.getQueue(queueId);
-			queue.clear();
+			queue.destroy();
 		}
 		
 		queuesListeners.clear();
@@ -427,6 +427,7 @@ public class QueuesManager {
 		
 		this.unsubscribeFromQueues(mapOfQueues.keySet());
 		
+		// Clear all algorithms queues
 		for(String queueId : mapOfQueues.keySet()) {
 			IQueue<Task<?>> queue = hc.getQueue(queueId);
 			queue.clear();
@@ -434,7 +435,7 @@ public class QueuesManager {
 		
 		// Active wait for all algorithm queues to be empty
 		boolean queuesEmpty = true;
-		while(!queuesEmpty){
+		while (!queuesEmpty) {
 			for(String queueId : mapOfQueues.keySet()) {
 				IQueue<Task<?>> queue = hc.getQueue(queueId);
 				queuesEmpty = queuesEmpty && queue.isEmpty();
@@ -445,6 +446,12 @@ public class QueuesManager {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+		}
+		
+		// Destroy all algorithm queues
+		for(String queueId : mapOfQueues.keySet()) {
+			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			queue.destroy();
 		}
 		
 		queuesListeners.clear();
@@ -492,6 +499,8 @@ public class QueuesManager {
 		
 		this.unsubscribeFromQueues(new HashSet<>(Arrays.asList(algorithmId)));
 		IQueue<Task<?>> queue = hc.getQueue(algorithmId);
+		
+		// Clear algorithm queue
 		queue.clear();
 		
 		// Active wait for algorithm queue to be empty
@@ -502,6 +511,9 @@ public class QueuesManager {
 				e.printStackTrace();
 			}
 		}
+		
+		// Destroy algorithm queue
+		queue.destroy();
 		
 		this.mapOfQueues.remove(algorithmId);
 		
