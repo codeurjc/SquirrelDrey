@@ -62,19 +62,13 @@ public class PreparationTask extends Task<Void> {
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong("my_countdown");
 		atomicLong.set(this.numberOfTasks);
 		
-		List<AtomicTask> atomicTasks = new ArrayList<>();
 		for (int i = 0; i < this.numberOfAtomicTasks; i++) {
-			atomicTasks.add(new AtomicTask());
-		}
-		
-		for (AtomicTask t : atomicTasks) {
 			try {
 				addNewTask(t);
-				publishQueueStats();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		}
+		}		
 	}
 }
 ```
@@ -244,7 +238,7 @@ SquirrelDrey framework relies on Hazelcast, but other alternatives could be used
 
 First of all, both frameworks share similar architecures. Users can launch slave nodes to build one cluster, and clients that can communicate with the cluster are available to use in Java applications.
 
-*Hazelcast* stands for the **imperative** approach, while *Apache Flink* represents the **declarative** approach. A good analogy to ilustrate this statement can be set with Java 8 Stream API. These code snippets will return the same result *("4", "16", "36")* :
+*Hazelcast* stands for the **imperative** approach, while [Apache Flink](https://flink.apache.org/) represents the **declarative** approach. A good analogy to ilustrate this statement can be set with Java 8 Stream API. These code snippets will return the same result *("4", "16", "36")* :
 
 ```
 public List<Double> imperative() {
