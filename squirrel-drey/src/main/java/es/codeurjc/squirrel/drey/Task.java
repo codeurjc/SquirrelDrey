@@ -79,6 +79,8 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 		QueueProperty properties = map.get(this.algorithmId);
 		properties.lastTimeUpdated.set((int) System.currentTimeMillis());
 		map.set(this.algorithmId, properties);
+		
+		publishQueueStats();
 	}
 	
 	@Override

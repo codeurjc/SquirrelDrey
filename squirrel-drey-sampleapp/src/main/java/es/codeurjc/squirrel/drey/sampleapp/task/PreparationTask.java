@@ -36,7 +36,6 @@ public class PreparationTask extends Task<Void> {
 		for (AtomicTask t : atomicTasks) {
 			try {
 				addNewTask(t);
-				publishQueueStats();
 			} catch (Exception e) {
 				log.error("Error while processing task [" + t.getWorkDescription() + "]");
 				e.printStackTrace();
