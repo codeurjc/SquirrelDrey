@@ -64,7 +64,7 @@ public class PreparationTask extends Task<Void> {
 		
 		for (int i = 0; i < this.numberOfAtomicTasks; i++) {
 			try {
-				addNewTask(t);
+				addNewTask(new AtomicTask());
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
