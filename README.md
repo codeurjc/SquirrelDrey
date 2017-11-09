@@ -163,6 +163,20 @@ You will have the web app available at [localhost:5000](http://localhost:5000). 
 
 ----------
 
+## Using SNAPSHOT versions
+
+Do you want the latest version on *master* branch of SquirrelDrey, but it isn't on Maven Central yet? Just compile it locally. For example, for *squirrel-drey-hello-world*:
+
+```
+git clone https://github.com/codeurjc/SquirrelDrey.git
+cd SquirrelDrey/squirrel-drey
+mvn install
+cd ../squirrel-drey-hello-world
+mvn -DskipTests=true clean package
+```
+
+----------
+
 ## Building your own app
 
 Your project must have the following dependency:
