@@ -35,20 +35,21 @@
 	var algorithmIds = [];
 	for (var i = 0; i < algorithms.length; i++) {
 		algorithmIds[i] = algorithms[i].id;
-		var strHtml = '<div class="table-container"><table id="table-' + i + '"><tr class="first-row"><th>Algorithm</th><td>' +
+		var strHtml = '<div class="table-container"><table id="table-' + algorithms[i].id + '"><tr class="first-row"><th>Algorithm</th><td>' +
 			algorithms[i].id +
 			'</td><td></td></tr><tr><th>Input Data</th><td>' + algorithms[i].inputData +
 			'</td><td></td></tr><tr><th>Priority</th><td>' + algorithms[i].priority +
 			'</td><td></td></tr><tr><th>Number of tasks</th><td>' + algorithms[i].numberOfTasks +
 			'</td><td></td></tr><tr><th>Task duration</th><td>' + algorithms[i].taskDuration + ' s' +
 			'</td><td></td></tr><tr><th>Timeout before start</th><td>' + algorithms[i].timeout + ' s' +
-			'</td><td></td></tr><tr><th>Tasks completed</th><td id="tasks-completed-' + i + '"></td><td></td></tr>' +
-			'<tr><th>Tasks in the queue</th><td id="tasks-queue-' + i +
-			'"></td><td><div class="loader" id="loader-' + i + '"></div></td></tr><tr id="result-row-' + i +
+			'</td><td></td></tr><tr><th>Tasks added</th><td id="tasks-added-' + algorithms[i].id + '">' +
+			'</td><td></td></tr><tr><th>Tasks completed</th><td id="tasks-completed-' + algorithms[i].id + '"></td><td></td></tr>' +
+			'<tr><th>Tasks in the queue</th><td id="tasks-queued-' + algorithms[i].id +
+			'"></td><td><div class="loader" id="loader-' + algorithms[i].id + '"></div></td></tr><tr id="result-row-' + algorithms[i].id +
 			'" hidden="true"><th>Final result</th><td id="final-result-' +
-			i + '"></td><td></td></tr><tr id="time-row-' + i +
-			'" hidden="true"><th>Time of processing</th><td id="time-processing-' + i +
-			'"></td><td></td></tr><tr><th>STOP</th><td><button id="stop-btn-' + i + '" type="button" class="btn btn-danger btn-sm btn-stop-one" onclick="terminateOneAlgorithm(' + i + ', \'' + algorithms[i].id + '\')">STOP</button></td><td></td></tr></table></div>'
+			algorithms[i].id + '"></td><td></td></tr><tr id="time-row-' + algorithms[i].id +
+			'" hidden="true"><th>Time of processing</th><td id="time-processing-' + algorithms[i].id +
+			'"></td><td></td></tr><tr><th>STOP</th><td><button id="stop-btn-' + algorithms[i].id + '" type="button" class="btn btn-danger btn-sm btn-stop-one" onclick="terminateOneAlgorithm(\'' + algorithms[i].id + '\')">STOP</button></td><td></td></tr></table></div>'
 		var node = $.parseHTML(strHtml);
 		$('#algorithm-results').append(node);
 	}
@@ -57,7 +58,7 @@
 	var myLabels = [1, '', 3, '', 5, '', 7, '', 9];
 	var myDatasets = [];
 	var myChart;
-	var stoppedAlgorithms = {};
+	//var stoppedAlgorithms = {};
 
 	var interval = setInterval(ajaxGet, 1000);
 
@@ -109,24 +110,21 @@
 
 				myChart.update();
 
-				var allSolved = algorithms.length === algorithmStats.length;
 				for (var i = 0; i < algorithmStats.length; i++) {
 					var r = algorithmStats[i];
-					$('#tasks-queue-' + i).text(r.taskQueued);
-					$('#tasks-completed-' + i).text(r.taskCompleted);
-					if (r.result && r.timeOfProcessing) {
-						$('#time-processing-' + i).text(r.timeOfProcessing + ' s');
-						$('#final-result-' + i).text(r.result);
-						$('#result-row-' + i).show();
-						$('#time-row-' + i).show();
-						$('#loader-' + i).hide();
-						$('#stop-btn-' + i).prop("disabled", true);
-						allSolved = allSolved && true;
-					} else {
-						allSolved = allSolved && stoppedAlgorithms[i];
+					$('#tasks-added-' + r.algorithmId).text(r.tasksAdded);
+					$('#tasks-completed-' + r.algorithmId).text(r.tasksCompleted);
+					$('#tasks-queued-' + r.algorithmId).text(r.tasksQueued);
+					if ((r.tasksAdded === r.tasksCompleted) && (r.tasksQueued === 0)) {
+						$('#time-processing-' + r.algorithmId).text(r.timeOfProcessing + ' s');
+						$('#final-result-' + r.algorithmId).text(r.result);
+						$('#result-row-' + r.algorithmId).show();
+						$('#time-row-' + r.algorithmId).show();
+						$('#loader-' + r.algorithmId).hide();
+						$('#stop-btn-' + r.algorithmId).prop("disabled", true);
 					}
 				}
-				if (allSolved) {
+				if (algorithmStats.length === 0) {
 					window.clearInterval(interval);
 					$('#stop-btn').prop("disabled", true);
 					$(".btn-stop-one").each(function(index, btn){
@@ -157,7 +155,7 @@
 		});
 	}
 
-	function terminateOneAlgorithm(i, algorithmId) {
+	function terminateOneAlgorithm(algorithmId) {
 		$.ajax({
 			type: 'POST',
 			data: {
@@ -166,9 +164,9 @@
 			url: 'stop-one',
 			success: function(xhr) {
 				console.log('TERMINATED ALGORITHM ' + algorithmId);
-				$('#loader-' + i).hide();
-				$('#stop-btn-' + i).prop("disabled", true);
-				stoppedAlgorithms[i] = true;
+				$('#loader-' + algorithmId).hide();
+				$('#stop-btn-' + algorithmId).prop("disabled", true);
+				//stoppedAlgorithms[i] = true;
 			},
 			error: function (xhr) {
 				console.error("ERROR: ", xhr);

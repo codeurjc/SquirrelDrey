@@ -39,8 +39,8 @@ public class QueuesManager {
 
 	/* Distributed structures */
 	IMap<String, QueueProperty> mapOfQueues; 		// Map storing all the distributed queues and their properties (priority, last time pushed)
-	IQueue<Task<?>> maxPriorityQueue;				// Queue for tasks with maximum priority. It will always be the first queue checked on polling
-	IMap<Integer, Task<?>> runningTasks;			// Map of running tasks in this node <taskUniqueId, task>
+	IQueue<Task> maxPriorityQueue;				// Queue for tasks with maximum priority. It will always be the first queue checked on polling
+	IMap<Integer, Task> runningTasks;			// Map of running tasks in this node <taskUniqueId, task>
 	
 	/* Local structures */
 	MapOfQueuesListener mapOfQueuesListener; 		// Listener for distributed map of queues
@@ -111,7 +111,7 @@ public class QueuesManager {
 				 log.info("(Already subscribed to [{}])", queueId);
 				 continue;
 			}
-			IQueue<Task<?>> queue = this.hc.getQueue(queueId);
+			IQueue<Task> queue = this.hc.getQueue(queueId);
 			QueueListener listener = new QueueListener(queue, this);
 			String listenerId = queue.addItemListener(listener, true);
 			listener.setId(listenerId);
@@ -129,7 +129,7 @@ public class QueuesManager {
 		Set<String> desiredUnsubs = new HashSet<>(queueIds);
 		Set<String> performedUnsubs = new HashSet<>();
 		for (String queueId : desiredUnsubs) {
-			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			IQueue<Task> queue = hc.getQueue(queueId);
 			QueueListener listener = queuesListeners.remove(queueId);
 
 			if (listener != null) {
@@ -149,7 +149,7 @@ public class QueuesManager {
 		return executor.getActiveCount() < nThreads;
 	}
 
-	public IQueue<Task<?>> getQueue(String queueId) {
+	public IQueue<Task> getQueue(String queueId) {
 		return this.hc.getQueue(queueId);
 	}
 
@@ -211,8 +211,8 @@ public class QueuesManager {
 		Iterator<String> iterator = orderedMap.keySet().iterator();
 		do {
 			log.info("Trying search on queue [{}]", queueId);
-			IQueue<Task<?>> q = hc.getQueue(queueId);
-			Task<?> task = q.poll();
+			IQueue<Task> q = hc.getQueue(queueId);
+			Task task = q.poll();
 			if (task != null) {
 				runTask(task);
 				log.info("Task [{}] submitted for algorithm [{}] from queue [{}]", task, task.algorithmId, queueId);
@@ -231,7 +231,7 @@ public class QueuesManager {
 		return false;
 	}
 
-	public void runTask(Task<?> task) {
+	public void runTask(Task task) {
 		task.setHazelcastInstance(this.hc);
 
 		CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> {
@@ -248,7 +248,7 @@ public class QueuesManager {
 			}
 			return null;
 		}, executor);
-		future.thenAcceptAsync(result -> {
+		future.thenAcceptAsync(voidResult -> {
 			try {
 				task.callback();
 				
@@ -256,7 +256,7 @@ public class QueuesManager {
 				runningTasks.remove(task.getId());
 				log.info("XXX2 " + runningTasks.size());
 
-				log.info("Finished task [{}] for algorithm [{}] with result [{}]", task, task.algorithmId, task.getResult());
+				log.info("Finished task [{}] for algorithm [{}]", task, task.algorithmId);
 				lookQueuesForTask();
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -403,7 +403,7 @@ public class QueuesManager {
 		this.unsubscribeFromQueues(mapOfQueues.keySet());
 		
 		for(String queueId : mapOfQueues.keySet()) {
-			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			IQueue<Task> queue = hc.getQueue(queueId);
 			queue.destroy();
 		}
 		
@@ -429,7 +429,7 @@ public class QueuesManager {
 		
 		// Clear all algorithms queues
 		for(String queueId : mapOfQueues.keySet()) {
-			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			IQueue<Task> queue = hc.getQueue(queueId);
 			queue.clear();
 		}
 		
@@ -437,7 +437,7 @@ public class QueuesManager {
 		boolean queuesEmpty = true;
 		while (!queuesEmpty) {
 			for(String queueId : mapOfQueues.keySet()) {
-				IQueue<Task<?>> queue = hc.getQueue(queueId);
+				IQueue<Task> queue = hc.getQueue(queueId);
 				queuesEmpty = queuesEmpty && queue.isEmpty();
 			}
 			if (queuesEmpty) break;
@@ -450,7 +450,7 @@ public class QueuesManager {
 		
 		// Destroy all algorithm queues
 		for(String queueId : mapOfQueues.keySet()) {
-			IQueue<Task<?>> queue = hc.getQueue(queueId);
+			IQueue<Task> queue = hc.getQueue(queueId);
 			queue.destroy();
 		}
 		
@@ -461,17 +461,6 @@ public class QueuesManager {
 		
 		executor.shutdown();
 		executorCallbacks.shutdown();
-		
-		try {
-			executor.awaitTermination(7, TimeUnit.SECONDS);
-			executorCallbacks.awaitTermination(7, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		
-		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
-				new LinkedBlockingQueue<Runnable>());
-		this.executorCallbacks = Executors.newSingleThreadExecutor();
 		
 		// Active wait for all data structures to be empty
 		boolean allEmpty = false;
@@ -488,6 +477,17 @@ public class QueuesManager {
 			}
 		}
 		
+		try {
+			executor.awaitTermination(7, TimeUnit.SECONDS);
+			executorCallbacks.awaitTermination(7, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<Runnable>());
+		this.executorCallbacks = Executors.newSingleThreadExecutor();
+		
 		hc.getTopic("stop-algorithms-done").publish("");
 		
 		log.info("GRACEFULLY TERMINATED ALL ALGORITHMS");
@@ -498,7 +498,7 @@ public class QueuesManager {
 		log.info("STOPPING ALGORITHM [{}]...", algorithmId);
 		
 		this.unsubscribeFromQueues(new HashSet<>(Arrays.asList(algorithmId)));
-		IQueue<Task<?>> queue = hc.getQueue(algorithmId);
+		IQueue<Task> queue = hc.getQueue(algorithmId);
 		
 		// Clear algorithm queue
 		queue.clear();
@@ -512,10 +512,10 @@ public class QueuesManager {
 			}
 		}
 		
+		this.mapOfQueues.remove(algorithmId);
+		
 		// Destroy algorithm queue
 		queue.destroy();
-		
-		this.mapOfQueues.remove(algorithmId);
 		
 		hc.getTopic("stop-one-algorithm-done").publish(algorithmId);
 		

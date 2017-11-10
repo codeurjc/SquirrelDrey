@@ -11,7 +11,7 @@ import com.hazelcast.core.IAtomicLong;
 
 import es.codeurjc.squirrel.drey.Task;
 
-public class PreparationTask extends Task<Void> {
+public class PreparationTask extends Task {
 
 	private static final long serialVersionUID = 1L;
 	private static final Logger log = LoggerFactory.getLogger(PreparationTask.class);

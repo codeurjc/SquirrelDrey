@@ -2,6 +2,8 @@ package es.codeurjc.squirrel.drey.sampleapp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,10 +30,12 @@ public class SampleAlgorithmController {
 
 	@Autowired
 	AlgorithmManager<String> algorithmManager;
+	
+	Map<String, Algorithm<String>> solvedAlgorithms = new ConcurrentHashMap<>();
 
+	
 	@RequestMapping(value = "/")
 	public String index() {
-		algorithmManager.clearAlgorithms();
 		return "index";
 	}
 
@@ -46,11 +50,14 @@ public class SampleAlgorithmController {
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-					Task<Void> initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
+					Task initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
 							algorithm.getTaskDuration(), "countdown-" + algorithm.getId());
 					try {
 						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
-							log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result.toString());
+							log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result == null ? "NULL" : result.toString());
+							
+							// Store the algorithm to send one final response to front
+							solvedAlgorithms.put(algorithm.getId(), algorithmManager.getAlgorithm(algorithm.getId()));
 						});
 					} catch (Exception e) {
 						e.printStackTrace();
@@ -82,14 +89,35 @@ public class SampleAlgorithmController {
 		// Algorithms statistics
 		List<AlgorithmStats> l1 = new ArrayList<>();
 		for (String id : algorithmIds) {
+			
+			// Running algorithm. Retrieve from SquirrelDrey's map of running algorithms
 			Algorithm<String> alg = this.algorithmManager.getAlgorithm(id);
 			if (alg != null) {
 				String result = alg.getResult();
-				Integer tasksQueued = alg.getTasksQueued();
+				Integer tasksAdded = alg.getTasksAdded();
 				Integer tasksCompleted = alg.getTasksCompleted();
+				Integer tasksQueued = alg.getTasksQueued();
 				Long time = alg.getTimeOfProcessing();
-
-				l1.add(new AlgorithmStats(result == null ? "" : result, tasksQueued == null ? 0 : tasksQueued, tasksCompleted == null ? 0 : tasksCompleted, time));
+				
+				l1.add(new AlgorithmStats(alg.getId(), (result == null) ? "" : result, tasksAdded, tasksCompleted, tasksQueued, time));
+				
+			} else {
+				
+				// Solved algorithm. Retrieve from custom map of completed algorithms
+				alg = this.solvedAlgorithms.get(id);
+				if (alg != null) {
+					String result = alg.getResult();
+					Integer tasksAdded = alg.getTasksAdded();
+					Integer tasksCompleted = alg.getTasksCompleted();
+					Integer tasksQueued = alg.getTasksQueued();
+					Long time = alg.getTimeOfProcessing();
+					
+					l1.add(new AlgorithmStats(alg.getId(), (result == null) ? "" : result, tasksAdded, tasksCompleted, tasksQueued, time));
+					
+					// Don't need the stats of the solved algorithm anymore
+					this.solvedAlgorithms.remove(id);
+				}
+				
 			}
 		}
 		

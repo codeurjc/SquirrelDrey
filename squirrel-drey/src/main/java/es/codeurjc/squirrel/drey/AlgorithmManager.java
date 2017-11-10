@@ -62,38 +62,39 @@ public class AlgorithmManager<R> {
 		this.withAWSCloudWatch = withAWSCloudWatch;
 		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.hzClient, this.QUEUES);
 
-		hzClient.getTopic("algorithm-solved").addMessageListener((message) -> {
+		hzClient.getTopic("task-added").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
-			log.info("ALGORITHM SOLVED: Algorithm: " + ev.getAlgorithmId() + ", Result: " + ev.getContent());
+			log.info("TASK [{}] added for algorithm [{}]", ev.getContent(), ev.getAlgorithmId());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
-			alg.setFinishTime(System.currentTimeMillis());
-			try {
-				alg.setResult((R) ev.getContent());
-				alg.runCallback();
-			} catch(Exception e) {
-				log.error(e.getMessage());
-			}
-			
-			// Remove distributed queue
-			this.QUEUES.remove(ev.getAlgorithmId());
-			
+			alg.incrementTasksAdded();
 		});
-		hzClient.getTopic("queue-stats").addMessageListener((message) -> {
+		hzClient.getTopic("task-completed").addMessageListener((message) -> {
+			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
+			Task t = (Task) ev.getContent();
+			log.info("TASK [{}] completed for algorithm [{}]", t, ev.getAlgorithmId());
+			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
+			alg.incrementTasksCompleted();
+			
+			if (alg.hasFinished()) {
+				log.info("ALGORITHM SOLVED: Algorithm: " + ev.getAlgorithmId() + ", Result: " + t.getFinalResult());
+				alg.setFinishTime(System.currentTimeMillis());
+				try {
+					if (t.getFinalResult() != null)	alg.setResult((R) t.getFinalResult());
+					alg.runCallback();
+				} catch(Exception e) {
+					log.error(e.getMessage());
+				}
+				// Remove algorithm
+				this.algorithms.remove(ev.getAlgorithmId());
+				// Remove distributed queue
+				this.QUEUES.remove(ev.getAlgorithmId());
+			}
+		});
+		hzClient.getTopic("tasks-queued").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
 			log.info("EXECUTOR STATS for queue [{}]: Tasks waiting in queue -> {}", ev.getAlgorithmId(), ev.getContent());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 			alg.setTasksQueued((int) ev.getContent());
-		});
-		hzClient.getTopic("task-completed").addMessageListener((message) -> {
-			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
-			log.info("TASK [{}] completed for algorithm [{}] with result [{}]", ev.getContent(), ev.getAlgorithmId(), ((Task<?>)ev.getContent()).getResult());
-			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
-			alg.incrementTasksCompleted();
-		});
-		hzClient.getTopic("worker-stats").addMessageListener((message) -> {
-			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
-			log.info("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
-			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
 		});
 		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
 			log.info("Algorithms succesfully terminated on {} milliseconds", System.currentTimeMillis() - this.timeForTerminate);
@@ -102,6 +103,11 @@ public class AlgorithmManager<R> {
 		hzClient.getTopic("stop-one-algorithm-done").addMessageListener((message) -> {
 			log.info("Algorithm [{}] succesfully terminated", message.getMessageObject());
 			this.terminateOneBlockingLatches.get((String)message.getMessageObject()).countDown();
+		});
+		hzClient.getTopic("worker-stats").addMessageListener((message) -> {
+			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
+			log.info("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
+			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
 		});
 	}
 
@@ -117,24 +123,32 @@ public class AlgorithmManager<R> {
 		this.algorithms.clear();
 	}
 	
-	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority) throws Exception {
+	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask);
-		this.algorithms.put(id, alg);
 		
-		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
+		if (this.algorithms.putIfAbsent(id, alg) != null) {
+			throw new Exception("Algorithm with id [" + id + "] already exists");
+		}
+		
+		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
 		alg.solve(queue);
+		hzClient.getTopic("task-added").publish(new AlgorithmEvent(alg.getId(), "task-added", alg.getInitialTask()));
 	}
 
-	public void solveAlgorithm(String id, Task<?> initialTask, Integer priority, Consumer<R> callback) throws Exception {
+	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask, callback);
-		this.algorithms.put(id, alg);
 		
-		IQueue<Task<?>> queue = this.hzClient.getQueue(alg.getId());
+		if (this.algorithms.putIfAbsent(id, alg) != null) {
+			throw new Exception("Algorithm with id [" + id + "] already exists");
+		}
+		
+		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
 		
 		alg.solve(queue);
+		hzClient.getTopic("task-added").publish(new AlgorithmEvent(alg.getId(), "task-added", alg.getInitialTask()));
 	}
 	
 	public Map<String, WorkerStats> getWorkers() {
@@ -143,6 +157,7 @@ public class AlgorithmManager<R> {
 	
 	public void terminateAlgorithms() {
 		this.hzClient.getTopic("stop-algorithms").publish("");
+		this.clearAlgorithms();
 	}
 	
 	public void blockingTerminateAlgorithms() throws InterruptedException {
@@ -150,12 +165,14 @@ public class AlgorithmManager<R> {
 		timeForTerminate = System.currentTimeMillis();
 		this.hzClient.getTopic("stop-algorithms-blocking").publish("");
 		this.terminateBlockingLatch.await(12, TimeUnit.SECONDS);
+		this.clearAlgorithms();
 	}
 	
 	public void blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException {
 		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
 		this.hzClient.getTopic("stop-one-algorithm-blocking").publish(algorithmId);
 		this.terminateOneBlockingLatches.get(algorithmId).await(12, TimeUnit.SECONDS);
+		this.removeAlgorithm(algorithmId);
 	}
 
 }

@@ -8,16 +8,18 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
-import com.hazelcast.core.ITopic;
 
-public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceAware {
+public class Task implements Callable<Void>, Serializable, HazelcastInstanceAware {
 	
+	private static final long serialVersionUID = 1L;
+
 	protected transient HazelcastInstance hazelcastInstance;
 	
 	protected String algorithmId;
-	protected T result;
 	
 	protected final int uniqueId = UUID.randomUUID().hashCode();
+	
+	private Object finalResult = null;
 	
 	public int getId() {
 		return this.uniqueId;
@@ -31,17 +33,12 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 		this.algorithmId = algorithmId;
 	}
 	
-	public void setResult(T result) {
-		this.result = result;
+	public void algorithmSolved(Object finalResult) {
+		this.finalResult = finalResult;
 	}
 	
-	public T getResult() {
-		return result;
-	}
-	
-	public void algorithmSolved(T finalResult) {
-		ITopic<AlgorithmEvent> topic = hazelcastInstance.getTopic("algorithm-solved");
-		topic.publish(new AlgorithmEvent(this.algorithmId, "algorithm-solved", finalResult));
+	public Object getFinalResult() {
+		return this.finalResult;
 	}
 	
 	public void process() throws Exception {
@@ -54,33 +51,29 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	}
 
 	public void callback() {
-		this.publishQueueStats();
-		this.publishCompletedTask();
-	}
-
-	protected void publishQueueStats() {
-		IQueue<Task<T>> queue = hazelcastInstance.getQueue(this.algorithmId);
-
-		hazelcastInstance.getTopic("queue-stats")
-				.publish(new AlgorithmEvent(this.algorithmId, "queue-stats", queue.size()));
-	}
-
-	private void publishCompletedTask() {
+		this.publishTasksQueued();
 		hazelcastInstance.getTopic("task-completed").publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 
-	protected void addNewTask(Task<?> t) {
+	protected void addNewTask(Task t) {
 		t.setAlgorithm(this.algorithmId);
-		IQueue<Task<?>> queue = hazelcastInstance.getQueue(this.algorithmId);
+		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
 		queue.add(t);
+		
+		hazelcastInstance.getTopic("task-added").publish(new AlgorithmEvent(this.algorithmId, "task-added", t));
 		
 		// Update last addition time
 		IMap<String, QueueProperty> map = hazelcastInstance.getMap("QUEUES");
 		QueueProperty properties = map.get(this.algorithmId);
 		properties.lastTimeUpdated.set((int) System.currentTimeMillis());
 		map.set(this.algorithmId, properties);
-		
-		publishQueueStats();
+	}
+	
+	protected void publishTasksQueued() {
+		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
+
+		hazelcastInstance.getTopic("tasks-queued")
+				.publish(new AlgorithmEvent(this.algorithmId, "tasks-queued", queue.size()));
 	}
 	
 	@Override
@@ -90,6 +83,6 @@ public class Task<T> implements Callable<Void>, Serializable, HazelcastInstanceA
 	
 	@Override
 	public boolean equals(Object o) {
-		return (this.uniqueId == ((Task<T>)o).uniqueId);
+		return (this.uniqueId == ((Task)o).uniqueId);
 	}
 }

@@ -10,18 +10,18 @@ import com.hazelcast.core.IQueue;
 import com.hazelcast.core.ItemEvent;
 import com.hazelcast.core.ItemListener;
 
-public class QueueListener implements ItemListener<Task<?>> {
+public class QueueListener implements ItemListener<Task> {
 	
 	private static final Logger log = LoggerFactory.getLogger(QueueListener.class);
 
-	IQueue<Task<?>> queue;
+	IQueue<Task> queue;
 	String id;
 	QueuesManager manager;
 	
 	Map<String, Boolean> addEventChecking = new ConcurrentHashMap<>();
 	Map<String, Boolean> removedEventChecking = new ConcurrentHashMap<>();
 
-	public QueueListener(IQueue<Task<?>> queue, QueuesManager manager) {
+	public QueueListener(IQueue<Task> queue, QueuesManager manager) {
 		this.queue = queue;
 		this.manager = manager;
 	}
@@ -35,7 +35,7 @@ public class QueueListener implements ItemListener<Task<?>> {
 	}
 
 	@Override
-	public void itemAdded(ItemEvent<Task<?>> item) {
+	public void itemAdded(ItemEvent<Task> item) {
 		if (this.addEventChecking.putIfAbsent(item.getItem().toString(), true) != null) {
 			log.error("DUPLICATE ADD OPERATION FOR ITEM [" + item.getItem().toString() + "]");
 		}
@@ -45,11 +45,11 @@ public class QueueListener implements ItemListener<Task<?>> {
 		
 		manager.lookQueuesForTask();
 		
-		item.getItem().publishQueueStats();
+		item.getItem().publishTasksQueued();
 	}
 
 	@Override
-	public void itemRemoved(ItemEvent<Task<?>> item) {
+	public void itemRemoved(ItemEvent<Task> item) {
 		if (this.removedEventChecking.putIfAbsent(item.getItem().toString(), true) != null) {
 			log.error("DUPLICATE REMOVE OPERATION FOR ITEM [" + item.getItem().toString() + "]");
 		}
@@ -57,6 +57,7 @@ public class QueueListener implements ItemListener<Task<?>> {
 		log.info("LISTENER: Item [" + item.getItem().toString() + "] removed from queue [" + this.queue.getName()
 				+ "] by member [" + item.getMember() + "]");
 		
-		item.getItem().publishQueueStats();
+		item.getItem().publishTasksQueued();
 	}
+
 }
