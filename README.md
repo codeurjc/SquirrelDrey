@@ -217,7 +217,7 @@ But one **worker** will be launched if done like this:
 | Class  | Description  |
 |---|---|
 | `AlgorithmManager<T>`  | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object |
-| `Task` | Callable objects that will be executed asynchronously in a distributed cluster |
+| `Task` | Callable objects that will be executed asynchronously in a distributed cluster. All classes extending it must have serializable attributes |
 
 
 #### AlgorithmManager< T > 
