@@ -14,14 +14,11 @@ SquirrelDrey
 
 ## Introduction
 
-SquirrelDrey is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. SquirrelDrey is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means:
-
-- Every **Algorithm** must have one initial **Task**
-- Every **Algorithm** must have one solving **Task**
+SquirrelDrey is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. SquirrelDrey is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means that the entrypoint for the algorithm is no more than one initial Task.
 
 The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks. All of them will be executed in a distributed cluster. To control the internal logic of the custom algorithm Hazelcast objects may be used. For example, a distributed Latch can be used to make certain task generate another different one only when certain condition is met. Or a distributed Map can be useful for storing any intermediate task's result. For further information, see [Hazelcast Docs](http://docs.hazelcast.org/docs/latest-development/manual/html/Preface/Hazelcast_IMDG_Editions.html).
 
-Any Task can act as a solving task just by calling `Task.algorithmSolved()` method.
+Whenever SquirrelDray founds that the number of tasks sent to be executed matches the number of completed tasks for one algorithm, it will be terminated. If any task has called method `Task.algorithmSolved(result)`, that will be the final result of the algorithm (`null` if not).
 
 ----------
 
@@ -49,7 +46,7 @@ manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
 ```
 
 ```
-public class PreparationTask extends Task<Void> {
+public class PreparationTask extends Task {
 	
 	private Integer numberOfAtomicTasks;
 
@@ -74,7 +71,7 @@ public class PreparationTask extends Task<Void> {
 ```
 
 ```
-public class AtomicTask extends Task<Integer> {
+public class AtomicTask extends Task {
 
 	public AtomicTask() {	}
 
@@ -82,11 +79,9 @@ public class AtomicTask extends Task<Integer> {
 	public void process() throws Exception {
 		Thread.sleep(5000);
 		
-		this.setResult(1);
-		
 		IMap<Integer, Integer> results = hazelcastInstance.getMap("my_results");
 		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong("my_countdown");
-		results.put(this.getId(), this.getResult());
+		results.put(this.getId(), 1);
 		
 		if (atomicLong.decrementAndGet() == 0L) {
 			System.out.println("ADDING SOLVE TASK FOR ALGORITHM " + this.algorithmId);
@@ -97,7 +92,7 @@ public class AtomicTask extends Task<Integer> {
 ```
 
 ```
-public class SolveTask extends Task<String> {
+public class SolveTask extends Task {
 
 	@Override
 	public void process() throws Exception {
@@ -108,7 +103,6 @@ public class SolveTask extends Task<String> {
 			finalResult += e.getValue();
 		}
 		
-		this.setResult(Integer.toString(finalResult));
 		this.algorithmSolved(Integer.toString(finalResult));
 	}
 }
@@ -220,29 +214,28 @@ But one **worker** will be launched if done like this:
 
 ## API
 
-| Class  | T | Description  |
+| Class  | Description  |
 |---|---|---|
-| `AlgorithmManager<T>`  | Class of the algorithm's final result. Must be a Serializable object  | Centralized manager object for launching algorithms and getting their result   |
-| `Task<T>`  | Class of the task's final result. Must be a Serializable object  | Callable objects that will be executed asynchronously in a distributed cluster |
+| `AlgorithmManager<T>`  | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object |
+| `Task` | Callable objects that will be executed asynchronously in a distributed cluster |
 
 
 #### AlgorithmManager< T > 
 
 | Method  | Params | Returns  | Description |
 |---|---|---|---|
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task<?>:initialTask`<br>`Integer:priority`<br>`Consumer<R>:callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Tassk to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>`Consumer<R>:callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
 | `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
-| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not empty and properly stopped |
-| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not empty and properly stopped |
+| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
+| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
 
 
-#### Task< T > 
+#### Task
 
 | Method  | Params | Returns  | Description |
 |---|---|---|---|
-| `addNewTask`  | `Task<?>:task` | void | Add a new Task to the algorithm |
+| `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
-| `setResult`  | `T:result` | void | Sets the final result for this task. Usually this method is called inside `Task.process` method |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
 | `getId`  | void | `int` | Returns the unique identifier for this task |
 
