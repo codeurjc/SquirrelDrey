@@ -8,6 +8,7 @@ SquirrelDrey
 * [Running sample applications](#running-sample-applications)
 * [Building your own app](#building-your-own-app)
 * [API](#api)
+* [Running on Amazon ECS](#running-on-amazon-ecs)
 
 ----------
 
@@ -237,3 +238,192 @@ But one **worker** will be launched if done like this:
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
 | `getId`  | void | `int` | Returns the unique identifier for this task |
 
+## Running on Amazon ECS
+
+If you want to run this software on Amazon ECS follow this steps.
+
+Keep in mind that there are two apps inside the jar, one is the worker and the other one is the sample app. So, you have to create basically the same infraestructure twice.
+
+#### Build the Docker container.
+
+This step is common for the sample app and the worker app.
+
+First of all, we need to create the container image and upload it to the Amazon Repository. Hazelcast is ready for running on ECS you just need to configure it. So, add this stanzas to Hazelcast config files.
+
+* `hazelcast-client-config.xml`
+
+```
+...
+<properties>
+    <property name="hazelcast.discovery.enabled">true</property>
+    <property name="hazelcast.discovery.public.ip.enabled">true</property>
+  </properties>
+...
+  <network>
+    <discovery-strategies>
+        <discovery-strategy enabled="true" class="com.hazelcast.aws.AwsDiscoveryStrategy">
+            <properties>
+                      <property name="iam-role">IAM_ROLE</property>
+                      <property name="region">REGION</property>
+                      <property name="security-group-name">SECURITY_GROUP_NAME</property>
+                      <property name="tag-key">TAG_KEY</property>
+                      <property name="tag-value">TAG_VALUE</property>
+                      <property name="hz-port">HZ_PORT</property>
+            </properties>
+        </discovery-strategy>
+    </discovery-strategies>
+...
+```
+
+* `hazelcast-config.xml`
+
+```
+...
+ <properties>
+     <property name="hazelcast.discovery.enabled">true</property>
+  </properties>
+...
+            <discovery-strategies>
+                <discovery-strategy enabled="true" class="com.hazelcast.aws.AwsDiscoveryStrategy">
+                <properties>
+                      <property name="iam-role">IAM_ROLE</property>
+                      <property name="region">REGION</property>
+                      <property name="security-group-name">SECURITY_GROUP_NAME</property>
+                      <property name="tag-key">TAG_KEY</property>
+                      <property name="tag-value">TAG_VALUE</property>
+                      <property name="hz-port">HZ_PORT</property>
+                </properties>
+                </discovery-strategy>
+            </discovery-strategies>
+...
+        <interfaces enabled="true">
+            <interface>INTERFACE</interface>
+        </interfaces>
+...
+```
+
+For more information on this values check out the official [documentation](https://github.com/hazelcast/hazelcast-aws).
+
+To set up those values in run time a script is run and, as usual, the values get the container as environment variables.
+
+Then, go to ECS console and [follow the steps](http://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html) to register your image in the repository.
+
+#### IAM Role
+
+You must create an **IAM Role** to grant permissions over your AWS infraestructure. According to Hazelcast docs, you need at least `ec2:DescribeInstances` policy for your role but in fact you also need:
+
+```
+"cloudwatch:PutMetricData",
+"ecs:CreateCluster",
+"ecs:DeregisterContainerInstance",
+"ecs:DiscoverPollEndpoint",
+"ecs:Poll",
+"ecs:RegisterContainerInstance",
+"ecs:StartTelemetrySession",
+"ecs:Submit*",
+"ecr:GetAuthorizationToken",
+"ecr:BatchCheckLayerAvailability",
+"ecr:GetDownloadUrlForLayer",
+"ecr:BatchGetImage",
+"logs:CreateLogStream",
+"logs:PutLogEvents",
+"ecs:DescribeServices",
+"ecs:UpdateService"
+```
+
+To manage CloudWatch and ECS.
+
+#### Security Group
+
+You must create a **Security Group** with the port 5701 open for the worker and the port 5701 and 5000 for the sample app.
+
+#### Task Definition
+
+**Task definition** is similar to Docker Compose. You need to set up the environment where your container is going to live. So, go to the ECS console and create a new **Task Definition**.
+
+Basically you need to set up **Task name**, the **Role** you created previously and the **Network mode** this one to **host**. Then add the container and set the **Name**, **Image** which is the one you created previously, **Memory Limits** is a Java app so be generous and then the environment variable, it should look like:
+
+| KEY | VALUE | COMMENTS |
+|---|---|---|
+| HZ_PORT |	5701 | This port is used by hazelcast to talk to the workers |
+| IAM_ROLE |	hazelcastrole | This role grant the policies |
+| INTERFACE |	10.0.0.* | Depends on your VPC CIDR |
+| MODE |	RANDOM | Optios are *random* or *priority* |
+| REGION |	eu-west-1 | Your AWS Region |
+| SECURITY_GROUP_NAME |	hazelcast-sg | |
+| TAG_KEY |	aws-test-cluster | Hazelcast uses this pair to identify other cluster members |
+| TAG_VALUE | 	cluster1 | |
+| TYPE	| worker | Options are *worker* or *web* |
+
+### Cluster
+
+Now you have to create the cluster which is a group of **EC2 instances**. On the console you can fill up the information for the new instances ECS will create. You will create a cluster for the sample app and other for the workers. The values are basically the same.
+
+| KEY | VALUE | COMMENTS |
+|---|---|---|
+|Name | hazelcast-CLUSTER | Name of the cluster, replace CLUSTER by workers or web to identify in the future |
+|EC2 instance type| m4.xlarge | We recommend m4.xlarge. The sample app can use a smaller instance type |
+|Number of instances | 1 | 1 instance at the begining |
+|Key pair | | Depends on if you want to ssh your instances |
+|Networking | | Complete upon your needs |
+|Container instance IAM role| | The role you created before |
+
+When you press **Create** an EC2 instance will be created, now you have to edit that instance to add the key/value tag. 
+
+**This only apply for workers cluster**. After that, go back to ECS -> Clusters and click on **ECS Instances** and **Scale ECS Instances** then you will see a window with a link to **AWS Auto Scaling Group** you have to click there. 
+
+Now you should see **AWS Auto Scaing Pane**, if not, go throught **EC2 main pane** on the left you shoud see **Auto Scaling** and **Auto Scaling Groups**. Here, you select the new one and in **Details** you set the following information: 
+
+Min: 1
+Max: 5
+Termination Policy: NewestInstance
+
+Under **Tags** add the key and value you set on the Hazelcast configuration. 
+
+#### Service
+
+You have to create a **Service** for the sample app and the worker. The diference between them is the name and the number of desired tasks of the worker.
+
+Back to **ECS** you can now configure the **Service** from the **Task Definition**, go to the console and create a **Service** from the last revision of your **Task Definition** by selecting it and pressing **Actions** then **Create new Service**.
+
+On the next screen you have to configure the service. Setting a name, number of tasks (same tasks number as instances Max you set before.) and task placemente as **One task per host**. You don't need a Load Balancer neither a Scaling policy for the service. As you press **Create Service** a container will appear in your infraestructure with the app running.
+
+#### Alarms
+
+While your app is running it sends metrics to Amazon Cloud Watch. Now you can create alarms based on this metrics values. You need two alarms, one for scale up and another for scale down.
+
+* Scale up
+
+Go to Amazon Cloud Watch pane and click on the left menu on **Alarms** and **Create a new Alarm**. Find the metric **HAZELCAST_METRIC** and choose **TASKS_QUEUE** then click next. Pick up a name for the alarm and set **is: >= 2** then in **Actions** remove that notification and in **Period** choose 10 seconds. Finish by presing **Create Alarm**
+
+* Scale down
+
+Go to Amazon Cloud Watch pane and click on the left menu on **Alarms** and **Create a new Alarm**. Find the metric **HAZELCAST_METRIC** and choose **TASKS_QUEUE** then click next. Pick up a name for the alarm and set **is: < 1** then in **Actions** remove that notification and in **Period** choose 10 seconds. Finish by presing **Create Alarm**
+
+With those configuration, you can go back to the **EC2 pane** in **Auto Scaling**, **Auto Scaling Group** you can set the **Scaling Policies**.
+
+* Scale In
+
+| Key | Value |
+| --- | --- |
+| Policy type | Simple scaling|
+| Execute policy when | Alarm Scale Down |
+| Take action | Remove 1 instance |
+| And wait | 60 seconds |
+
+* Scale Out
+
+| Key | Value |
+| --- | --- |
+| Policy type | Simple scaling|
+| Execute policy when | Alarm Scale Down |
+| Take action | Remove 1 instance |
+| And wait | 60 seconds |
+
+#### Summing up
+
+At this poing you should be able to access the [web](http://IP_EC2_INSTANCE:5000) and run the algorithm. The IP you are looking for is the one attached to the sample app instance.
+
+#### CloudFormation
+
+You can find a CloudFormation recipe in this repo which make easier to deploy this infreastructure. We encourage you to use that rather than a configuration by hand.
