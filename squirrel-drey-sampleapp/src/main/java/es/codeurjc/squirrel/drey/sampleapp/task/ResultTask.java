@@ -13,14 +13,14 @@ public class ResultTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		Map<Integer, Integer> results = hazelcastInstance.getMap("results-" + this.algorithmId);
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("results");
 		
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {
 			finalResult += e.getValue();
 		}
 		
-		this.hazelcastInstance.getAtomicLong("file_tasks-" + this.algorithmId).set(NUMBER_OF_FILES);
+		this.getAtomicLong("file_tasks").set(NUMBER_OF_FILES);
 		
 		for (int i = 0; i < NUMBER_OF_FILES; i++) {
 			addNewTask(new FileTask(i+1, Integer.toString(finalResult)));

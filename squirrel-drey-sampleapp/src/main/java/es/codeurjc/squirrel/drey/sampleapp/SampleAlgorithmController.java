@@ -50,8 +50,7 @@ public class SampleAlgorithmController {
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-					Task initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), 
-							algorithm.getTaskDuration(), "countdown-" + algorithm.getId());
+					Task initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), algorithm.getTaskDuration());
 					try {
 						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
 							log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result == null ? "NULL" : result.toString());

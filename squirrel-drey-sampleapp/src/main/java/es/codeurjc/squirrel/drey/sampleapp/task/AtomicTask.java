@@ -9,15 +9,11 @@ import es.codeurjc.squirrel.drey.sampleapp.App;
 public class AtomicTask extends Task {
 
 	private static final long serialVersionUID = 1L;
-	private String resultMapId;
-	private String atomicLongId;
 	private String workData;
 	private Integer taskDuration;
 	private String workDescription;
 
-	public AtomicTask(String resultMapId, String atomicLongId, String workData, Integer taskDuration, String workDescription) {
-		this.resultMapId = resultMapId;
-		this.atomicLongId = atomicLongId;
+	public AtomicTask(String workData, Integer taskDuration, String workDescription) {
 		this.workData = workData;
 		this.taskDuration = taskDuration;
 		this.workDescription = workDescription;
@@ -35,8 +31,8 @@ public class AtomicTask extends Task {
 	public void process() throws Exception {
 		Thread.sleep(taskDuration * 1000);
 		
-		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
-		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("results");
+		IAtomicLong atomicLong = this.getAtomicLong("countdown");
 		results.put(Integer.parseInt(this.workDescription), 1);
 				
 		if (atomicLong.decrementAndGet() == 0L) {

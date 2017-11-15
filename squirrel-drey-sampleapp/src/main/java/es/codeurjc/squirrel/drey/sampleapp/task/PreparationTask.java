@@ -17,20 +17,18 @@ public class PreparationTask extends Task {
 	private static final Logger log = LoggerFactory.getLogger(PreparationTask.class);
 	
 	private String inputData;
-	private String atomicLongId;
 	private Integer numberOfTasks;
 	private Integer taskDuration;
 
-	public PreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration, String atomicLongId) {
+	public PreparationTask(String inputData, Integer numberOfTasks, Integer taskDuration) {
 		this.inputData = inputData;
-		this.atomicLongId = atomicLongId;
 		this.numberOfTasks = numberOfTasks;
 		this.taskDuration = taskDuration;
 	}
 
 	@Override
 	public void process() throws Exception {
-		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
+		IAtomicLong atomicLong = this.getAtomicLong("countdown");
 		List<AtomicTask> atomicTasks = this.generateAtomicTasks();
 		atomicLong.set(this.numberOfTasks);
 		for (AtomicTask t : atomicTasks) {
@@ -47,7 +45,7 @@ public class PreparationTask extends Task {
 		List<AtomicTask> atomicTasks = new ArrayList<>();
 		Random rand = new Random(Math.abs(Long.valueOf(this.inputData.hashCode())));
 		for (int i = 0; i < this.numberOfTasks; i++) {
-			AtomicTask t = new AtomicTask("results-" + this.algorithmId, this.atomicLongId, Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
+			AtomicTask t = new AtomicTask(Integer.toString(rand.nextInt((50000) + 1)), this.taskDuration, Integer.toString(i));
 			atomicTasks.add(t);
 		}
 		return atomicTasks;

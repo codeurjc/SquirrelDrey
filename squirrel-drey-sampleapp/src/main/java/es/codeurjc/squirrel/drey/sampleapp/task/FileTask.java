@@ -30,7 +30,7 @@ public class FileTask extends Task {
 		
 		System.out.println("WRITING FILE " + "file-" + this.algorithmId + "-" + this.fileId + ".txt");
 		
-		if (this.hazelcastInstance.getAtomicLong("file_tasks-" + this.algorithmId).decrementAndGet() == 0) {
+		if (this.getAtomicLong("file_tasks").decrementAndGet() == 0) {
 			addNewTask(new SolveTask());
 		}
 	}

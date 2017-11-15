@@ -120,5 +120,15 @@ public class Algorithm<R> {
 	public synchronized boolean hasFinished() {
 		return (this.getTasksAdded() == this.getTasksCompleted()) && (this.getTasksQueued() == 0);
 	}
+	
+	@Override
+	public int hashCode() {
+		return this.id.hashCode();
+	}
+	
+	@Override
+	public boolean equals(Object o) {
+		return (this.id.equals(((Algorithm<?>)o).id));
+	}
 
 }
