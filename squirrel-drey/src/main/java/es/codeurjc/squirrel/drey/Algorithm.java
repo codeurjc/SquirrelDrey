@@ -1,23 +1,27 @@
 package es.codeurjc.squirrel.drey;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IQueue;
 
 /**
  * @author Pablo Fuente (pablo.fuente@urjc.es)
  */
 public class Algorithm<R> {
+	
+	HazelcastInstance hc;
 
 	private String id;
 	private Integer priority;
 	
 	private R result;
 	
-	private AtomicInteger tasksAdded;
-	private AtomicInteger tasksCompleted;
-	private AtomicInteger tasksQueued;
+	private int finalTasksAdded;
+	private int finalTasksCompleted;
+	private int finalTasksQueued;
+	private AtomicBoolean finished = new AtomicBoolean(false);
 	
 	private Long initTime;
 	private Long finishTime;
@@ -25,25 +29,19 @@ public class Algorithm<R> {
 	private Task initialTask;
 	private Consumer<R> callback;
 	
-	public Algorithm(String id, Integer priority, Task initialTask) {
+	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask) {
+		this.hc = hc;
 		this.id = id;
 		this.priority = priority;
-		
-		this.tasksAdded = new AtomicInteger(0);
-		this.tasksCompleted = new AtomicInteger(0);
-		this.tasksQueued = new AtomicInteger(0);
 		
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 	}
 
-	public Algorithm(String id, Integer priority, Task initialTask, Consumer<R> callback) {
+	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask, Consumer<R> callback) {
+		this.hc = hc;
 		this.id = id;
 		this.priority = priority;
-		
-		this.tasksAdded = new AtomicInteger(0);
-		this.tasksCompleted = new AtomicInteger(0);
-		this.tasksQueued = new AtomicInteger(0);
 		
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
@@ -61,32 +59,31 @@ public class Algorithm<R> {
 	public void solve(IQueue<Task> queue) throws Exception {
 		this.initTime = System.currentTimeMillis();
 		queue.add(this.initialTask);
+		
+		this.hc.getAtomicLong("added" + this.id).incrementAndGet();
 	}
 	
 	public int getTasksAdded() {
-		return this.tasksAdded.get();
+		if (this.finished.get()) {
+			return this.finalTasksAdded;
+		}
+		return Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
 	}
 	
 	public int getTasksCompleted() {
-		return this.tasksCompleted.get();
+		if (this.finished.get()) {
+			return this.finalTasksCompleted;
+		}
+		return Math.toIntExact(this.hc.getAtomicLong("completed" + this.id).get());
 	}
 	
 	public int getTasksQueued() {
-		return this.tasksQueued.get();
+		if (this.finished.get()) {
+			return this.finalTasksQueued;
+		}
+		return this.hc.getQueue(this.id).size();
 	}
 	
-	public synchronized void incrementTasksCompleted() {
-		this.tasksCompleted.incrementAndGet();
-	}
-	
-	public synchronized void incrementTasksAdded() {
-		this.tasksAdded.incrementAndGet();
-	}
-	
-	public synchronized void setTasksQueued(int tasksQueued) {
-		this.tasksQueued.set(tasksQueued);
-	}
-
 	public R getResult() {
 		return result;
 	}
@@ -117,8 +114,15 @@ public class Algorithm<R> {
 		}
 	}
 	
-	public synchronized boolean hasFinished() {
-		return (this.getTasksAdded() == this.getTasksCompleted()) && (this.getTasksQueued() == 0);
+	public boolean hasFinished() {
+		boolean hasFinished = (this.hc.getAtomicLong("added" + this.id).get() == this.hc.getAtomicLong("completed" + this.id).get()) && (this.getTasksQueued() == 0);
+		if (hasFinished) {
+			this.finalTasksAdded = Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
+			this.finalTasksCompleted = Math.toIntExact(this.hc.getAtomicLong("completed" + this.id).get());
+			this.finalTasksQueued = this.hc.getQueue(this.id).size();
+			this.finished.compareAndSet(false, true);
+		}
+		return hasFinished;
 	}
 	
 	@Override

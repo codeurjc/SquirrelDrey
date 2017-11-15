@@ -204,7 +204,7 @@ public class QueuesManager {
 
 	}
 
-	private boolean submitTaskIfAvailable(Map<String, Integer> orderedMap) {
+	private boolean submitTaskIfAvailable(Map<String, ?> orderedMap) {
 		boolean taskAvailable = false;
 		boolean hasNext = true;
 		String queueId = "MAX_PRIORITY_QUEUE";
@@ -302,7 +302,7 @@ public class QueuesManager {
 		if (!map.isEmpty()) {
 			List<Entry<String, QueueProperty>> list = weightedSortEntries(map);
 			for (Map.Entry<String, QueueProperty> entry : list) {
-				result.put(entry.getKey(), entry.getValue().getLastTimeUpdated().get());
+				result.put(entry.getKey(), 1);
 			}
 		}
 		
@@ -350,9 +350,9 @@ public class QueuesManager {
 		int totalWeight = 0;
 		for (Entry<String, QueueProperty> entry : values) {
 			// Seconds since last addition to the queue
-			int t1 = (int) System.currentTimeMillis();
-			int t2 = entry.getValue().getLastTimeUpdated().get();
-			Integer w =  ((t1 - t2) / 1000);
+			long t1 = System.currentTimeMillis();
+			long t2 = entry.getValue().getLastTimeUpdated().get();
+			Integer w =  (Math.toIntExact(((t1 - t2) / 1000)));
 			totalWeight += w;
 			weights.put(entry.getKey(), w);
 		}

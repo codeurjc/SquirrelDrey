@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -65,40 +64,47 @@ public class AlgorithmManager<R> {
 		this.withAWSCloudWatch = withAWSCloudWatch;
 		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.hzClient, this.QUEUES);
 
-		hzClient.getTopic("task-added").addMessageListener((message) -> {
+		/*hzClient.getTopic("task-added").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
 			log.info("TASK [{}] added for algorithm [{}]", ev.getContent(), ev.getAlgorithmId());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 			alg.incrementTasksAdded();
-		});
+		});*/
 		hzClient.getTopic("task-completed").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
 			Task t = (Task) ev.getContent();
 			log.info("TASK [{}] completed for algorithm [{}]", t, ev.getAlgorithmId());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
-			alg.incrementTasksCompleted();
 			
-			algorithmStructures.get(alg.getId()).putAll(t.getHazelcastStructures());
+			if (alg == null) {
+				// Interruption of algorithm. This task is being terminated after stopped
+				log.info("TASK {} COMPLETED FOR STOPPED ALGORITHM {}: ", t, ev.getAlgorithmId());
+				this.cleanAlgorithmStructures(ev.getAlgorithmId());
+			} else {
 			
-			if (alg.hasFinished()) {
-				log.info("ALGORITHM SOLVED: Algorithm: " + ev.getAlgorithmId() + ", Result: " + t.getFinalResult());
-				alg.setFinishTime(System.currentTimeMillis());
-				try {
-					if (t.getFinalResult() != null)	alg.setResult((R) t.getFinalResult());
-					alg.runCallback();
-				} catch(Exception e) {
-					log.error(e.getMessage());
-				}
+				algorithmStructures.get(alg.getId()).putAll(t.getHazelcastStructures());
 				
-				cleanAlgorithmStructures(alg.getId());
+				if (alg.hasFinished()) {
+					log.info("ALGORITHM SOLVED: Algorithm: {}, Result: {}", ev.getAlgorithmId(), t.getFinalResult());
+					alg.setFinishTime(System.currentTimeMillis());
+					try {
+						if (t.getFinalResult() != null)	alg.setResult((R) t.getFinalResult());
+						alg.runCallback();
+					} catch(Exception e) {
+						log.error(e.getMessage());
+					}
+					
+					cleanAlgorithmStructures(alg.getId());
+				}
 			}
 		});
-		hzClient.getTopic("tasks-queued").addMessageListener((message) -> {
+		/*hzClient.getTopic("tasks-queued").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
-			log.info("EXECUTOR STATS for queue [{}]: Tasks waiting in queue -> {}", ev.getAlgorithmId(), ev.getContent());
+			int n = this.hzClient.getQueue(ev.getAlgorithmId()).size();
+			log.info("EXECUTOR STATS for queue [{}]: Tasks waiting in queue -> {}", ev.getAlgorithmId(), n);
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
-			alg.setTasksQueued((int) ev.getContent());
-		});
+			alg.setTasksQueued(n);
+		});*/
 		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
 			log.info("Algorithms succesfully terminated on {} milliseconds", System.currentTimeMillis() - this.timeForTerminate);
 			this.terminateBlockingLatch.countDown();
@@ -116,21 +122,25 @@ public class AlgorithmManager<R> {
 
 	private void cleanAlgorithmStructures(String algorithmId) {
 		
-		for (String structureId : this.algorithmStructures.get(algorithmId).keySet()) {
-			this.getHazelcastStructure(structureId).destroy();
+		if (this.algorithmStructures.get(algorithmId) != null) {
+			for (String structureId : this.algorithmStructures.get(algorithmId).keySet()) {
+				this.getHazelcastStructure(structureId).destroy();
+			}
+			log.info("Destroyed {} Hazelcast Data Structures for algorithm {}: {}",
+					this.algorithmStructures.get(algorithmId).keySet().size(),
+					algorithmId,
+					this.algorithmStructures.get(algorithmId).keySet());
 		}
 		
-		log.info("Destroyed {} Hazelcast Data Structures for algorithm {}: {}",
-				this.algorithmStructures.get(algorithmId).keySet().size(),
-				algorithmId,
-				this.algorithmStructures.get(algorithmId).keySet());
+		this.hzClient.getAtomicLong("added" + algorithmId).destroy();
+		this.hzClient.getAtomicLong("completed" + algorithmId).destroy();
 		
 		// Remove algorithm
 		this.algorithms.remove(algorithmId);
-		// Remove distributed task queue
-		this.QUEUES.remove(algorithmId);
 		// Remove algorithm distributed structures
 		this.algorithmStructures.remove(algorithmId);
+		// Remove distributed task queue
+		this.QUEUES.remove(algorithmId);
 	}
 	
 	private DistributedObject getHazelcastStructure(String id) {
@@ -194,7 +204,7 @@ public class AlgorithmManager<R> {
 	}
 	
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
-		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask);
+		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask);
 		
 		if (this.algorithms.putIfAbsent(id, alg) != null) {
 			throw new Exception("Algorithm with id [" + id + "] already exists");
@@ -203,14 +213,13 @@ public class AlgorithmManager<R> {
 		this.algorithmStructures.put(alg.getId(), new ConcurrentHashMap<>());
 		
 		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
-		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
+		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
 		
 		alg.solve(queue);
-		hzClient.getTopic("task-added").publish(new AlgorithmEvent(alg.getId(), "task-added", alg.getInitialTask()));
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
-		Algorithm<R> alg = new Algorithm<>(id, priority, initialTask, callback);
+		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask, callback);
 		
 		if (this.algorithms.putIfAbsent(id, alg) != null) {
 			throw new Exception("Algorithm with id [" + id + "] already exists");
@@ -219,10 +228,9 @@ public class AlgorithmManager<R> {
 		this.algorithmStructures.put(alg.getId(), new ConcurrentHashMap<>());
 		
 		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
-		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), new AtomicInteger((int) System.currentTimeMillis())));
+		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
 		
 		alg.solve(queue);
-		hzClient.getTopic("task-added").publish(new AlgorithmEvent(alg.getId(), "task-added", alg.getInitialTask()));
 	}
 	
 	public Map<String, WorkerStats> getWorkers() {

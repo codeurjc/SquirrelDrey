@@ -72,7 +72,7 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 	}
 
 	public void callback() {
-		this.publishTasksQueued();
+		this.hazelcastInstance.getAtomicLong("completed" + this.algorithmId).incrementAndGet();
 		hazelcastInstance.getTopic("task-completed").publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 
@@ -80,22 +80,15 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		t.setAlgorithm(this.algorithmId);
 		t.setHazelcastStructures(this.hazelcastStructures);
 		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
+				
 		queue.add(t);
-		
-		hazelcastInstance.getTopic("task-added").publish(new AlgorithmEvent(this.algorithmId, "task-added", t));
+		this.hazelcastInstance.getAtomicLong("added" + this.algorithmId).incrementAndGet();
 		
 		// Update last addition time
 		IMap<String, QueueProperty> map = hazelcastInstance.getMap("QUEUES");
 		QueueProperty properties = map.get(this.algorithmId);
-		properties.lastTimeUpdated.set((int) System.currentTimeMillis());
+		properties.lastTimeUpdated.set(System.currentTimeMillis());
 		map.set(this.algorithmId, properties);
-	}
-	
-	protected void publishTasksQueued() {
-		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
-
-		hazelcastInstance.getTopic("tasks-queued")
-				.publish(new AlgorithmEvent(this.algorithmId, "tasks-queued", queue.size()));
 	}
 	
 	@Override
