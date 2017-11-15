@@ -38,7 +38,7 @@ This flow means that both **PreparationTask** and **SolveTask** block the execut
 
 ```
 AlgorithmManager<String> manager = new AlgorithmManager<>();
-Task<Void> initialTask = new PreparationTask(10);
+Task initialTask = new PreparationTask(10);
 
 manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
 	System.out.println("MY RESULT: " + result);
@@ -56,8 +56,8 @@ public class PreparationTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong("my_countdown");
-		atomicLong.set(this.numberOfTasks);
+		IAtomicLong atomicLong = this.getAtomicLong("my_countdown");
+		atomicLong.set(this.numberOfAtomicTasks);
 		
 		for (int i = 0; i < this.numberOfAtomicTasks; i++) {
 			try {
@@ -79,8 +79,8 @@ public class AtomicTask extends Task {
 	public void process() throws Exception {
 		Thread.sleep(5000);
 		
-		IMap<Integer, Integer> results = hazelcastInstance.getMap("my_results");
-		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong("my_countdown");
+		IMap<Integer, Integer> results = (IMap<Integer, Integer>) this.getMap("my_results");
+		IAtomicLong atomicLong = this.getAtomicLong("my_countdown");
 		results.put(this.getId(), 1);
 		
 		if (atomicLong.decrementAndGet() == 0L) {
@@ -96,7 +96,7 @@ public class SolveTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		Map<Integer, Integer> results = hazelcastInstance.getMap("my_results");
+		IMap<Integer, Integer> results = (IMap<Integer, Integer>) this.getMap("my_results");
 		
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {
@@ -123,12 +123,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -jar target/squirrel-drey-hello-world-0.0.1.jar
+java -Dworker=true -jar target/squirrel-drey-hello-world-1.0.0.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -jar target/squirrel-drey-hello-world-0.0.1.jar
+java -Dworker=false -jar target/squirrel-drey-hello-world-1.0.0.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
@@ -145,15 +145,17 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-0.0.1.jar
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-1.0.0.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-0.0.1.jar
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-1.0.0.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
+
+> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-1.0.0.jar`.
 
 ----------
 
@@ -179,7 +181,7 @@ Your project must have the following dependency:
 <dependency>
 	<groupId>es.codeurjc</groupId>
 	<artifactId>squirrel-drey</artifactId>
-	<version>0.0.1</version>
+	<version>...</version>
 </dependency>
 ```
 
@@ -217,27 +219,54 @@ But one **worker** will be launched if done like this:
 | Class  | Description  |
 |---|---|
 | `AlgorithmManager<T>`  | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object |
+| `Algorithm<T>` | Represents a project with one initial Task as entry point for its execution. Stores valuable information about the Tasks added, completed and queued |
 | `Task` | Callable objects that will be executed asynchronously in a distributed cluster. All classes extending it must have serializable attributes |
 
 
 #### AlgorithmManager< T > 
 
-| Method  | Params | Returns  | Description |
+| Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>`Consumer<R>:callback`  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
+| *constructor* | `String:hazelcastClientConfig`<br>`boolean:withAwsCloudWatch` | | New AlgorithmManager, searching for configuration file on path `hazelcastClientConfig` (default one if not found) and initializing the AWS CloudWatch module if `withAWSCloudWatch` is true (false by default) |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
 | `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
 | `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
 | `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
+| `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
 
+#### Algorithm< T > 
+
+| Method  | Params (*italics* are optional) | Returns  | Description |
+|---|---|---|---|
+| `getResult` |  | `T` | Get the final result of the algorithm. Only available when the algorithm is done (same value is received by callback parameter `Consumer<T>:callback` on method `AlgorithmManager.solveAlgorithm`) |
+| `getTasksAdded` |  | int | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
+| `getTasksCompleted` |  | int | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
+| `getTasksQueued` |  | int | Get the total number of tasks waiting in the algorithm's queue |
 
 #### Task
 
-| Method  | Params | Returns  | Description |
+| Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
 | `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
 | `getId`  | void | `int` | Returns the unique identifier for this task |
+| `getMap`  | String:id | `IMap` | Returns a distributed Hazelcast Map associated to the Algorithm of this Task |
+| `getQueue`  | String:id | `IQueue` | Returns a distributed Hazelcast Queue associated to the Algorithm of this Task |
+| `getRingbuffer`  | String:id | `Ringbuffer` | Returns a distributed Hazelcast Ringbuffer associated to the Algorithm of this Task |
+| `getSet`  | String:id | `ISet` | Returns a distributed Hazelcast Set associated to the Algorithm of this Task |
+| `getList`  | String:id | `IList` | Returns a distributed Hazelcast List associated to the Algorithm of this Task |
+| `getMultiMap`  | String:id | `MultiMap` | Returns a distributed Hazelcast MultiMap associated to the Algorithm of this Task |
+| `getReplicatedMap`  | String:id | `ReplicatedMap` | Returns a distributed Hazelcast ReplicatedMap associated to the Algorithm of this Task |
+| `getTopic`  | String:id | `ITopic` | Returns a distributed Hazelcast Topic associated to the Algorithm of this Task |
+| `getLock`  | String:id | `ILock` | Returns a distributed Hazelcast Lock associated to the Algorithm of this Task |
+| `getSemaphore`  | String:id | `ISemaphore` | Returns a distributed Hazelcast Semaphore associated to the Algorithm of this Task |
+| `getAtomicLong`  | String:id | `IAtomicLong` | Returns a distributed Hazelcast AtomicLong associated to the Algorithm of this Task |
+| `getAtomicReference`  | String:id | `IAtomicReference` | Returns a distributed Hazelcast AtomicReference associated to the Algorithm of this Task |
+| `getIdGenerator`  | String:id | `IdGenerator` | Returns a distributed Hazelcast IdGenerator associated to the Algorithm of this Task |
+| `getCountDownLatch`  | String:id | `ICountDownLatch` | Returns a distributed Hazelcast CountDownLatch associated to the Algorithm of this Task |
+
+> All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the distributed data structures associated to one algorithm when it is over. Users can always get any Hazelcast distributed object by calling `Task.hazelcastInstance.get[DATA_STRUCTURE]` instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of destroying them at some time during the execution**. You may prefer doing this when you want a distributed object to be **common to every algorithm** and not just to one.
 
 ## Some thoughts about Hazelcast approach compared to other alternatives
 
