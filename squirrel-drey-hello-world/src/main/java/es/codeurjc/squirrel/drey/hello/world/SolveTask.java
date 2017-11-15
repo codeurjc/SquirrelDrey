@@ -1,22 +1,22 @@
 package es.codeurjc.squirrel.drey.hello.world;
 
-import java.util.Map;
 import java.util.Map.Entry;
+
+import com.hazelcast.core.IMap;
 
 import es.codeurjc.squirrel.drey.Task;
 
-public class SolveTask extends Task<String> {
+public class SolveTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		Map<Integer, Integer> results = hazelcastInstance.getMap("my_results");
+		IMap<Integer, Integer> results = (IMap<Integer, Integer>) this.getMap("my_results");
 		
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {
 			finalResult += e.getValue();
 		}
 		
-		this.setResult(Integer.toString(finalResult));
 		this.algorithmSolved(Integer.toString(finalResult));
 	}
 }
