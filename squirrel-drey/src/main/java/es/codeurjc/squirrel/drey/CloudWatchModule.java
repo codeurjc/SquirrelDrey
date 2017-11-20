@@ -4,7 +4,6 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.cloudwatch.model.MetricDatum;
 import com.amazonaws.services.cloudwatch.model.PutMetricDataRequest;
-import com.amazonaws.services.cloudwatch.model.PutMetricDataResult;
 import com.amazonaws.services.cloudwatch.model.StandardUnit;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
@@ -33,7 +32,7 @@ public class CloudWatchModule {
 		    .withNamespace("HAZELCAST_METRIC")
 		    .withMetricData(datum);
 
-		//PutMetricDataResult response = cw.putMetricData(request);
+		cw.putMetricData(request);
 		
 		System.out.println("METRICS PUSHED: " + nAlgorithms/nInstances);
 	}

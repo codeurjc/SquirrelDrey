@@ -1,17 +1,17 @@
 package es.codeurjc.squirrel.drey;
 
 import java.io.Serializable;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class QueueProperty implements Serializable, Comparable<QueueProperty> {
 
 	private static final long serialVersionUID = 1L;
 	Integer priority;
-	AtomicInteger lastTimeUpdated;
+	AtomicLong lastTimeUpdated;
 
-	public QueueProperty(Integer priority, AtomicInteger lastTimeUpdated) {
+	public QueueProperty(Integer priority, long lastTimeUpdated) {
 		this.priority = priority;
-		this.lastTimeUpdated = lastTimeUpdated;
+		this.lastTimeUpdated = new AtomicLong(lastTimeUpdated);
 	}
 
 	public Integer getPriority() {
@@ -22,12 +22,12 @@ public class QueueProperty implements Serializable, Comparable<QueueProperty> {
 		this.priority = priority;
 	}
 
-	public AtomicInteger getLastTimeUpdated() {
+	public AtomicLong getLastTimeUpdated() {
 		return lastTimeUpdated;
 	}
 
-	public void setLastTimeUpdated(AtomicInteger lastTimeUpdated) {
-		this.lastTimeUpdated = lastTimeUpdated;
+	public void setLastTimeUpdated(long lastTimeUpdated) {
+		this.lastTimeUpdated.set(lastTimeUpdated);
 	}
 	
 	@Override
@@ -37,7 +37,7 @@ public class QueueProperty implements Serializable, Comparable<QueueProperty> {
 
 	@Override
 	public int compareTo(QueueProperty o) {
-		if (this.priority == o.priority) {
+		if (this.priority.equals(o.priority)) {
 			double random = Math.random();
 			if (random >= 0.5) {
 				return -1;

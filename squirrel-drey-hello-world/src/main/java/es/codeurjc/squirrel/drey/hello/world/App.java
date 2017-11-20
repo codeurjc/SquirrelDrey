@@ -18,7 +18,7 @@ public class App {
 			// Solve the algorithm
 			
 			AlgorithmManager<String> manager = new AlgorithmManager<>("src/main/resources/hazelcast-client-config.xml", false);
-			Task<Void> initialTask = new PreparationTask(10);
+			Task initialTask = new PreparationTask(10);
 
 			manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
 				System.out.println("MY RESULT: " + result);

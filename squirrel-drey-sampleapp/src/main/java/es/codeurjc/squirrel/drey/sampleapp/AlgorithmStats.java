@@ -2,15 +2,61 @@ package es.codeurjc.squirrel.drey.sampleapp;
 
 public class AlgorithmStats {
 	
-	int taskQueued;
-	int taskCompleted;
+	String algorithmId;
+	
+	int tasksAdded;
+	int tasksCompleted;
+	int tasksQueued;
+	
 	String result;
 	long timeOfProcessing;
 	
-	public AlgorithmStats(String result, int taskQueued, int taskCompleted, long timeOfProcessing) {
+	public AlgorithmStats(String algorithmId, String result, int tasksAdded, int tasksCompleted, int tasksQueued, long timeOfProcessing) {
+		this.algorithmId = algorithmId;
 		this.result = result;
-		this.taskQueued = taskQueued;
-		this.taskCompleted = taskCompleted;
+		this.tasksAdded = tasksAdded;
+		this.tasksCompleted = tasksCompleted;
+		this.tasksQueued = tasksQueued;
+		this.timeOfProcessing = timeOfProcessing;
+	}
+	
+	public String getAlgorithmId() {
+		return this.algorithmId;
+	}
+	
+	public void setAlgorithmId(String algorithmId) {
+		this.algorithmId = algorithmId;
+	}
+	
+	public int getTasksAdded() {
+		return tasksAdded;
+	}
+	
+	public int getTasksCompleted() {
+		return tasksCompleted;
+	}
+	
+	public int getTasksQueued() {
+		return tasksQueued;
+	}
+	
+	public void setTasksAdded(int tasksAdded){
+		this.tasksAdded = tasksAdded;
+	}
+	
+	public void setTasksCompleted(int tasksCompleted){
+		this.tasksCompleted = tasksCompleted;
+	}
+	
+	public void setTasksQueued(int tasksQueued){
+		this.tasksQueued = tasksQueued;
+	}
+	
+	public long getTimeOfProcessing() {
+		return timeOfProcessing;
+	}
+	
+	public void setTimeOfProcessing(long timeOfProcessing){
 		this.timeOfProcessing = timeOfProcessing;
 	}
 	
@@ -18,32 +64,8 @@ public class AlgorithmStats {
 		return result;
 	}
 	
-	public int getTaskQueued() {
-		return taskQueued;
-	}
-	
-	public int getTaskCompleted() {
-		return taskCompleted;
-	}
-	
-	public long getTimeOfProcessing() {
-		return timeOfProcessing;
-	}
-	
 	public void setResult(String result){
 		this.result = result;
-	}
-	
-	public void setTaskQueued(int taskQueued){
-		this.taskQueued = taskQueued;
-	}
-	
-	public void setTaskCompleted(int taskCompleted){
-		this.taskCompleted = taskCompleted;
-	}
-	
-	public void setTimeOfProcessing(long timeOfProcessing){
-		this.timeOfProcessing = timeOfProcessing;
 	}
 	
 }

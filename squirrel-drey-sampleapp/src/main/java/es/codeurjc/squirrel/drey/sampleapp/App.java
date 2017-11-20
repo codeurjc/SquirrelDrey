@@ -16,8 +16,9 @@ public class App {
 	public static void main(String[] args) {
 		
 		boolean isWorker = System.getProperty("worker") != null ? Boolean.valueOf(System.getProperty("worker")) : true;
+		boolean isDevMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode")) : false;
 		
-		if (!isWorker) {
+		if (!isWorker || isDevMode) {
 			SpringApplication.run(Web.class);
 		} else {
 			Worker.launch();

@@ -86,7 +86,7 @@ public class AppTest {
 				latches.put(algId, new CountDownLatch(1));
 				try {
 					times.put(algId, System.currentTimeMillis());
-					manager.solveAlgorithm(algId, new PreparationTask("test_input_data" + j, nTasks, 5, "test_atomic_long_id" + j), j + 1, (r) -> {
+					manager.solveAlgorithm(algId, new PreparationTask("test_input_data" + j, nTasks, 5), j + 1, (r) -> {
 						results.put(algId, r);
 						latches.get(algId).countDown();
 						times.put(algId, System.currentTimeMillis() - times.get(algId));

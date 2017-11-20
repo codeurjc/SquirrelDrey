@@ -6,18 +6,14 @@ import com.hazelcast.core.IAtomicLong;
 import es.codeurjc.squirrel.drey.Task;
 import es.codeurjc.squirrel.drey.sampleapp.App;
 
-public class AtomicTask extends Task<String> {
+public class AtomicTask extends Task {
 
 	private static final long serialVersionUID = 1L;
-	private String resultMapId;
-	private String atomicLongId;
 	private String workData;
 	private Integer taskDuration;
 	private String workDescription;
 
-	public AtomicTask(String resultMapId, String atomicLongId, String workData, Integer taskDuration, String workDescription) {
-		this.resultMapId = resultMapId;
-		this.atomicLongId = atomicLongId;
+	public AtomicTask(String workData, Integer taskDuration, String workDescription) {
 		this.workData = workData;
 		this.taskDuration = taskDuration;
 		this.workDescription = workDescription;
@@ -35,20 +31,14 @@ public class AtomicTask extends Task<String> {
 	public void process() throws Exception {
 		Thread.sleep(taskDuration * 1000);
 		
-		//this.setResult(this.workData);
-		this.setResult("1");
-		
-		Map<Integer, Integer> results = hazelcastInstance.getMap(this.resultMapId);
-		IAtomicLong atomicLong = hazelcastInstance.getAtomicLong(this.atomicLongId);
-		results.put(Integer.parseInt(this.workDescription), Integer.parseInt(this.result));
-		
-		long l = atomicLong.decrementAndGet();
-		
-		App.logger.info("Must finish {} atomic tasks for algorithm {} yet", l, this.algorithmId );
-		
-		if (l == 0L) {
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("results");
+		IAtomicLong atomicLong = this.getAtomicLong("countdown");
+		results.put(Integer.parseInt(this.workDescription), 1);
+				
+		if (atomicLong.decrementAndGet() == 0L) {
 			App.logger.info("ADDING SOLVE TASK FOR ALGORITHM [{}]", this.algorithmId);
 			addNewTask(new ResultTask());
+			atomicLong.destroy();
 		}
 	}
 	
