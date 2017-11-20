@@ -234,6 +234,7 @@ But one **worker** will be launched if done like this:
 | `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
 | `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
 | `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
+| `getAllAlgorithms` | `` | `Collection<Algorithm>` | Get all running algorithms |
 
 #### Algorithm< T > 
 

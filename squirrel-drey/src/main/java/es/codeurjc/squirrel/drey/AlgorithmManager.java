@@ -1,6 +1,7 @@
 package es.codeurjc.squirrel.drey;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -203,6 +204,10 @@ public class AlgorithmManager<R> {
 		return this.algorithms.get(algorithmId);
 	}
 	
+	public Collection<Algorithm<R>> getAllAlgorithms() {
+		return this.algorithms.values();
+	}
+	
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask);
 		
@@ -237,7 +242,7 @@ public class AlgorithmManager<R> {
 		return this.workers;
 	}
 	
-	public void clearAllAlgorithms() {
+	private void clearAllAlgorithms() {
 		for (String algorithmId : this.algorithms.keySet()) {
 			this.cleanAlgorithmStructures(algorithmId);
 		}
