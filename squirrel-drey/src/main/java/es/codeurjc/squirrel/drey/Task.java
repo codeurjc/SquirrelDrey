@@ -34,6 +34,8 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 	private Object finalResult = null;
 	private Map<String, String> hazelcastStructures = new HashMap<>();
 	
+	private long tasksCompleted;
+	
 	public int getId() {
 		return this.uniqueId;
 	}
@@ -54,6 +56,10 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		return this.finalResult;
 	}
 	
+	public long getTasksCompleted() {
+		return this.tasksCompleted;
+	}
+	
 	public Map<String, String> getHazelcastStructures() {
 		return this.hazelcastStructures;
 	}
@@ -72,7 +78,7 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 	}
 
 	public void callback() {
-		this.hazelcastInstance.getAtomicLong("completed" + this.algorithmId).incrementAndGet();
+		this.tasksCompleted = this.hazelcastInstance.getAtomicLong("completed" + this.algorithmId).incrementAndGet();
 		hazelcastInstance.getTopic("task-completed").publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 

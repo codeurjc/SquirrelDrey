@@ -114,11 +114,11 @@ public class Algorithm<R> {
 		}
 	}
 	
-	public boolean hasFinished() {
-		boolean hasFinished = (this.hc.getAtomicLong("added" + this.id).get() == this.hc.getAtomicLong("completed" + this.id).get()) && (this.getTasksQueued() == 0);
+	public boolean hasFinished(Task t) {
+		boolean hasFinished = (this.hc.getAtomicLong("added" + this.id).get() == t.getTasksCompleted()) && (this.getTasksQueued() == 0);
 		if (hasFinished) {
 			this.finalTasksAdded = Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
-			this.finalTasksCompleted = Math.toIntExact(this.hc.getAtomicLong("completed" + this.id).get());
+			this.finalTasksCompleted = Math.toIntExact(t.getTasksCompleted());
 			this.finalTasksQueued = this.hc.getQueue(this.id).size();
 			this.finished.compareAndSet(false, true);
 		}

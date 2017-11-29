@@ -85,8 +85,8 @@ public class AlgorithmManager<R> {
 			
 				algorithmStructures.get(alg.getId()).putAll(t.getHazelcastStructures());
 				
-				if (alg.hasFinished()) {
-					log.info("ALGORITHM SOLVED: Algorithm: {}, Result: {}", ev.getAlgorithmId(), t.getFinalResult());
+				if (alg.hasFinished(t)) {
+					log.info("ALGORITHM SOLVED: Algorithm: {}, Result: {}, Last task: {}", ev.getAlgorithmId(), t.getFinalResult(), t);
 					alg.setFinishTime(System.currentTimeMillis());
 					try {
 						if (t.getFinalResult() != null)	alg.setResult((R) t.getFinalResult());
