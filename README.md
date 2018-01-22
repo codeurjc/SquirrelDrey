@@ -19,7 +19,7 @@ SquirrelDrey is a Java framework aimed to support distributed execution of algor
 
 The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks. All of them will be executed in a distributed cluster. To control the internal logic of the custom algorithm Hazelcast objects may be used. For example, a distributed Latch can be used to make certain task generate another different one only when certain condition is met. Or a distributed Map can be useful for storing any intermediate task's result. For further information, see [Hazelcast Docs](http://docs.hazelcast.org/docs/latest-development/manual/html/Preface/Hazelcast_IMDG_Editions.html).
 
-Whenever SquirrelDray founds that the number of tasks sent to be executed matches the number of completed tasks for one algorithm, it will be terminated. If any task has called method `Task.algorithmSolved(result)`, that will be the final result of the algorithm (`null` if not).
+Whenever SquirrelDrey founds that the number of tasks sent to be executed matches the number of completed tasks for one algorithm, it will be terminated. If any task has called method `Task.algorithmSolved(result)`, that will be the final result of the algorithm (`null` if not).
 
 ----------
 
