@@ -37,7 +37,7 @@ To control which **AtomicTask** should generate the only **SolveTask**, we make 
 
 This flow means that both **PreparationTask** and **SolveTask** block the execution: **PreparationTask** will always be the first Task executed and **SolveTask** the last one. In principle, we don't know (and we don't mind) the order of execution of the **AtomicTasks**.
 
-```
+```java
 AlgorithmManager<String> manager = new AlgorithmManager<>();
 Task initialTask = new PreparationTask(10);
 
@@ -46,7 +46,7 @@ manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
 });
 ```
 
-```
+```java
 public class PreparationTask extends Task {
 	
 	private Integer numberOfAtomicTasks;
@@ -71,7 +71,7 @@ public class PreparationTask extends Task {
 }
 ```
 
-```
+```java
 public class AtomicTask extends Task {
 
 	public AtomicTask() {	}
@@ -92,7 +92,7 @@ public class AtomicTask extends Task {
 }
 ```
 
-```
+```java
 public class SolveTask extends Task {
 
 	@Override
@@ -178,7 +178,7 @@ mvn -DskipTests=true clean package
 
 Your project must have the following dependency:
 
-```
+```xml
 <dependency>
 	<groupId>es.codeurjc</groupId>
 	<artifactId>squirrel-drey</artifactId>
@@ -191,7 +191,7 @@ An easy way of managing this situation is by using command line options to choos
 
 *squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
-```
+```java
 public static void main(String[] args) {
 
 	boolean isWorker = Boolean.valueOf(System.getProperty("worker"));
@@ -278,7 +278,7 @@ First of all, both frameworks share similar architecures. Users can launch slave
 
 *Hazelcast* stands for the **imperative** approach, while [Apache Flink](https://flink.apache.org/) represents the **declarative** approach. A good analogy to ilustrate this statement can be set with Java 8 Stream API. These code snippets will return the same result *("4", "16", "36")* :
 
-```
+```java
 public List<Double> imperative() {
 	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
 	List<Double> resultList = new ArrayList<>();
@@ -303,7 +303,7 @@ Both functions return the same list, but the second one makes use of the Stream 
 
 Now let's outline the distribution of a list of tasks (`Callable` objects) on a cluster. Let's suppose our tasks are:
 
-```
+```java
 public class Task implements Callable<Void>, Serializable {
 	@Override
 	public Void call() throws Exception {
@@ -317,7 +317,7 @@ public class Task implements Callable<Void>, Serializable {
 
 The client may insert tasks on a distributed queue (got thanks to a `HazelcastInstance` object):
 
-```
+```java
 public void imperativeHAZELCAST(List<Task> tasks) {
 	Queue<Task> distributedQueue = hazelcastInstance.getQueue("queue");
 	for (Task task : tasks) {
@@ -330,7 +330,7 @@ Slave nodes just need to indefinitely poll from the distributed queue and run th
 
 #### With Apache Flink
 
-```
+```java
 public void declarativeFLINK(List<Task> tasks) {
 	ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 	DataSet<Task> tasks = environment.fromCollection(tasks);
@@ -375,7 +375,7 @@ First of all, we need to create the container image and upload it to the Amazon 
 
 * `hazelcast-client-config.xml`
 
-```
+```xml
 ...
 <properties>
     <property name="hazelcast.discovery.enabled">true</property>
@@ -400,7 +400,7 @@ First of all, we need to create the container image and upload it to the Amazon 
 
 * `hazelcast-config.xml`
 
-```
+```xml
 ...
  <properties>
      <property name="hazelcast.discovery.enabled">true</property>
