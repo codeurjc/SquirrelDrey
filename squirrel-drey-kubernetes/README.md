@@ -31,7 +31,7 @@ Grant authorization to pods can connect to Kubernetes API
 
 With the config maps we settle how each cluster member can find other members.
 
-`$ kubectl create -f hazelcast-config-workers.yaml -f hazelcast-config-web.yaml`
+`$ kubectl create -f hazelcast-config-worker.yaml -f hazelcast-config-web.yaml`
 
 3. We deploy the workers first
 
