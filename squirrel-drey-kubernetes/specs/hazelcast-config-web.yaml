@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hz-config-web
+  namespace: default
+data:
+  NAMESPACE: "default"
+  SERVICE_NAME: "hazelcast-worker"
+  SERVICE_LABEL_NAME: "cluster01"
+  SERVICE_LABEL_VALUE: "true"
+  TYPE: "web"
