@@ -67,7 +67,7 @@ mvn -DskipTests=true package
 
 2. Copy the generated _jar_ into _Docker_ folder
 
-`$ cp target/squirrel-drey-sampleapp-1.0.3.jar Docker/`
+`$ cp target/squirrel-drey-sampleapp-1.0.4.jar Docker/`
 
 3. Build the image
 

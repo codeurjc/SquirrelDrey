@@ -124,12 +124,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -jar target/squirrel-drey-hello-world-1.0.3.jar
+java -Dworker=true -jar target/squirrel-drey-hello-world-1.0.4.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -jar target/squirrel-drey-hello-world-1.0.3.jar
+java -Dworker=false -jar target/squirrel-drey-hello-world-1.0.4.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
@@ -146,17 +146,17 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-1.0.3.jar
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-1.0.4.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-1.0.3.jar
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-1.0.4.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
 
-> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-1.0.3.jar`.
+> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-1.0.4.jar`.
 
 ----------
 
