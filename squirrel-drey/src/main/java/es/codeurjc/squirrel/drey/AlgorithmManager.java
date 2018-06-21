@@ -87,7 +87,8 @@ public class AlgorithmManager<R> {
 			log.info("TASK [{}] completed for algorithm [{}]", t, ev.getAlgorithmId());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 
-			this.taskCompletedLocks.get(ev.getAlgorithmId()).lock();
+			ReentrantLock l = this.taskCompletedLocks.get(ev.getAlgorithmId());
+			l.lock();
 			try {
 				if (alg == null) {
 					// Interruption of algorithm. This task is being terminated after stopped
@@ -111,7 +112,7 @@ public class AlgorithmManager<R> {
 					}
 				}
 			} finally {
-				this.taskCompletedLocks.get(ev.getAlgorithmId()).unlock();
+				l.unlock();
 			}
 		});
 		/*
