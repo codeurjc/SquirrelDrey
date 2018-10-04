@@ -12,6 +12,8 @@ public class Worker {
 		Mode mode = System.getProperty("mode") != null ? 
 				Mode.valueOf(System.getProperty("mode")) : 
 				Mode.RANDOM;
+				
+		System.out.println("Worker starting... Branch cores_minus_one");
 		
 		new Node().start(hazelcastConfigPath, mode);
 	}
