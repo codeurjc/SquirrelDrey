@@ -14,7 +14,7 @@ public class Node {
 	HazelcastInstance hc;
 	QueuesManager queuesManager;
 
-	public void start(String HAZELCAST_CONFIG, Mode mode) {
+	public void start(String HAZELCAST_CONFIG, Mode mode, int idleCores) {
 
 		Config cfg = new Config();
 		try {
@@ -33,7 +33,7 @@ public class Node {
 		cfg.addMapConfig(mapConfig);
 		
 		this.hc = Hazelcast.newHazelcastInstance(cfg);
-		this.queuesManager.initializeHazelcast(hc);
+		this.queuesManager.initializeHazelcast(hc, idleCores);
 		
 	}
 

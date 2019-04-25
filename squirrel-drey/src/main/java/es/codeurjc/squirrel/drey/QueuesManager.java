@@ -61,12 +61,12 @@ public class QueuesManager {
 		this.mode = mode;
 	}
 	
-	public void initializeHazelcast(HazelcastInstance hc) {
+	public void initializeHazelcast(HazelcastInstance hc, int numberOfIdleCores) {
 		this.hc = hc;
 		
-		// Initialize thread pool. Number of processors minus 1 so
-		// worker communications are never blocked
-		this.nThreads = Runtime.getRuntime().availableProcessors() - 1;
+		// Initialize thread pool. Number of processors minus the number of idle cores
+		// specified so worker communications are never blocked
+		this.nThreads = Runtime.getRuntime().availableProcessors() - numberOfIdleCores;
 		log.info("Number of cores: " + nThreads);
 		log.info("Using " + this.mode + " task selection strategy");
 		
