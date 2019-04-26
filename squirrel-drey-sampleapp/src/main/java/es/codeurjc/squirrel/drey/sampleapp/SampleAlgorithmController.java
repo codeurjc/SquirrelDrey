@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -33,7 +33,6 @@ public class SampleAlgorithmController {
 	
 	Map<String, Algorithm<String>> solvedAlgorithms = new ConcurrentHashMap<>();
 
-	
 	@RequestMapping(value = "/")
 	public String index() {
 		return "index";
@@ -136,10 +135,10 @@ public class SampleAlgorithmController {
 		try {
 			this.algorithmManager.blockingTerminateAlgorithms();
 		} catch (InterruptedException e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+			return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
 		}
 		log.info("...ALL ALGORITHMS TERMINATED");
-		return ResponseEntity.status(HttpStatus.OK).build();
+		return ResponseEntity.status(HttpStatus.SC_OK).build();
 	}
 	
 	@RequestMapping(value = "/stop-one", method = RequestMethod.POST)
@@ -148,9 +147,9 @@ public class SampleAlgorithmController {
 		try {
 			this.algorithmManager.blockingTerminateOneAlgorithm(algorithmId);
 		} catch (InterruptedException e) {
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+			return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
 		}
 		log.info("...ALGORITHM {} TERMINATED", algorithmId);
-		return ResponseEntity.status(HttpStatus.OK).build();
+		return ResponseEntity.status(HttpStatus.SC_OK).build();
 	}
 }
