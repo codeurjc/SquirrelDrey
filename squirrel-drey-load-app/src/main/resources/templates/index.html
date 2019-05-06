@@ -1,0 +1,223 @@
+<html>
+
+<head>
+	<title>Hazelcast Web App</title>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" charset="utf-8">
+	</meta>
+
+	<!-- Bootstrap -->
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js"
+		integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+		integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	</link>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+		integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous">
+	</script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js"></script>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	</link>
+	<!-- Bootstrap -->
+
+	<link rel="styleSheet" href="style.css" type="text/css" media="screen">
+	</link>
+</head>
+
+<body>
+
+	<nav class="navbar navbar-default">
+		<div class="container">
+			<div class="navbar-header">
+				<a class="navbar-brand" href="/">Hazelcast Web App</a>
+			</div>
+		</div>
+	</nav>
+
+	<div class="container vertical-center">
+		<form id="parent-form" class="form-group jumbotron">
+			<div id="group1" class="group">
+				<div class="task">
+					<div class="form-row">
+						<div style="display: inline-block; width: 125px">
+							<label>Type of task</label>
+							<div>
+								<input type="radio" name="typeOfTask11" value="PiDigitsTask" checked>
+								PiDigitsTask<br>
+								<input type="radio" name="typeOfTask11" value="MemTask"> MemTask
+							</div>
+						</div>
+						<p>
+							<label>Task load</label>
+							<input id="taskLoad11" class="form-control" type="number" name="taskLoad11" required="true"
+								value="15000"></input>
+						</p>
+						<p>
+							<label>Max task duration</label>
+							<input id="duration11" class="form-control" type="number" name="duration11" required="true"
+								value="8"></input>
+						</p>
+						<p>
+							<label>Delay</label>
+							<input id="delay11" class="form-control" type="number" name="delay11" required="true"
+								value="0"></input>
+						</p>
+					</div>
+				</div>
+				<p class="task-buttons">
+					<button id="add-task-1" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(1)">Add
+						task</button>
+					<button id="remove-task-1" type="button" class="btn btn-lg btn-warning"
+						onclick="removeLoadTask(1)">Remove
+						task</button>
+				</p>
+			</div>
+			<p class="group-buttons">
+				<button id="add-group-btn" type="button" class="btn btn-lg btn-info" onclick="addGroup()">Add
+					group</button>
+				<button id="remove-group" type="button" class="btn btn-lg btn-warning" onclick="removeGroup()">Remove
+					group</button>
+				<button id="submit-btn" type="button" class="btn btn-lg btn-success" onclick="post()">Go</button>
+			</p>
+		</form>
+	</div>
+
+	<footer class="footer">
+		<div class="container">
+			<div class="text-muted">CodeURJC</div>
+			<a href="http://www.codeurjc.es/" target="_blank">
+				<img class="footer-logo" src="images/code.png" />
+			</a>
+		</div>
+	</footer>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+		var nGroups = 1;
+		var nTasks = {
+			1: 1
+		};
+
+		function addLoadTask(index) {
+			if (!nTasks[index]) {
+				nTasks[index] = 0;
+			}
+
+			nTasks[index] = nTasks[index] + 1;
+			var str =
+				'<div class="task"><div class="form-row"><div style="display: inline-block; width: 125px">' +
+				'<label>Type of task</label><div>' +
+				'<input type="radio" name="typeOfTask' + index + nTasks[index] +
+				'" value="PiDigitsTask" checked> PiDigitsTask<br>' +
+				'<input type="radio" name="typeOfTask' + index + nTasks[index] + '" value="MemTask"> MemTask</div></div>' +
+				'<p><label>Task load</label>' +
+				'<input id="taskLoad' + index + nTasks[index] + '" class="form-control" type="number" name="taskLoad' +
+				index + nTasks[
+					index] +
+				'" required="true" value="15000"></input>' +
+				'</p><p><label>Max task duration</label>' +
+				'<input id="duration' + index + nTasks[index] + '" class="form-control" type="number" name="duration' +
+				index + nTasks[
+					index] +
+				'" required="true" value="8"></input>' +
+				'</p><p><label>Delay</label>' +
+				'<input id="delay' + index + nTasks[index] + '" class="form-control" type="number" name="delay' + index +
+				nTasks[index] +
+				'" required="true" value="0"></input>' +
+				'</p></div></div>';
+
+			var node = $.parseHTML(str);
+
+			if (nTasks[index] === 1) {
+				$('#group' + index + ' .task-buttons').last().before(str);
+				$('#remove-task-' + index).prop("disabled", false);
+			} else {
+				$('#group' + index + ' .task').last().before(str);
+			}
+			return false;
+		}
+
+		function removeLoadTask(index) {
+			$('#group' + index + ' .task').last().remove();
+			nTasks[index] = nTasks[index] - 1;
+			if (nTasks[index] === 0) {
+				$('#remove-task-' + index).prop("disabled", true);
+			}
+			return false;
+		}
+
+		function addGroup() {
+			nGroups++;
+			nTasks[nGroups] = 0;
+			var str =
+				'<div id="group' + nGroups + '" class="group"><p class="task-buttons">' +
+				'<button id="add-task-' + nGroups + '" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(' +
+				nGroups + ')">Add task</button>' +
+				'<button id="remove-task-' + nGroups +
+				'" type="button" class="btn btn-lg btn-warning" onclick="removeLoadTask(' + nGroups +
+				')" disabled>Remove task</button></p>';
+			var node = $.parseHTML(str);
+
+			if (nGroups === 1) {
+				$('#parent-form .group-buttons').last().before(str);
+				$('#remove-group').prop("disabled", false);
+			} else {
+				$('#parent-form .group').last().after(str);
+			}
+
+			return false;
+		}
+
+		function removeGroup() {
+			$('#parent-form .group').last().remove();
+			delete nTasks[nGroups];
+			nGroups--;
+			if (nGroups === 0) {
+				$('#remove-group').prop("disabled", true);
+			}
+			return false;
+		}
+
+		function post() {
+			var insertionTasks = [];
+			for (var i = 1; i <= nGroups; i++) {
+				var loadTasks = [];
+				for (var j = 1; j <= nTasks[i]; j++) {
+					loadTasks[j - 1] = {
+						typeOfTask: $('input[name="typeOfTask' + i + j + '"]:checked').val(),
+						taskLoad: ($('#taskLoad' + i + j)).val(),
+						maxTaskDuration: ($('#duration' + i + j)).val(),
+						delay: ($('#delay' + i + j)).val()
+					}
+				}
+				insertionTasks[i - 1] = {
+					id: 'InsertionTask-' + i,
+					loadTasks
+				};
+			}
+			insertionTasks[nGroups] = {
+				id: 'InsertionTask-' + (nGroups + 1),
+				loadTasks: []
+			}
+			console.log(insertionTasks);
+			$.ajax({
+				type: "POST",
+				url: window.location.origin + "/solve",
+				headers: {
+					'Accept': 'application/json',
+					'Content-Type': 'application/json'
+				},
+				data: JSON.stringify(insertionTasks),
+				success: function (response, textStatus, jqXHR) {
+					window.history.pushState("Result page", "Results", "/solve");
+					$("body").html(response);
+				}
+			});
+		}
+		/*]]>*/
+	</script>
+
+</body>
+
+</html>
