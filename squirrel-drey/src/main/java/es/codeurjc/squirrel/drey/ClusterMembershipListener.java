@@ -39,9 +39,6 @@ public class ClusterMembershipListener implements MembershipListener {
 		// If the removed node was running tasks, they are inserted in MAX_PRIORITY_QUEUE
 		IMap<Integer, Task> runningTasks = this.manager.hzClient.getMap("RUNNING_TASKS_" + memberId);
 		
-		System.out.println(runningTasks);
-		System.out.println(runningTasks.size());
-		
 		if (!runningTasks.isEmpty()) {
 			IQueue<Task> maxPriorityQueue = this.manager.hzClient.getQueue("MAX_PRIORITY_QUEUE");
 			maxPriorityQueue.addAll(runningTasks.values());

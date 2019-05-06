@@ -1,11 +1,14 @@
 package es.codeurjc.squirrel.drey;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -21,6 +24,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
 
+import es.codeurjc.squirrel.drey.Algorithm.Status;
+
 /**
  * @author Pablo Fuente (pablo.fuente@urjc.es)
  */
@@ -32,7 +37,10 @@ public class AlgorithmManager<R> {
 	Map<String, Algorithm<R>> algorithms;
 	Map<String, AtomicLong> taskCompletedEventsCount;
 	Map<String, ReentrantLock> taskCompletedLocks;
+	Map<String, ReentrantLock> taskTimeoutLocks;
 	Map<String, Map<String, String>> algorithmStructures;
+	Map<String, Boolean> algorithmsMarkedWithTimeout;
+	Map<String, Integer> algorithmsRunningAndFinishedTasksOnTimeout;
 	Map<String, WorkerStats> workers;
 	IMap<String, QueueProperty> QUEUES;
 
@@ -64,7 +72,10 @@ public class AlgorithmManager<R> {
 		this.algorithms = new ConcurrentHashMap<>();
 		this.taskCompletedEventsCount = new ConcurrentHashMap<>();
 		this.taskCompletedLocks = new ConcurrentHashMap<>();
+		this.taskTimeoutLocks = new ConcurrentHashMap<>();
 		this.algorithmStructures = new ConcurrentHashMap<>();
+		this.algorithmsMarkedWithTimeout = new ConcurrentHashMap<>();
+		this.algorithmsRunningAndFinishedTasksOnTimeout = new ConcurrentHashMap<>();
 		this.workers = new ConcurrentHashMap<>();
 
 		this.QUEUES = this.hzClient.getMap("QUEUES");
@@ -74,18 +85,13 @@ public class AlgorithmManager<R> {
 		this.withAWSCloudWatch = withAWSCloudWatch;
 		if (this.withAWSCloudWatch) this.cloudWatchModule = new CloudWatchModule(this.hzClient, this.QUEUES);
 
-		/*
-		 * hzClient.getTopic("task-added").addMessageListener((message) -> {
-		 * AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
-		 * log.info("TASK [{}] added for algorithm [{}]", ev.getContent(),
-		 * ev.getAlgorithmId()); Algorithm<R> alg =
-		 * this.algorithms.get(ev.getAlgorithmId()); alg.incrementTasksAdded(); });
-		 */
 		hzClient.getTopic("task-completed").addMessageListener((message) -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
 			Task t = (Task) ev.getContent();
-			log.info("TASK [{}] completed for algorithm [{}]", t, ev.getAlgorithmId());
+			log.info("TASK [{}] completed for algorithm [{}]. Took {} ms", t, ev.getAlgorithmId(), System.currentTimeMillis() - t.getTimeStarted());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
+			
+			hzClient.getAtomicLong("completed" + alg.getId()).incrementAndGet();
 
 			ReentrantLock l = this.taskCompletedLocks.get(ev.getAlgorithmId());
 			l.lock();
@@ -99,30 +105,81 @@ public class AlgorithmManager<R> {
 					algorithmStructures.get(alg.getId()).putAll(t.getHazelcastStructures());
 					if (t.getFinalResult() != null) alg.setResult((R) t.getFinalResult());
 
-					if (alg.hasFinished(t, this.taskCompletedEventsCount.get(ev.getAlgorithmId()).incrementAndGet())) {
+					if (alg.hasSuccessullyFinished(this.taskCompletedEventsCount.get(ev.getAlgorithmId()).incrementAndGet())) {
 						log.info("ALGORITHM SOLVED: Algorithm: {}, Result: {}, Last task: {}", ev.getAlgorithmId(), t.getFinalResult(), t);
-						alg.setFinishTime(System.currentTimeMillis());
 						try {
-							alg.runCallback();
+							alg.runCallbackSuccess();
 						} catch (Exception e) {
 							log.error(e.getMessage());
 						}
 
 						cleanAlgorithmStructures(alg.getId());
+					} else if (this.algorithmsMarkedWithTimeout.get(alg.getId())) {
+						log.warn("ALGORITHM TIMEOUT: Algorithm: {}, Completed task: {}", ev.getAlgorithmId(), t);
+						final Integer runningAndFinishedTasks = this.algorithmsRunningAndFinishedTasksOnTimeout.get(alg.getId());
+						if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
+							try {
+								log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t, alg.getId());
+								this.blockingTerminateOneAlgorithm(alg.getId());
+							} catch (InterruptedException e) {
+								log.error("Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}", alg.getId(), t, e.getMessage());
+							}
+							alg.runCallbackError(Status.TIMEOUT);
+						} else {
+							log.warn("There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout", alg.getId());
+						}
 					}
 				}
 			} finally {
 				l.unlock();
 			}
 		});
-		/*
-		 * hzClient.getTopic("tasks-queued").addMessageListener((message) -> {
-		 * AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject(); int n =
-		 * this.hzClient.getQueue(ev.getAlgorithmId()).size();
-		 * log.info("EXECUTOR STATS for queue [{}]: Tasks waiting in queue -> {}",
-		 * ev.getAlgorithmId(), n); Algorithm<R> alg =
-		 * this.algorithms.get(ev.getAlgorithmId()); alg.setTasksQueued(n); });
-		 */
+		hzClient.getTopic("task-timeout").addMessageListener((message) -> {
+			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
+			Task t = (Task) ev.getContent();
+			log.warn("TASK [{}] timeout ({} ms) for algorithm [{}]", t, t.getMaxDuration(), ev.getAlgorithmId());
+			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
+			
+			hzClient.getAtomicLong("timeout" + alg.getId()).incrementAndGet();
+
+			ReentrantLock l = this.taskTimeoutLocks.get(ev.getAlgorithmId());
+			l.lock();
+			try {
+				
+				int runningAndFinishedTasks;
+				final Integer previouslyStoredTasks = this.algorithmsRunningAndFinishedTasksOnTimeout.get(alg.getId());
+				if (previouslyStoredTasks == null) {
+					// First timeout task of the algorithm
+					runningAndFinishedTasks = alg.getTasksAdded() - alg.getTasksQueued();
+					log.info("Algorithm [{}] has {} running tasks when termination timeout caused by task [{}]", alg.getId(), runningAndFinishedTasks - alg.getTasksCompleted(), t);
+					
+					this.algorithmsRunningAndFinishedTasksOnTimeout.put(alg.getId(), runningAndFinishedTasks);
+					IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
+					queue.clear();
+					queue.destroy();
+					
+					log.info("Task queue for algorithm [{}] has been emptied because of timeout termination caused by task [{}]", alg.getId(), t);
+				} else {
+					// Other timeout tasks
+					runningAndFinishedTasks = previouslyStoredTasks;
+				}
+				
+				if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
+					try {
+						log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t, alg.getId());
+						this.blockingTerminateOneAlgorithm(alg.getId());
+					} catch (InterruptedException e) {
+						log.error("Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}", alg.getId(), t, e.getMessage());
+					}
+					alg.runCallbackError(Status.TIMEOUT);
+				} else {
+					log.warn("There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout", alg.getId());
+					this.algorithmsMarkedWithTimeout.put(alg.getId(), true);
+				}
+			} finally {
+				l.unlock();
+			}
+		});
 		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
 			log.info("Algorithms succesfully terminated on {} milliseconds",
 					System.currentTimeMillis() - this.timeForTerminate);
@@ -134,12 +191,14 @@ public class AlgorithmManager<R> {
 		});
 		hzClient.getTopic("worker-stats").addMessageListener((message) -> {
 			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
-			log.info("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
+			log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
 		});
 	}
 
-	private void cleanAlgorithmStructures(String algorithmId) {
+	private Algorithm<R> cleanAlgorithmStructures(String algorithmId) {
+
+		this.hzClient.getQueue(algorithmId).destroy();
 
 		if (this.algorithmStructures.get(algorithmId) != null) {
 			for (String structureId : this.algorithmStructures.get(algorithmId).keySet()) {
@@ -152,17 +211,26 @@ public class AlgorithmManager<R> {
 
 		this.hzClient.getAtomicLong("added" + algorithmId).destroy();
 		this.hzClient.getAtomicLong("completed" + algorithmId).destroy();
+		this.hzClient.getAtomicLong("timeout" + algorithmId).destroy();
 
 		// Remove algorithm
-		this.algorithms.remove(algorithmId);
+		Algorithm<R> alg = this.algorithms.remove(algorithmId);
 		// Remove the count of task completed events
 		this.taskCompletedEventsCount.remove(algorithmId);
-		// Remove the lock for this algorithm
+		// Remove the completed locks for this algorithm
 		this.taskCompletedLocks.remove(algorithmId);
+		// Remove the tiemout locks for this algorithm
+		this.taskTimeoutLocks.remove(algorithmId);
 		// Remove algorithm distributed structures
 		this.algorithmStructures.remove(algorithmId);
+		// Remove algorithm timeout marks
+		this.algorithmsMarkedWithTimeout.remove(algorithmId);
+		// Remove algorithm running tasks on timeout
+		this.algorithmsRunningAndFinishedTasksOnTimeout.remove(algorithmId);
 		// Remove distributed task queue
 		this.QUEUES.remove(algorithmId);
+		
+		return alg;
 	}
 
 	private DistributedObject getHazelcastStructure(String id) {
@@ -190,10 +258,6 @@ public class AlgorithmManager<R> {
 		case REPLICATED_MAP:
 			object = this.hzClient.getReplicatedMap(id);
 			break;
-		/*
-		 * case CARDINALITY_ESTIMATOR: object =
-		 * this.hzClient.getCardinalityEstimator(id); break;
-		 */
 		case TOPIC:
 			object = this.hzClient.getTopic(id);
 			break;
@@ -232,29 +296,29 @@ public class AlgorithmManager<R> {
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask);
-
-		if (this.algorithms.putIfAbsent(id, alg) != null) {
-			throw new Exception("Algorithm with id [" + id + "] already exists");
-		}
-		this.taskCompletedEventsCount.putIfAbsent(alg.getId(), new AtomicLong(0));
-		this.taskCompletedLocks.putIfAbsent(alg.getId(), new ReentrantLock());
-		this.algorithmStructures.put(alg.getId(), new ConcurrentHashMap<>());
-
-		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
-		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
-
-		alg.solve(queue);
+		this.solveAlgorithmAux(id, alg);
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
 		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask, callback);
+		this.solveAlgorithmAux(id, alg);
+	}
 
+	public void solveAlgorithm(String id, Task initialTask, Integer priority, AlgorithmCallback<R> callback)
+			throws Exception {
+		Algorithm<R> alg = new Algorithm<>(this.hzClient, id, priority, initialTask, callback);
+		this.solveAlgorithmAux(id, alg);
+	}
+
+	private void solveAlgorithmAux(String id, Algorithm<R> alg) throws Exception {
 		if (this.algorithms.putIfAbsent(id, alg) != null) {
 			throw new Exception("Algorithm with id [" + id + "] already exists");
 		}
 		this.taskCompletedEventsCount.putIfAbsent(id, new AtomicLong(0));
 		this.taskCompletedLocks.putIfAbsent(alg.getId(), new ReentrantLock());
+		this.taskTimeoutLocks.putIfAbsent(alg.getId(), new ReentrantLock());
 		this.algorithmStructures.put(alg.getId(), new ConcurrentHashMap<>());
+		this.algorithmsMarkedWithTimeout.put(alg.getId(), false);
 
 		IQueue<Task> queue = this.hzClient.getQueue(alg.getId());
 		QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
@@ -266,30 +330,41 @@ public class AlgorithmManager<R> {
 		return this.workers;
 	}
 
-	private void clearAllAlgorithms() {
+	private List<Algorithm<R>> clearAllAlgorithmsFromTermination() {
+		List<Algorithm<R>> algs = new ArrayList<>();
+		Algorithm<R> alg;
 		for (String algorithmId : this.algorithms.keySet()) {
-			this.cleanAlgorithmStructures(algorithmId);
+			alg = this.cleanAlgorithmStructures(algorithmId);
+			alg.setStatus(Status.TERMINATED);
+			if (alg != null) {
+				algs.add(alg);
+			}
 		}
+		return algs;
 	}
 
-	public void terminateAlgorithms() {
+	public List<Algorithm<R>> terminateAlgorithms() {
 		this.hzClient.getTopic("stop-algorithms").publish("");
-		this.clearAllAlgorithms();
+		return this.clearAllAlgorithmsFromTermination();
 	}
 
-	public void blockingTerminateAlgorithms() throws InterruptedException {
+	public List<Algorithm<R>> blockingTerminateAlgorithms() throws InterruptedException {
 		this.terminateBlockingLatch = new CountDownLatch(1);
 		timeForTerminate = System.currentTimeMillis();
 		this.hzClient.getTopic("stop-algorithms-blocking").publish("");
 		this.terminateBlockingLatch.await(12, TimeUnit.SECONDS);
-		this.clearAllAlgorithms();
+		return this.clearAllAlgorithmsFromTermination();
 	}
 
-	public void blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException {
+	public Algorithm<R> blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException {
 		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
 		this.hzClient.getTopic("stop-one-algorithm-blocking").publish(algorithmId);
 		this.terminateOneBlockingLatches.get(algorithmId).await(12, TimeUnit.SECONDS);
-		this.cleanAlgorithmStructures(algorithmId);
+		Algorithm<R> alg = this.cleanAlgorithmStructures(algorithmId);
+		if (alg != null) {
+			alg.setStatus(Status.TERMINATED);
+		}
+		return alg;
 	}
 
 }

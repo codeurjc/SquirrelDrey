@@ -5,6 +5,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
@@ -25,21 +30,54 @@ import com.hazelcast.ringbuffer.Ringbuffer;
 
 public class Task implements Callable<Void>, Serializable, HazelcastInstanceAware {
 	
+	public enum Status {
+		/**
+	     * Task is waiting in the algorithm's distributed queue
+	     */
+		QUEUED,
+		/**
+	     * Task is running on some worker
+	     */
+		RUNNING,
+		/**
+	     * Task ash successfully finished
+	     */
+		COMPLETED,
+		/**
+	     * Task didn't manage to finish within its specified timeout
+	     */
+		TIMEOUT
+	}
+	
 	private static final long serialVersionUID = 1L;
 
 	protected transient HazelcastInstance hazelcastInstance;
 	
+	protected Status status;
+	
 	protected String algorithmId;
-	protected final int uniqueId = UUID.randomUUID().hashCode();
+	private final int uniqueId = UUID.randomUUID().hashCode();
 	private Object finalResult = null;
 	private Map<String, String> hazelcastStructures = new HashMap<>();
 	
-	private long tasksCompleted;
-	
+	private long timeStarted;
+	private long maxDuration;
+	private transient Future<?> timeoutFuture;
+	private ReentrantLock lock = new ReentrantLock();
+	private boolean timeoutStarted = false;
+		
 	public int getId() {
 		return this.uniqueId;
 	}
 
+	public Status getStatus() {
+		return this.status;
+	}
+	
+	public long getTimeStarted() {
+		return this.timeStarted;
+	}
+	
 	public void setHazelcastInstance(HazelcastInstance hazelcastInstance) {
 		this.hazelcastInstance = hazelcastInstance;
 	}
@@ -48,16 +86,20 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		this.algorithmId = algorithmId;
 	}
 	
+	public long getMaxDuration() {
+		return this.maxDuration;
+	}
+	
+	public void setMaxDuration(long milliseconds) {
+		this.maxDuration = milliseconds;
+	}
+	
 	public void algorithmSolved(Object finalResult) {
 		this.finalResult = finalResult;
 	}
 	
 	public Object getFinalResult() {
 		return this.finalResult;
-	}
-	
-	public long getTasksCompleted() {
-		return this.tasksCompleted;
 	}
 	
 	public Map<String, String> getHazelcastStructures() {
@@ -76,9 +118,46 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 	public Void call() throws Exception {
 		return null;
 	}
+	
+	void initializeExecutionCountdown() {
+		if (this.maxDuration != 0) {
+			ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+			timeoutFuture = scheduler.schedule(() -> {
+				lock.lock();
+				try {
+					System.out.println(
+							"Scheduled termination task triggerd for task [" + this + "] of algorithm ["
+									+ this.algorithmId + "] due to timeout of " + this.maxDuration + " ms passed");
+					timeoutStarted = true;
+					this.status = Status.TIMEOUT;
+					// this.hazelcastInstance.getAtomicLong("timeout" + this.algorithmId).incrementAndGet();
+					hazelcastInstance.getTopic("task-timeout").publish(new AlgorithmEvent(this.algorithmId, "task-timeout", this));
+				} finally {
+					lock.unlock();
+				}
+	        }, this.maxDuration, TimeUnit.MILLISECONDS);       
+		}
+		this.timeStarted = System.currentTimeMillis();
+		this.status = Status.RUNNING;
+	}
 
 	public void callback() {
-		this.tasksCompleted = this.hazelcastInstance.getAtomicLong("completed" + this.algorithmId).incrementAndGet();
+		if (timeoutFuture != null) {
+			lock.lock();
+			try {
+				if (!timeoutStarted) {
+					System.out.println("Cancelling termination timeout for task [" + this + "] of algorithm [" + this.algorithmId + "]");
+					timeoutFuture.cancel(true);
+				} else {
+					System.out.println("Task [" + this + "] of algorithm [" + this.algorithmId + "] tried to execute success callback method but termination due to timeout has already started");
+					return;
+				}
+			} finally {
+				lock.unlock();
+			}
+		}
+		this.status = Status.COMPLETED;
+		// this.hazelcastInstance.getAtomicLong("completed" + this.algorithmId).incrementAndGet();
 		hazelcastInstance.getTopic("task-completed").publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 
@@ -86,7 +165,8 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		t.setAlgorithm(this.algorithmId);
 		t.setHazelcastStructures(this.hazelcastStructures);
 		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
-				
+		
+		t.status = Status.QUEUED;
 		queue.add(t);
 		this.hazelcastInstance.getAtomicLong("added" + this.algorithmId).incrementAndGet();
 		
@@ -152,12 +232,6 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		this.hazelcastStructures.putIfAbsent(id, id);
 		return this.hazelcastInstance.getReplicatedMap(id);
 	}
-	
-	/*protected CardinalityEstimator getCardinalityEstimator(String customId) {
-		String id = this.getStructureId(customId, HazelcastStructure.CARDINALITY_ESTIMATOR);
-		this.hazelcastStructures.putIfAbsent(id, id);
-		return this.hazelcastInstance.getCardinalityEstimator(id);
-	}*/
 	
 	protected ITopic<?> getTopic(String customId) {
 		String id = this.getStructureId(customId, HazelcastStructure.TOPIC);

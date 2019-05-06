@@ -243,6 +243,7 @@ public class QueuesManager {
 				runningTasks.put(task.getId(), task);
 				log.info("XXX1 " + runningTasks.size());
 				
+				task.initializeExecutionCountdown();
 				task.process();
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -434,21 +435,6 @@ public class QueuesManager {
 			queue.clear();
 		}
 		
-		// Active wait for all algorithm queues to be empty
-		boolean queuesEmpty = true;
-		while (!queuesEmpty) {
-			for(String queueId : mapOfQueues.keySet()) {
-				IQueue<Task> queue = hc.getQueue(queueId);
-				queuesEmpty = queuesEmpty && queue.isEmpty();
-			}
-			if (queuesEmpty) break;
-			try {
-				Thread.sleep(250);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		
 		// Destroy all algorithm queues
 		for(String queueId : mapOfQueues.keySet()) {
 			IQueue<Task> queue = hc.getQueue(queueId);
@@ -503,15 +489,6 @@ public class QueuesManager {
 		
 		// Clear algorithm queue
 		queue.clear();
-		
-		// Active wait for algorithm queue to be empty
-		while(!queue.isEmpty()){
-			try {
-				Thread.sleep(250);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
 		
 		this.mapOfQueues.remove(algorithmId);
 		

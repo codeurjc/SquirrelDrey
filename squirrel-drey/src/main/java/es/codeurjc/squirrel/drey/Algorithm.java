@@ -11,16 +11,37 @@ import com.hazelcast.core.IQueue;
  */
 public class Algorithm<R> {
 
+	public enum Status {
+		/**
+	     * Algorithm has started (method {@link AlgorithmManager#solveAlgorithm(String, Task, Integer)} has been called)
+	     */
+		STARTED,
+		/**
+	     * Algorithm has successfully finished
+	     */
+		COMPLETED,
+		/**
+	     * Algorithm has been manually cancelled by calling any of the termination methods of {@link AlgorithmManager}
+	     */
+		TERMINATED,
+		/**
+	     * Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout
+	     */
+		TIMEOUT
+	}
+
 	HazelcastInstance hc;
 
 	private String id;
 	private Integer priority;
+	private Status status;
 
 	private R result;
 
 	private int finalTasksAdded;
 	private int finalTasksCompleted;
 	private int finalTasksQueued;
+	private int finalTasksTimeout;
 	private AtomicBoolean finished = new AtomicBoolean(false);
 
 	private Long initTime;
@@ -28,12 +49,12 @@ public class Algorithm<R> {
 
 	private Task initialTask;
 	private Consumer<R> callback;
+	private AlgorithmCallback<R> algorithmCallback;
 
 	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask) {
 		this.hc = hc;
 		this.id = id;
 		this.priority = priority;
-
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 	}
@@ -42,10 +63,19 @@ public class Algorithm<R> {
 		this.hc = hc;
 		this.id = id;
 		this.priority = priority;
-
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.callback = callback;
+	}
+
+	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask,
+			AlgorithmCallback<R> callback) {
+		this.hc = hc;
+		this.id = id;
+		this.priority = priority;
+		initialTask.setAlgorithm(this.getId());
+		this.initialTask = initialTask;
+		this.algorithmCallback = callback;
 	}
 
 	public String getId() {
@@ -56,8 +86,19 @@ public class Algorithm<R> {
 		return this.priority;
 	}
 
+	public Status getStatus() {
+		return this.status;
+	}
+
+	void setStatus(Status status) {
+		this.status = status;
+	}
+
 	public void solve(IQueue<Task> queue) throws Exception {
+		this.status = Status.STARTED;
 		this.initTime = System.currentTimeMillis();
+		
+		this.initialTask.status = Task.Status.QUEUED;
 		queue.add(this.initialTask);
 
 		this.hc.getAtomicLong("added" + this.id).incrementAndGet();
@@ -84,16 +125,23 @@ public class Algorithm<R> {
 		return this.hc.getQueue(this.id).size();
 	}
 
+	public int getTasksTimeout() {
+		if (this.finished.get()) {
+			return this.finalTasksTimeout;
+		}
+		return Math.toIntExact(this.hc.getAtomicLong("timeout" + this.id).get());
+	}
+
+	public int getTasksFinished() {
+		return this.getTasksCompleted() + this.getTasksTimeout();
+	}
+
 	public R getResult() {
 		return result;
 	}
 
 	public void setResult(R result) {
 		this.result = result;
-	}
-
-	public void setFinishTime(long finishTime) {
-		this.finishTime = finishTime;
 	}
 
 	public Long getTimeOfProcessing() {
@@ -108,22 +156,46 @@ public class Algorithm<R> {
 		return this.initialTask;
 	}
 
-	public void runCallback() throws Exception {
+	public void runCallbackSuccess() throws Exception {
+		this.finishTime = System.currentTimeMillis();
+		this.status = Status.COMPLETED;
 		if (this.callback != null) {
 			this.callback.accept(this.result);
+		} else if (this.algorithmCallback != null) {
+			this.algorithmCallback.onSuccess(this.result, this);
 		}
 	}
 
-	public boolean hasFinished(Task t, Long numberOfTaskCompletedEvents) {
-		boolean hasFinished = (this.hc.getAtomicLong("added" + this.id).get() == t.getTasksCompleted())
-				&& (t.getTasksCompleted() == numberOfTaskCompletedEvents) && (this.getTasksQueued() == 0);
-		if (hasFinished) {
-			this.finalTasksAdded = Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
-			this.finalTasksCompleted = Math.toIntExact(t.getTasksCompleted());
-			this.finalTasksQueued = this.hc.getQueue(this.id).size();
+	public void runCallbackError(Status status) {
+		this.finishTime = System.currentTimeMillis();
+		this.status = status;
+		if (this.algorithmCallback != null) {
+			this.algorithmCallback.onError(this);
+		}
+	}
+
+	public boolean hasSuccessullyFinished(Long numberOfTaskCompletedEvents) {
+		final int tasksAdded = this.getTasksAdded();
+		final int tasksCompleted = this.getTasksCompleted();
+		final int tasksQueued = this.getTasksQueued();
+		final int tasksTimeout = this.getTasksTimeout();
+		boolean hasSuccessullyFinished = (tasksAdded == tasksCompleted) && (tasksTimeout == 0)
+				&& (tasksCompleted == numberOfTaskCompletedEvents) && (tasksQueued == 0);
+		if (hasSuccessullyFinished) {
+			this.finalTasksAdded = tasksAdded;
+			this.finalTasksCompleted = tasksCompleted;
+			this.finalTasksQueued = tasksQueued;
+			this.finalTasksTimeout = tasksTimeout;
 			this.finished.compareAndSet(false, true);
 		}
-		return hasFinished;
+		return hasSuccessullyFinished;
+	}
+	
+	public boolean hasFinishedRunningTasks(int addedMinusQueued) {
+		final int finished = this.getTasksFinished();
+		System.out.println("Added minus queued: " + addedMinusQueued);
+		System.out.println("Tasks finished: " + finished);
+		return finished == addedMinusQueued;
 	}
 
 	@Override
