@@ -277,7 +277,7 @@ public class QueuesManager {
 			}
 			return null;
 		}, executor);
-		future = future.thenAcceptAsync(voidResult -> {
+		future.thenAcceptAsync(voidResult -> {
 			try {
 				task.callback();
 
@@ -291,21 +291,6 @@ public class QueuesManager {
 				e.printStackTrace();
 			}
 		}, executorCallbacks);
-
-		try {
-			future.get(task.getMaxDuration() + 10, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (ExecutionException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (TimeoutException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.out.println(future.isCancelled());
-			future.cancel(true);
-		}
 	}
 
 	private void publishWorkerStats() {
