@@ -64,6 +64,8 @@
 								value="0"></input>
 						</p>
 					</div>
+				</div>
+				<div class="task">
 					<div class="form-row">
 						<div style="display: inline-block; width: 125px">
 							<label>Type of task</label>
@@ -91,7 +93,7 @@
 					</div>
 				</div>
 				<p class="task-buttons">
-					<button id="add-task-1" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(1)">Add
+					<button id="add-task-1" type="button" class="btn btn-lg btn-info btn-add-task" onclick="addLoadTask(1)">Add
 						task</button>
 					<button id="remove-task-1" type="button" class="btn btn-lg btn-warning"
 						onclick="removeLoadTask(1)">Remove
@@ -177,7 +179,7 @@
 			nTasks[nGroups] = 0;
 			var str =
 				'<div id="group' + nGroups + '" class="group"><p class="task-buttons">' +
-				'<button id="add-task-' + nGroups + '" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(' +
+				'<button id="add-task-' + nGroups + '" type="button" class="btn btn-lg btn-info btn-add-task" onclick="addLoadTask(' +
 				nGroups + ')">Add task</button>' +
 				'<button id="remove-task-' + nGroups +
 				'" type="button" class="btn btn-lg btn-warning" onclick="removeLoadTask(' + nGroups +

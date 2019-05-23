@@ -86,9 +86,12 @@ public class AlgorithmManager<R> {
 
 		this.hzClient = Hazelcast.newHazelcastInstance(config);
 
+		final int totalNumberOfCores = Runtime.getRuntime().availableProcessors();
+		log.info("Total number of cores: {}", totalNumberOfCores);
+
 		int idleCores = System.getProperty("idle-cores-app") != null
 				? Integer.parseInt(System.getProperty("idle-cores-app"))
-				: new Double(Math.ceil(Runtime.getRuntime().availableProcessors() * 0.75)).intValue();
+				: new Double(Math.ceil(totalNumberOfCores * 0.75)).intValue();
 
 		log.info("Application worker will have {} idle cores", idleCores);
 

@@ -149,6 +149,10 @@ tr.first-row {
 	width: 48%;
 }
 
+.btn-add-task {
+	margin-right: 5px;
+}
+
 #remove {
 	width: 48%;
 }
