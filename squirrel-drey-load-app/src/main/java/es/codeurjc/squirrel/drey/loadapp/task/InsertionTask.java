@@ -28,8 +28,8 @@ public class InsertionTask extends Task {
 					this.tasks.add(new PiDigitsTask(params.getTaskLoad(), params.getDelay(),
 							params.getMaxTaskDuration(), this.getCustomId(), nextInsertionTask));
 				} else if (params.getTypeOfTask() == MemTask.class) {
-					// this.tasks.add(new MemTask(params.getTaskLoad(), params.getDelay(),
-					// params.getMaxTaskDuration()));
+					this.tasks.add(new MemTask(params.getTaskLoad(), params.getDelay(), params.getMaxTaskDuration(),
+							this.getCustomId(), nextInsertionTask));
 				}
 			}
 		}

@@ -30,7 +30,8 @@ public class SampleAlgorithmController {
 	AlgorithmManager<String> algorithmManager;
 
 	Algorithm<String> algorithm;
-	final String ALGORITHM_ID = "LOAD_ALGORITHM";
+	final String DEFAULT_ALGORITHM_ID = "LOAD_ALGORITHM";
+	String INUSE_ALGORITHM_ID = DEFAULT_ALGORITHM_ID;
 
 	@RequestMapping(value = "/")
 	public String index() {
@@ -47,21 +48,27 @@ public class SampleAlgorithmController {
 				.reduce(0, Integer::sum);
 		numberOfTasks += tasks.size();
 
-		algorithmManager.solveAlgorithm(ALGORITHM_ID, initialTask, 1, new AlgorithmCallback<String>() {
-			@Override
-			public void onSuccess(String result, Algorithm<String> alg) {
-				log.info("RESULT FOR ALGORITHM {}: {}", alg.getId(), result == null ? "NULL" : result.toString());
-				log.info("STATUS FOR ALGORITHM {}: {}", alg.getId(), alg.getStatus());
-				// Store the algorithm to send one final response to front
-				algorithm = alg;
-			}
+		String algId = algorithmManager.solveAlgorithm(DEFAULT_ALGORITHM_ID, initialTask, 1,
+				new AlgorithmCallback<String>() {
+					@Override
+					public void onSuccess(String result, Algorithm<String> alg) {
+						log.info("RESULT FOR ALGORITHM {}: {}", alg.getId(),
+								result == null ? "NULL" : result.toString());
+						log.info("STATUS FOR ALGORITHM {}: {}", alg.getId(), alg.getStatus());
+						// Store the algorithm to send one final response to front
+						algorithm = alg;
+					}
 
-			@Override
-			public void onError(Algorithm<String> alg) {
-				log.error("ERROR WHILE SOLVING ALGORITHM {}. Status: {}", alg.getId(), alg.getStatus());
-				algorithm = alg;
-			}
-		});
+					@Override
+					public void onError(Algorithm<String> alg) {
+						log.error("ERROR WHILE SOLVING ALGORITHM {}. Status: {}", alg.getId(), alg.getStatus());
+						algorithm = alg;
+					}
+				});
+
+		if (algId != null) {
+			INUSE_ALGORITHM_ID = algId;
+		}
 
 		model.addAttribute("numberOfTasks", numberOfTasks);
 		return "solve";
@@ -71,7 +78,7 @@ public class SampleAlgorithmController {
 	public ResponseEntity<Response> getStats() {
 
 		// Algorithm statistics
-		Algorithm<String> alg = this.algorithmManager.getAlgorithm(ALGORITHM_ID);
+		Algorithm<String> alg = this.algorithmManager.getAlgorithm(INUSE_ALGORITHM_ID);
 		if (alg == null) {
 			alg = this.algorithm;
 			if (alg == null) {
@@ -82,7 +89,17 @@ public class SampleAlgorithmController {
 		AlgorithmStats algorithmStats;
 		String result = alg.getResult();
 		Status status = alg.getStatus();
-		Integer tasksAdded = alg.getTasksAdded();
+		Integer tasksAdded;
+
+		try {
+			tasksAdded = alg.getTasksAdded();
+		} catch (Exception e) {
+			log.warn("The queue for added tasks of the algorithm {} is destroyed. Algorithm terminated", alg.getId());
+			algorithmStats = new AlgorithmStats(alg.getId(), (result == null) ? "" : result, status, 0, 0, 0, 0);
+			this.algorithm = null;
+			return ResponseEntity.ok(new Response(algorithmStats, new ArrayList<>()));
+		}
+
 		Integer tasksCompleted = alg.getTasksCompleted();
 		Integer tasksQueued = alg.getTasksQueued();
 		Long time = alg.getTimeOfProcessing();
@@ -107,11 +124,11 @@ public class SampleAlgorithmController {
 	public ResponseEntity<String> stopOneAlgorithm() {
 		log.info("TERMINATING ALGORITHM {}...");
 		try {
-			this.algorithmManager.blockingTerminateOneAlgorithm(ALGORITHM_ID);
+			this.algorithmManager.blockingTerminateOneAlgorithm(INUSE_ALGORITHM_ID);
 		} catch (InterruptedException e) {
 			return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
 		}
-		log.info("ALGORITHM TERMINATED", ALGORITHM_ID);
+		log.info("ALGORITHM TERMINATED", INUSE_ALGORITHM_ID);
 		return ResponseEntity.status(HttpStatus.SC_OK).build();
 	}
 

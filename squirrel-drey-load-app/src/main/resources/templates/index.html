@@ -64,6 +64,31 @@
 								value="0"></input>
 						</p>
 					</div>
+					<div class="form-row">
+						<div style="display: inline-block; width: 125px">
+							<label>Type of task</label>
+							<div>
+								<input type="radio" name="typeOfTask12" value="PiDigitsTask">
+								PiDigitsTask<br>
+								<input type="radio" name="typeOfTask12" value="MemTask" checked> MemTask
+							</div>
+						</div>
+						<p>
+							<label>Task load</label>
+							<input id="taskLoad12" class="form-control" type="number" name="taskLoad12" required="true"
+								value="7000000"></input>
+						</p>
+						<p>
+							<label>Max task duration</label>
+							<input id="duration12" class="form-control" type="number" name="duration12" required="true"
+								value="25"></input>
+						</p>
+						<p>
+							<label>Delay</label>
+							<input id="delay12" class="form-control" type="number" name="delay12" required="true"
+								value="0"></input>
+						</p>
+					</div>
 				</div>
 				<p class="task-buttons">
 					<button id="add-task-1" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(1)">Add
@@ -96,7 +121,7 @@
 		/*<![CDATA[*/
 		var nGroups = 1;
 		var nTasks = {
-			1: 1
+			1: 2
 		};
 
 		function addLoadTask(index) {
@@ -120,7 +145,7 @@
 				'<input id="duration' + index + nTasks[index] + '" class="form-control" type="number" name="duration' +
 				index + nTasks[
 					index] +
-				'" required="true" value="8"></input>' +
+				'" required="true" value="14"></input>' +
 				'</p><p><label>Delay</label>' +
 				'<input id="delay' + index + nTasks[index] + '" class="form-control" type="number" name="delay' + index +
 				nTasks[index] +
