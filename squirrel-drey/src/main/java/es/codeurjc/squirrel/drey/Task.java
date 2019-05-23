@@ -56,7 +56,7 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 	protected Status status;
 
 	protected String algorithmId;
-	private final int uniqueId = UUID.randomUUID().hashCode();
+	private final int uniqueId = Math.abs(UUID.randomUUID().hashCode());
 	private Object finalResult = null;
 	private Map<String, String> hazelcastStructures = new HashMap<>();
 
@@ -138,6 +138,9 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 				}
 			}, this.maxDuration, TimeUnit.MILLISECONDS);
 		}
+
+		Thread.currentThread().setName("TASK-THREAD-" + this.uniqueId);
+
 		this.timeStarted = System.currentTimeMillis();
 		this.status = Status.RUNNING;
 	}
