@@ -10,7 +10,8 @@ public class Worker {
 				: "src/main/resources/hazelcast-config.xml";
 
 		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
-		int idleCores = System.getProperty("idle-cores") != null ? Integer.parseInt(System.getProperty("idle-cores"))
+		int idleCores = System.getProperty("idle-cores-worker") != null
+				? Integer.parseInt(System.getProperty("idle-cores-worker"))
 				: 1;
 
 		System.out.println("Worker starting...");

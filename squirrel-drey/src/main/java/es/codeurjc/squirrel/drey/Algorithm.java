@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IQueue;
+import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 
 /**
  * @author Pablo Fuente (pablo.fuente@urjc.es)
@@ -13,20 +14,24 @@ public class Algorithm<R> {
 
 	public enum Status {
 		/**
-	     * Algorithm has started (method {@link AlgorithmManager#solveAlgorithm(String, Task, Integer)} has been called)
-	     */
+		 * Algorithm has started (method
+		 * {@link AlgorithmManager#solveAlgorithm(String, Task, Integer)} has been
+		 * called)
+		 */
 		STARTED,
 		/**
-	     * Algorithm has successfully finished
-	     */
+		 * Algorithm has successfully finished
+		 */
 		COMPLETED,
 		/**
-	     * Algorithm has been manually cancelled by calling any of the termination methods of {@link AlgorithmManager}
-	     */
+		 * Algorithm has been manually cancelled by calling any of the termination
+		 * methods of {@link AlgorithmManager}
+		 */
 		TERMINATED,
 		/**
-	     * Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout
-	     */
+		 * Algorithm has been forcibly finished by a task that didn't manage to complete
+		 * within its specified timeout
+		 */
 		TIMEOUT
 	}
 
@@ -78,6 +83,19 @@ public class Algorithm<R> {
 		this.algorithmCallback = callback;
 	}
 
+	public Algorithm(HazelcastInstance hc, String id, Algorithm<R> otherAlgorithm) {
+		this.hc = hc;
+		this.id = id;
+		this.priority = otherAlgorithm.getPriority();
+		this.initialTask = otherAlgorithm.getInitialTask();
+		this.initialTask.setAlgorithm(this.getId());
+		if (otherAlgorithm.callback != null) {
+			this.callback = otherAlgorithm.callback;
+		} else if (otherAlgorithm.algorithmCallback != null) {
+			this.algorithmCallback = otherAlgorithm.algorithmCallback;
+		}
+	}
+
 	public String getId() {
 		return this.id;
 	}
@@ -97,39 +115,39 @@ public class Algorithm<R> {
 	public void solve(IQueue<Task> queue) throws Exception {
 		this.status = Status.STARTED;
 		this.initTime = System.currentTimeMillis();
-		
+
 		this.initialTask.status = Task.Status.QUEUED;
 		queue.add(this.initialTask);
 
-		this.hc.getAtomicLong("added" + this.id).incrementAndGet();
+		this.hc.getCPSubsystem().getAtomicLong("added" + this.id).incrementAndGet();
 	}
 
-	public int getTasksAdded() {
+	public int getTasksAdded() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksAdded;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("added" + this.id).get());
 	}
 
-	public int getTasksCompleted() {
+	public int getTasksCompleted() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksCompleted;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("completed" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("completed" + this.id).get());
 	}
 
-	public int getTasksQueued() {
+	public int getTasksQueued() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksQueued;
 		}
 		return this.hc.getQueue(this.id).size();
 	}
 
-	public int getTasksTimeout() {
+	public int getTasksTimeout() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksTimeout;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("timeout" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("timeout" + this.id).get());
 	}
 
 	public int getTasksFinished() {
@@ -190,7 +208,7 @@ public class Algorithm<R> {
 		}
 		return hasSuccessullyFinished;
 	}
-	
+
 	public boolean hasFinishedRunningTasks(int addedMinusQueued) {
 		final int finished = this.getTasksFinished();
 		System.out.println("Added minus queued: " + addedMinusQueued);

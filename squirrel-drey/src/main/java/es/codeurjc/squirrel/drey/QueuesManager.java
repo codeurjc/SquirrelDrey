@@ -62,28 +62,43 @@ public class QueuesManager {
 	}
 	
 	public void initializeHazelcast(HazelcastInstance hc, int numberOfIdleCores) {
-		this.hc = hc;
 		
+		this.hc = hc;
+
 		// Initialize thread pool. Number of processors minus the number of idle cores
 		// specified so worker communications are never blocked
 		this.nThreads = Runtime.getRuntime().availableProcessors() - numberOfIdleCores;
 		log.info("Number of cores: " + nThreads);
 		log.info("Using " + this.mode + " task selection strategy");
-		
 		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
 				new LinkedBlockingQueue<Runnable>());
-		
 		this.executorCallbacks = Executors.newSingleThreadExecutor();
-				
-		localMember = this.hc.getCluster().getLocalMember();
+		
 		queuesListeners = new ConcurrentHashMap<>();
+		localMember = this.hc.getCluster().getLocalMember();
+
 		mapOfQueues = hc.getMap("QUEUES");
 		maxPriorityQueue = hc.getQueue("MAX_PRIORITY_QUEUE");
 		maxPriorityQueueListener = new QueueListener(maxPriorityQueue, this);
 		maxPriorityQueue.addItemListener(maxPriorityQueueListener, true);
 
 		runningTasks = hc.getMap("RUNNING_TASKS_" + localMember.getAddress().toString());
-				
+		
+		try {
+			int minutes = System.getProperty("init-timeout") != null ? Integer.parseInt(System.getProperty("init-timeout"))
+					: 3;
+			if (hc.getCPSubsystem().getCPSubsystemManagementService().awaitUntilDiscoveryCompleted(minutes,
+					TimeUnit.MINUTES)) {
+				System.out.println(hc.getCluster().getLocalMember() + " initialized the CP subsystem with identity: "
+						+ hc.getCPSubsystem().getLocalCPMember());
+			} else {
+				System.err.println(hc.getCluster().getLocalMember() + " couldn't initialized the CP subsystem. ");
+				System.exit(1);
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
 		log.info("Queues on startup {}", mapOfQueues.keySet().toString());
 		
 		// Prepare an active stop of algorithms

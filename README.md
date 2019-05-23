@@ -124,12 +124,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -jar target/squirrel-drey-hello-world-1.0.4.jar
+java -Dworker=true -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -jar target/squirrel-drey-hello-world-1.0.4.jar
+java -Dworker=false -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
@@ -146,17 +146,17 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-1.0.4.jar
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-1.0.4.jar
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
 
-> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-1.0.4.jar`.
+> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-*.jar`.
 
 ----------
 
@@ -187,7 +187,7 @@ Your project must have the following dependency:
 ```
 
 Because of the way Hazelcast manages distributed objects, your application will have to be responsible of launching the workers (for security reasons, custom objects cannot be sent between nodes if their classes are not purposely declared and available on the node's classpath).
-An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.main()`).
+An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.launch()`).
 
 *squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
@@ -269,6 +269,19 @@ But one **worker** will be launched if done like this:
 | `getCountDownLatch`  | String:id | `ICountDownLatch` | Returns a distributed Hazelcast CountDownLatch associated to the Algorithm of this Task |
 
 > All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the distributed data structures associated to one algorithm when it is over. Users can always get any Hazelcast distributed object by calling `Task.hazelcastInstance.get[DATA_STRUCTURE]` instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of destroying them at some time during the execution**. You may prefer doing this when you want a distributed object to be **common to every algorithm** and not just to one.
+
+#### System properties
+
+- **hazelcast-config**: path to hazelcast configuration file. Default to `"src/main/resources/hazelcast-config.xml"`, which ultimately leads to [this file](https://github.com/codeurjc/SquirrelDrey/blob/master/squirrel-drey/src/main/resources/hazelcast-config.xml).
+- **mode**: `PRIORITY` (default) or `RANDOM`. Defines the strategy followed by SquirrelDrey to select the next task to solve.
+- **idle-cores-worker**: number of cores that will remain idle per worker. Default is 1, so ideally worker communications will never get blocked, but this property can be increased to ensure it.
+- **idle-cores-app**: number of cores that will remain idle in the application. Default is 3/4 of the cores.
+- **init-timeout**: minutes that a worker node will wait for the HazelCast CP subsystem cluster to be up and ready. If it elapses, then the worker Java process will be terminated.
+- **devmode**: if true 2 worker nodes will be automatically launched by the library when initializing a new `AlgorithmManager`.
+- **cp-member-count** _(CP Hazelcast config property)_: number of CP members. Default: 3 (MINIMUM)
+- **cp-session-heartbeat** _(CP Hazelcast config property)_: interval in seconds for the periodically-committed CP session heartbeats. Default: 30
+- **cp-session-ttl** _(CP Hazelcast config property)_: duration in seconds for a CP session to be kept alive after the last heartbeat. Default: 180
+- **cp-missing-member-autoremoval**: _(CP Hazelcast config property)_: duration in seconds to wait before automatically removing a missing CP member from the CP subsystem. For a normal-operating system this property is not necessary in principle, as master node will immediately remove the CP member from the CP group on member disconnection. Default: 300
 
 ## Some thoughts about Hazelcast approach compared to other alternatives
 
