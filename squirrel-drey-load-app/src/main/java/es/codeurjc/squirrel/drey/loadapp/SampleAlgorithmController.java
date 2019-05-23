@@ -30,6 +30,8 @@ public class SampleAlgorithmController {
 	AlgorithmManager<String> algorithmManager;
 
 	Algorithm<String> algorithm;
+	Algorithm<String> terminatedAlgorithm;
+
 	final String DEFAULT_ALGORITHM_ID = "LOAD_ALGORITHM";
 	String INUSE_ALGORITHM_ID = DEFAULT_ALGORITHM_ID;
 
@@ -82,7 +84,11 @@ public class SampleAlgorithmController {
 		if (alg == null) {
 			alg = this.algorithm;
 			if (alg == null) {
-				return ResponseEntity.ok(null);
+				if (this.terminatedAlgorithm == null) {
+					return ResponseEntity.ok(null);
+				} else {
+					alg = this.terminatedAlgorithm;
+				}
 			}
 		}
 
@@ -97,6 +103,7 @@ public class SampleAlgorithmController {
 			log.warn("The queue for added tasks of the algorithm {} is destroyed. Algorithm terminated", alg.getId());
 			algorithmStats = new AlgorithmStats(alg.getId(), (result == null) ? "" : result, status, 0, 0, 0, 0);
 			this.algorithm = null;
+			this.terminatedAlgorithm = null;
 			return ResponseEntity.ok(new Response(algorithmStats, new ArrayList<>()));
 		}
 
@@ -116,19 +123,21 @@ public class SampleAlgorithmController {
 
 		// Delete solved algorithm
 		this.algorithm = null;
+		this.terminatedAlgorithm = null;
 
 		return ResponseEntity.ok(response);
 	}
 
 	@RequestMapping(value = "/stop", method = RequestMethod.POST)
 	public ResponseEntity<String> stopOneAlgorithm() {
-		log.info("TERMINATING ALGORITHM {}...");
+		log.info("TERMINATING ALGORITHM...");
 		try {
-			this.algorithmManager.blockingTerminateOneAlgorithm(INUSE_ALGORITHM_ID);
+			terminatedAlgorithm = this.algorithmManager.blockingTerminateOneAlgorithm(INUSE_ALGORITHM_ID);
+			log.info("ALGORITHM {} TERMINATED. Algorithm status: {}", INUSE_ALGORITHM_ID,
+					terminatedAlgorithm.getStatus());
 		} catch (InterruptedException e) {
 			return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
 		}
-		log.info("ALGORITHM TERMINATED", INUSE_ALGORITHM_ID);
 		return ResponseEntity.status(HttpStatus.SC_OK).build();
 	}
 

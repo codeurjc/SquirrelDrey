@@ -119,7 +119,13 @@ public class AlgorithmManager<R> {
 					System.currentTimeMillis() - t.getTimeStarted());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
 
-			hzClient.getCPSubsystem().getAtomicLong("completed" + ev.getAlgorithmId()).incrementAndGet();
+			try {
+				hzClient.getCPSubsystem().getAtomicLong("completed" + ev.getAlgorithmId()).incrementAndGet();
+			} catch (DistributedObjectDestroyedException e) {
+				log.warn("Task {} completed for algorithm {} but it has been already terminated. Message: {} ", t,
+						ev.getAlgorithmId(), e.getMessage());
+				return;
+			}
 
 			ReentrantLock l = this.taskCompletedLocks.get(ev.getAlgorithmId());
 			l.lock();
@@ -177,50 +183,65 @@ public class AlgorithmManager<R> {
 			Task t = (Task) ev.getContent();
 			log.warn("TASK [{}] timeout ({} ms) for algorithm [{}]", t, t.getMaxDuration(), ev.getAlgorithmId());
 			Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
-			final String algId = alg.getId();
 
-			hzClient.getCPSubsystem().getAtomicLong("timeout" + algId).incrementAndGet();
+			try {
+				hzClient.getCPSubsystem().getAtomicLong("timeout" + ev.getAlgorithmId()).incrementAndGet();
+			} catch (DistributedObjectDestroyedException e) {
+				log.warn("Task {} timeout for algorithm {} but it has been already terminated. Message: {} ", t,
+						ev.getAlgorithmId(), e.getMessage());
+				return;
+			}
 
-			ReentrantLock l = this.taskTimeoutLocks.get(algId);
+			ReentrantLock l = this.taskTimeoutLocks.get(ev.getAlgorithmId());
 			l.lock();
 			try {
 
-				int runningAndFinishedTasks;
-				final Integer previouslyStoredTasks = this.algorithmsRunningAndFinishedTasksOnTimeout.get(algId);
-				if (previouslyStoredTasks == null) {
-					// First timeout task of the algorithm
-					runningAndFinishedTasks = alg.getTasksAdded() - alg.getTasksQueued();
-					log.info("Algorithm [{}] has {} running tasks when termination timeout caused by task [{}]", algId,
-							runningAndFinishedTasks - alg.getTasksCompleted(), t);
-
-					this.algorithmsRunningAndFinishedTasksOnTimeout.put(algId, runningAndFinishedTasks);
-					IQueue<Task> queue = this.hzClient.getQueue(algId);
-					queue.clear();
-					queue.destroy();
-
-					log.info(
-							"Task queue for algorithm [{}] has been emptied because of timeout termination caused by task [{}]",
-							algId, t);
+				if (alg == null) {
+					// Interruption of algorithm. This task is triggering timeout after stopped
+					log.info("TASK {} TRIGGERED TIMEOUT FOR STOPPED ALGORITHM {}: ", t, ev.getAlgorithmId());
+					this.cleanAlgorithmStructures(ev.getAlgorithmId());
 				} else {
-					// Other timeout tasks
-					runningAndFinishedTasks = previouslyStoredTasks;
-				}
 
-				if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
-					try {
-						log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t, algId);
-						this.blockingTerminateOneAlgorithm(algId);
-					} catch (InterruptedException e) {
-						log.error(
-								"Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}",
-								algId, t, e.getMessage());
+					final String algId = alg.getId();
+
+					int runningAndFinishedTasks;
+					final Integer previouslyStoredTasks = this.algorithmsRunningAndFinishedTasksOnTimeout.get(algId);
+					if (previouslyStoredTasks == null) {
+						// First timeout task of the algorithm
+						runningAndFinishedTasks = alg.getTasksAdded() - alg.getTasksQueued();
+						log.info("Algorithm [{}] has {} running tasks when termination timeout caused by task [{}]",
+								algId, runningAndFinishedTasks - alg.getTasksCompleted(), t);
+
+						this.algorithmsRunningAndFinishedTasksOnTimeout.put(algId, runningAndFinishedTasks);
+						IQueue<Task> queue = this.hzClient.getQueue(algId);
+						queue.clear();
+						queue.destroy();
+
+						log.info(
+								"Task queue for algorithm [{}] has been emptied because of timeout termination caused by task [{}]",
+								algId, t);
+					} else {
+						// Other timeout tasks
+						runningAndFinishedTasks = previouslyStoredTasks;
 					}
-					alg.runCallbackError(Status.TIMEOUT);
-				} else {
-					log.warn(
-							"There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout",
-							algId);
-					this.algorithmsMarkedWithTimeout.put(algId, true);
+
+					if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
+						try {
+							log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t,
+									algId);
+							this.blockingTerminateOneAlgorithm(algId);
+						} catch (InterruptedException e) {
+							log.error(
+									"Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}",
+									algId, t, e.getMessage());
+						}
+						alg.runCallbackError(Status.TIMEOUT);
+					} else {
+						log.warn(
+								"There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout",
+								algId);
+						this.algorithmsMarkedWithTimeout.put(algId, true);
+					}
 				}
 			} finally {
 				l.unlock();
@@ -372,7 +393,7 @@ public class AlgorithmManager<R> {
 			boolean inserted = false;
 			Algorithm<R> newAlgorithm = null;
 			while (!inserted) {
-				newId = id + "-" + RandomStringUtils.randomAlphanumeric(10);
+				newId = id + "-" + RandomStringUtils.randomAlphanumeric(5);
 				newAlgorithm = new Algorithm<>(this.hzClient, newId, alg);
 				inserted = this.algorithms.putIfAbsent(newId, newAlgorithm) == null;
 			}

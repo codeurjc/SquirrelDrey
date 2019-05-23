@@ -169,9 +169,6 @@
 	function terminateAlgorithm() {
 		$.ajax({
 			type: 'POST',
-			data: {
-				algorithmId: algorithmId
-			},
 			url: 'stop',
 			success: function (xhr) {
 				console.log('TERMINATED ALGORITHM ' + algorithmId);
