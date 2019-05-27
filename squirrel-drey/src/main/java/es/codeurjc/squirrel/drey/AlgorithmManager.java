@@ -181,7 +181,7 @@ public class AlgorithmManager<R> {
 				l.unlock();
 			}
 		});
-		hzClient.getTopic("task-timeout").addMessageListener((message) -> {
+		hzClient.getTopic("task-timeout").addMessageListener(message -> {
 			AlgorithmEvent ev = (AlgorithmEvent) message.getMessageObject();
 			Task t = (Task) ev.getContent();
 			log.warn("TASK [{}] timeout ({} ms) for algorithm [{}]", t, t.getMaxDuration(), ev.getAlgorithmId());
@@ -204,6 +204,8 @@ public class AlgorithmManager<R> {
 					log.info("TASK {} TRIGGERED TIMEOUT FOR STOPPED ALGORITHM {}: ", t, ev.getAlgorithmId());
 					this.cleanAlgorithmStructures(ev.getAlgorithmId());
 				} else {
+
+					alg.addErrorTask(t);
 
 					final String algId = alg.getId();
 
@@ -250,16 +252,16 @@ public class AlgorithmManager<R> {
 				l.unlock();
 			}
 		});
-		hzClient.getTopic("stop-algorithms-done").addMessageListener((message) -> {
+		hzClient.getTopic("stop-algorithms-done").addMessageListener(message -> {
 			log.info("Algorithms successfully terminated on {} milliseconds",
 					System.currentTimeMillis() - this.timeForTerminate);
 			this.terminateBlockingLatch.countDown();
 		});
-		hzClient.getTopic("stop-one-algorithm-done").addMessageListener((message) -> {
+		hzClient.getTopic("stop-one-algorithm-done").addMessageListener(message -> {
 			log.info("Algorithm [{}] successfully terminated", message.getMessageObject());
 			this.terminateOneBlockingLatches.get((String) message.getMessageObject()).countDown();
 		});
-		hzClient.getTopic("worker-stats").addMessageListener((message) -> {
+		hzClient.getTopic("worker-stats").addMessageListener(message -> {
 			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
 			log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());

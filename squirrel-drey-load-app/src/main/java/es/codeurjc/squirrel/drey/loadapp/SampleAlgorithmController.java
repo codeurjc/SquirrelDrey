@@ -64,6 +64,9 @@ public class SampleAlgorithmController {
 					@Override
 					public void onError(Algorithm<String> alg) {
 						log.error("ERROR WHILE SOLVING ALGORITHM {}. Status: {}", alg.getId(), alg.getStatus());
+						alg.getErrorTasks().forEach(errorTask -> {
+							log.error("TASK {} TIMEOUT IN ALGORITHM {}", errorTask, alg.getId());
+						});
 						algorithm = alg;
 					}
 				});
