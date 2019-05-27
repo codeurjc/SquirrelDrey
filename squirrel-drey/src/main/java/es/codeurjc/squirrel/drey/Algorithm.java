@@ -1,5 +1,7 @@
 package es.codeurjc.squirrel.drey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -53,6 +55,7 @@ public class Algorithm<R> {
 	private Long finishTime;
 
 	private Task initialTask;
+	private List<Task> errorTasks;
 	private Consumer<R> callback;
 	private AlgorithmCallback<R> algorithmCallback;
 
@@ -62,6 +65,7 @@ public class Algorithm<R> {
 		this.priority = priority;
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask, Consumer<R> callback) {
@@ -71,6 +75,7 @@ public class Algorithm<R> {
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.callback = callback;
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask,
@@ -81,6 +86,7 @@ public class Algorithm<R> {
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.algorithmCallback = callback;
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public Algorithm(HazelcastInstance hc, String id, Algorithm<R> otherAlgorithm) {
@@ -94,6 +100,7 @@ public class Algorithm<R> {
 		} else if (otherAlgorithm.algorithmCallback != null) {
 			this.algorithmCallback = otherAlgorithm.algorithmCallback;
 		}
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public String getId() {
@@ -172,6 +179,14 @@ public class Algorithm<R> {
 
 	public Task getInitialTask() {
 		return this.initialTask;
+	}
+
+	public List<Task> getErrorTasks() {
+		return this.errorTasks;
+	}
+
+	public void addErrorTask(Task errorTask) {
+		this.errorTasks.add(errorTask);
 	}
 
 	public void runCallbackSuccess() throws Exception {

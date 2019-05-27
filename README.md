@@ -229,7 +229,8 @@ But one **worker** will be launched if done like this:
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
 | *constructor* | `String:hazelcastClientConfig`<br>`boolean:withAwsCloudWatch` | | New AlgorithmManager, searching for configuration file on path `hazelcastClientConfig` (default one if not found) and initializing the AWS CloudWatch module if `withAWSCloudWatch` is true (false by default) |
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
 | `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
 | `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
 | `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
@@ -241,9 +242,21 @@ But one **worker** will be launched if done like this:
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
 | `getResult` |  | `T` | Get the final result of the algorithm. Only available when the algorithm is done (same value is received by callback parameter `Consumer<T>:callback` on method `AlgorithmManager.solveAlgorithm`) |
-| `getTasksAdded` |  | int | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
-| `getTasksCompleted` |  | int | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
-| `getTasksQueued` |  | int | Get the total number of tasks waiting in the algorithm's queue |
+| `getStatus`  |  | `Algorithm.Status` | Returns the status of the algorithm |
+| `getTasksAdded` |  | `int` | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
+| `getTasksCompleted` |  | `int` | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
+| `getTasksQueued` |  | `int` | Get the total number of tasks waiting in the algorithm's queue |
+| `getTimeOfProcessing` |  | `int` | Seconds that the algorithm has been executing |
+| `getInitialTask` |  | `Task` | Entrypoint task of the algorithm (task passed to method `AlgorithmManager.solveAlgorithm`) |
+| `getErrorTasks` |  | `List<Task>` | Every task of the algorithm that has triggered an error. In the current version, only possible errors that tasks can throw are timeouts. So this method returns all tasks that have triggered a timeout |
+
+
+##### Algorithm.Status (enum)
+
+- `STARTED`: Algorithm has started (method `AlgorithmManager.solveAlgorithm` has been called)
+- `COMPLETED`: Algorithm has successfully finished
+- `TERMINATED`: Algorithm has been manually cancelled by calling any of the termination methods of `AlgorithmManager`}
+- `TIMEOUT`: Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout
 
 #### Task
 
@@ -252,7 +265,8 @@ But one **worker** will be launched if done like this:
 | `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
-| `getId`  | void | `int` | Returns the unique identifier for this task |
+| `getId`  |  | `int` | Returns the unique identifier for this task |
+| `getStatus`  |  | `Task.Status` | Returns the status of the task |
 | `getMap`  | String:id | `IMap` | Returns a distributed Hazelcast Map associated to the Algorithm of this Task |
 | `getQueue`  | String:id | `IQueue` | Returns a distributed Hazelcast Queue associated to the Algorithm of this Task |
 | `getRingbuffer`  | String:id | `Ringbuffer` | Returns a distributed Hazelcast Ringbuffer associated to the Algorithm of this Task |
@@ -269,6 +283,13 @@ But one **worker** will be launched if done like this:
 | `getCountDownLatch`  | String:id | `ICountDownLatch` | Returns a distributed Hazelcast CountDownLatch associated to the Algorithm of this Task |
 
 > All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the distributed data structures associated to one algorithm when it is over. Users can always get any Hazelcast distributed object by calling `Task.hazelcastInstance.get[DATA_STRUCTURE]` instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of destroying them at some time during the execution**. You may prefer doing this when you want a distributed object to be **common to every algorithm** and not just to one.
+
+##### Task.Status (enum)
+
+- `QUEUED`: Task is waiting in the algorithm's distributed queue
+- `RUNNING`: Task is running on some worker
+- `COMPLETED`: Task has successfully finished
+- `TIMEOUT`: Task didn't manage to finish within its specified timeout
 
 #### System properties
 

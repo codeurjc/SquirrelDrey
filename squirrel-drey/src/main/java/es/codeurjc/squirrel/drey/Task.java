@@ -40,7 +40,7 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		 */
 		RUNNING,
 		/**
-		 * Task ash successfully finished
+		 * Task has successfully finished
 		 */
 		COMPLETED,
 		/**
@@ -129,8 +129,6 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 							+ this.algorithmId + "] due to timeout of " + this.maxDuration + " ms passed");
 					timeoutStarted = true;
 					this.status = Status.TIMEOUT;
-					// this.hazelcastInstance.getAtomicLong("timeout" +
-					// this.algorithmId).incrementAndGet();
 					hazelcastInstance.getTopic("task-timeout")
 							.publish(new AlgorithmEvent(this.algorithmId, "task-timeout", this));
 				} finally {
