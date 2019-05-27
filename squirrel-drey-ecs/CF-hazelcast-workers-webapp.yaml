@@ -1,8 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: >
-  AWS CloudFormation template to create a new VPC or use an existing VPC for ECS
-  deployment in Create Cluster Wizard. Requires exactly 1 Instance Types for a
-  Spot Request.
+  Deploying SquirrelDrey on AWS ECS.
 
 Parameters:
 
