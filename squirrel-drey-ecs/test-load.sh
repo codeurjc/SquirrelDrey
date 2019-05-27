@@ -1,0 +1,199 @@
+#!/bin/bash -x
+set -eu -o pipefail
+
+IP=18.202.55.209
+ORIGIN=$(curl ifconfig.co)
+
+JSON='[{
+	"id": "AA",
+	"inputData": "AA",
+	"priority": "3",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "BB",
+	"inputData": "BB",
+	"priority": "2",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "CC",
+	"inputData": "CC",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "dd",
+	"inputData": "dd",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ee",
+	"inputData": "ee",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ff",
+	"inputData": "ff",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "gg",
+	"inputData": "gg",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "hh",
+	"inputData": "hh",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ii",
+	"inputData": "ii",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "jj",
+	"inputData": "jj",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "kk",
+	"inputData": "kk",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ll",
+	"inputData": "ll",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "mm",
+	"inputData": "mm",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "nn",
+	"inputData": "nn",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "oo",
+	"inputData": "oo",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "pp",
+	"inputData": "pp",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "qq",
+	"inputData": "qq",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "rr",
+	"inputData": "rr",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ss",
+	"inputData": "ss",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "tt",
+	"inputData": "tt",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "uu",
+	"inputData": "uu",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "vv",
+	"inputData": "vv",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "ww",
+	"inputData": "ww",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "xx",
+	"inputData": "xx",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "yy",
+	"inputData": "yy",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}, {
+	"id": "zz",
+	"inputData": "zz",
+	"priority": "1",
+	"numberOfTasks": "30",
+	"taskDuration": "6",
+	"timeout": "0"
+}]'
+
+curl "http://${IP}:5000/solve" \
+-H 'Accept: application/json' \
+-H "Referer: http://${IP}:5000/" \
+-H 'Origin: http://${ORIGIN}:5000' \
+-H 'X-Requested-With: XMLHttpRequest' \
+-H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.172 Safari/537.36 Vivaldi/2.5.1525.46' \
+-H 'Content-Type: application/json' \
+--data-binary "${JSON}" \
+--compressed
