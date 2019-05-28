@@ -24,11 +24,11 @@ public class InsertionTask extends Task {
 			LoadTaskParameters params;
 			for (int i = 0; i < loadParameters.size(); i++) {
 				params = loadParameters.get(i);
-				if (params.getTypeOfTask() == PiDigitsTask.class) {
-					this.tasks.add(new PiDigitsTask(params.getTaskLoad(), params.getDelay(),
-							params.getMaxTaskDuration(), this.getCustomId(), nextInsertionTask));
-				} else if (params.getTypeOfTask() == MemTask.class) {
-					this.tasks.add(new MemTask(params.getTaskLoad(), params.getDelay(), params.getMaxTaskDuration(),
+				if (params.getType() == PiDigitsTask.class) {
+					this.tasks.add(new PiDigitsTask(params.getLoad(), params.getDelay(), params.getDuration(),
+							this.getCustomId(), nextInsertionTask));
+				} else if (params.getType() == MemTask.class) {
+					this.tasks.add(new MemTask(params.getLoad(), params.getDelay(), params.getDuration(),
 							this.getCustomId(), nextInsertionTask));
 				}
 			}

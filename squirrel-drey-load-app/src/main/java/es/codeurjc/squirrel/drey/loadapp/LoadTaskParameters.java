@@ -5,13 +5,13 @@ import es.codeurjc.squirrel.drey.loadapp.task.PiDigitsTask;
 
 public class LoadTaskParameters {
 
-	private String typeOfTask;
-	private Integer taskLoad;
-	private Integer maxTaskDuration;
+	private String type;
+	private Integer load;
+	private Integer duration;
 	private Integer delay;
 
-	public Class<?> getTypeOfTask() {
-		switch (this.typeOfTask) {
+	public Class<?> getType() {
+		switch (this.type) {
 		case "PiDigitsTask":
 			return PiDigitsTask.class;
 		case "MemTask":
@@ -21,24 +21,24 @@ public class LoadTaskParameters {
 		}
 	}
 
-	public void setTypeOfTask(String typeOfTask) {
-		this.typeOfTask = typeOfTask;
+	public void setType(String type) {
+		this.type = type;
 	}
 
-	public Integer getTaskLoad() {
-		return taskLoad;
+	public Integer getLoad() {
+		return load;
 	}
 
-	public void setTaskLoad(Integer taskLoad) {
-		this.taskLoad = taskLoad;
+	public void setLoad(Integer load) {
+		this.load = load;
 	}
 
-	public Integer getMaxTaskDuration() {
-		return maxTaskDuration;
+	public Integer getDuration() {
+		return duration;
 	}
 
-	public void setMaxTaskDuration(Integer maxTaskDuration) {
-		this.maxTaskDuration = maxTaskDuration;
+	public void setDuration(Integer duration) {
+		this.duration = duration;
 	}
 
 	public Integer getDelay() {
