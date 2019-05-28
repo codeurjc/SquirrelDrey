@@ -14,11 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +30,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
 import com.hazelcast.core.IQueue;
 import com.hazelcast.core.Member;
+
+import es.codeurjc.squirrel.drey.Task.Status;
 
 public class QueuesManager {
 
@@ -50,7 +52,7 @@ public class QueuesManager {
 	QueueListener maxPriorityQueueListener; // Listener for max priority queue
 
 	ThreadPoolExecutor executor; // Local thread pool to run tasks retrieved from distributed queues
-	ExecutorService executorCallbacks; // Single thread executor for task's callbacks
+	ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running timeout threads of tasks
 	Member localMember; // Local hazelcast member
 	Mode mode; // Mode of execution (RANDOM / PRIORITY)
 	AtomicBoolean isSubscribed = new AtomicBoolean(false); // true if worker is subscribed to at least one queue
@@ -75,7 +77,7 @@ public class QueuesManager {
 		if (nThreads > 0) {
 			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
 					new LinkedBlockingQueue<Runnable>());
-			this.executorCallbacks = Executors.newSingleThreadExecutor();
+			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
 		}
 
 		queuesListeners = new ConcurrentHashMap<>();
@@ -260,22 +262,35 @@ public class QueuesManager {
 	public void runTask(Task task) {
 		task.setHazelcastInstance(this.hc);
 
-		CompletableFuture<Void> future = CompletableFuture.supplyAsync(() -> {
+		final Future<?>[] futures = new Future<?>[2];
+
+		if (task.getMaxDuration() != 0) {
+			futures[1] = scheduleExecutor.schedule(() -> {
+				futures[0].cancel(true);
+				log.info("Scheduled termination task triggerd for task [{}] of algorithm [{}] due to timeout of {} ms passed", task, task.algorithmId, task.getMaxDuration());
+				task.status = Status.TIMEOUT;
+				this.hc.getTopic("task-timeout").publish(new AlgorithmEvent(task.algorithmId, "task-timeout", task));
+			}, task.getMaxDuration(), TimeUnit.MILLISECONDS);
+		}
+
+		futures[0] = executor.submit(() -> {
+			log.info("Starting task [{}] for algorithm [{}]", task, task.algorithmId);
+
+			// Add task to distributed map of running tasks
+			runningTasks.put(task.getId(), task);
+			log.info("XXX1 " + runningTasks.size());
+
+			task.initializeTask();
 			try {
-				log.info("Starting task [{}] for algorithm [{}]", task, task.algorithmId);
-
-				// Add task to distributed map of running tasks
-				runningTasks.put(task.getId(), task);
-				log.info("XXX1 " + runningTasks.size());
-
-				task.initializeExecutionCountdown();
 				task.process();
-			} catch (Exception e) {
-				e.printStackTrace();
+				if (futures[1] != null) {
+					futures[1].cancel(true);
+				}
+			} catch (InterruptedException e) {
+				log.error("Task {} was interrupted", this);
+				return null;
 			}
-			return null;
-		}, executor);
-		future.thenAcceptAsync(voidResult -> {
+
 			try {
 				task.callback();
 
@@ -288,7 +303,10 @@ public class QueuesManager {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		}, executorCallbacks);
+
+			return null;
+		});
+
 	}
 
 	private void publishWorkerStats() {
@@ -437,11 +455,13 @@ public class QueuesManager {
 		maxPriorityQueue.clear();
 
 		executor.shutdown();
-		executorCallbacks.shutdown();
+		scheduleExecutor.shutdown();
 
-		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
-				new LinkedBlockingQueue<Runnable>());
-		this.executorCallbacks = Executors.newSingleThreadExecutor();
+		if (nThreads > 0) {
+			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+					new LinkedBlockingQueue<Runnable>());
+			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
+		}
 
 		hc.getTopic("stop-algorithms-done").publish("");
 	}
@@ -469,7 +489,7 @@ public class QueuesManager {
 		maxPriorityQueue.clear();
 
 		executor.shutdown();
-		executorCallbacks.shutdown();
+		scheduleExecutor.shutdown();
 
 		// Active wait for all data structures to be empty
 		boolean allEmpty = false;
@@ -487,14 +507,16 @@ public class QueuesManager {
 
 		try {
 			executor.awaitTermination(7, TimeUnit.SECONDS);
-			executorCallbacks.awaitTermination(7, TimeUnit.SECONDS);
+			scheduleExecutor.awaitTermination(7, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
 
-		this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
-				new LinkedBlockingQueue<Runnable>());
-		this.executorCallbacks = Executors.newSingleThreadExecutor();
+		if (nThreads > 0) {
+			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+					new LinkedBlockingQueue<Runnable>());
+			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
+		}
 
 		hc.getTopic("stop-algorithms-done").publish("");
 

@@ -5,11 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
@@ -62,9 +57,6 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 
 	private long timeStarted;
 	private long maxDuration;
-	private transient Future<?> timeoutFuture;
-	private ReentrantLock lock = new ReentrantLock();
-	private boolean timeoutStarted = false;
 
 	public int getId() {
 		return this.uniqueId;
@@ -119,50 +111,13 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		return null;
 	}
 
-	void initializeExecutionCountdown() {
-		if (this.maxDuration != 0) {
-			ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-			timeoutFuture = scheduler.schedule(() -> {
-				lock.lock();
-				try {
-					System.out.println("Scheduled termination task triggerd for task [" + this + "] of algorithm ["
-							+ this.algorithmId + "] due to timeout of " + this.maxDuration + " ms passed");
-					timeoutStarted = true;
-					this.status = Status.TIMEOUT;
-					hazelcastInstance.getTopic("task-timeout")
-							.publish(new AlgorithmEvent(this.algorithmId, "task-timeout", this));
-				} finally {
-					lock.unlock();
-				}
-			}, this.maxDuration, TimeUnit.MILLISECONDS);
-		}
-
-		Thread.currentThread().setName("TASK-THREAD-" + this.uniqueId);
-
+	void initializeTask() {
 		this.timeStarted = System.currentTimeMillis();
 		this.status = Status.RUNNING;
 	}
 
 	public void callback() {
-		if (timeoutFuture != null) {
-			lock.lock();
-			try {
-				if (!timeoutStarted) {
-					System.out.println("Cancelling termination timeout for task [" + this + "] of algorithm ["
-							+ this.algorithmId + "]");
-					timeoutFuture.cancel(true);
-				} else {
-					System.out.println("Task [" + this + "] of algorithm [" + this.algorithmId
-							+ "] tried to execute success callback method but termination due to timeout has already started");
-					return;
-				}
-			} finally {
-				lock.unlock();
-			}
-		}
 		this.status = Status.COMPLETED;
-		// this.hazelcastInstance.getAtomicLong("completed" +
-		// this.algorithmId).incrementAndGet();
 		hazelcastInstance.getTopic("task-completed")
 				.publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
