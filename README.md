@@ -256,12 +256,13 @@ But one **worker** will be launched if done like this:
 - `STARTED`: Algorithm has started (method `AlgorithmManager.solveAlgorithm` has been called)
 - `COMPLETED`: Algorithm has successfully finished
 - `TERMINATED`: Algorithm has been manually cancelled by calling any of the termination methods of `AlgorithmManager`}
-- `TIMEOUT`: Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout
+- `TIMEOUT`: Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so.
 
 #### Task
 
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
+| `setMaxDuration` | `long:milliseconds` | void | Set the timeout of the Task. If this time elapses, the algorithm will be stopped with status `TIMEOUT`. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so. |
 | `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
