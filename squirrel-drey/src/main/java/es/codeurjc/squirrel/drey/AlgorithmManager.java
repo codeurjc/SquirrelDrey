@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -431,7 +432,7 @@ public class AlgorithmManager<R> {
 		return this.workers;
 	}
 
-	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws Exception {
+	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException {
 
 		// We get the current number of workers as countdown measure
 		// Other workers could join during the process
@@ -445,7 +446,7 @@ public class AlgorithmManager<R> {
 			} else {
 				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
 						NUMBER_OF_WORKERS);
-				throw new Exception("Timeout of " + maxSecondsToWait + " elapsed");
+				throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
 			}
 		} catch (InterruptedException e) {
 			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
