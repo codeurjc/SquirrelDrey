@@ -431,7 +431,7 @@ public class AlgorithmManager<R> {
 		return this.workers;
 	}
 
-	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) {
+	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws Exception {
 
 		// We get the current number of workers as countdown measure
 		// Other workers could join during the process
@@ -445,7 +445,7 @@ public class AlgorithmManager<R> {
 			} else {
 				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
 						NUMBER_OF_WORKERS);
-				return null;
+				throw new Exception("Timeout of " + maxSecondsToWait + " elapsed");
 			}
 		} catch (InterruptedException e) {
 			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
