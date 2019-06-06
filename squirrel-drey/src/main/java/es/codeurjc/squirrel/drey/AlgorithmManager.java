@@ -56,6 +56,8 @@ public class AlgorithmManager<R> {
 	boolean withAWSCloudWatch = false;
 	CloudWatchModule cloudWatchModule;
 
+	CountDownLatch workerStatsFetched;
+
 	public AlgorithmManager(String HAZELCAST_CONFIG, boolean withAWSCloudWatch) {
 
 		boolean developmentMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode"))
@@ -265,6 +267,10 @@ public class AlgorithmManager<R> {
 			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
 			log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
+			if (ev.getFetched()) {
+				// Countdown latch if these stats where sent as a call to fetchWorkers method
+				this.workerStatsFetched.countDown();
+			}
 		});
 	}
 
@@ -423,6 +429,28 @@ public class AlgorithmManager<R> {
 
 	public Map<String, WorkerStats> getWorkers() {
 		return this.workers;
+	}
+
+	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) {
+
+		// We get the current number of workers as countdown measure
+		// Other workers could join during the process
+		final int NUMBER_OF_WORKERS = this.workers.size();
+		this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+		this.hzClient.getTopic("fetch-worker-stats").publish("");
+
+		try {
+			if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+				return this.workers;
+			} else {
+				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+						NUMBER_OF_WORKERS);
+				return null;
+			}
+		} catch (InterruptedException e) {
+			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
+			return null;
+		}
 	}
 
 	private List<Algorithm<R>> clearAllAlgorithmsFromTermination() {

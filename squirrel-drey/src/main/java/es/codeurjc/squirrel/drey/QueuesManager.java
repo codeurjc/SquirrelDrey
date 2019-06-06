@@ -122,6 +122,10 @@ public class QueuesManager {
 			this.terminateOneAlgorithmBlocking((String) message.getMessageObject());
 		});
 
+		hc.getTopic("fetch-worker-stats").addMessageListener((message) -> {
+			this.publishWorkerStats(true);
+		});
+
 		// Start looking for tasks
 		lookQueuesForTask();
 	}
@@ -251,7 +255,7 @@ public class QueuesManager {
 			log.info("New iterator [{}]", queueId);
 		} while (hasNext && !taskAvailable);
 
-		this.publishWorkerStats();
+		this.publishWorkerStats(false);
 		return taskAvailable;
 	}
 
@@ -267,7 +271,9 @@ public class QueuesManager {
 		if (task.getMaxDuration() != 0) {
 			futures[1] = scheduleExecutor.schedule(() -> {
 				futures[0].cancel(true);
-				log.info("Scheduled termination task triggerd for task [{}] of algorithm [{}] due to timeout of {} ms passed", task, task.algorithmId, task.getMaxDuration());
+				log.info(
+						"Scheduled termination task triggered for task [{}] of algorithm [{}] due to timeout of {} ms passed",
+						task, task.algorithmId, task.getMaxDuration());
 				task.status = Status.TIMEOUT;
 				this.hc.getTopic("task-timeout").publish(new AlgorithmEvent(task.algorithmId, "task-timeout", task));
 			}, task.getMaxDuration(), TimeUnit.MILLISECONDS);
@@ -306,13 +312,15 @@ public class QueuesManager {
 
 			return null;
 		});
-
 	}
 
-	private void publishWorkerStats() {
-		this.hc.getTopic("worker-stats").publish(new WorkerEvent(this.localMember.getAddress().toString(),
-				"worker-stats",
-				new WorkerStats(this.localMember.getAddress().toString(), this.nThreads, executor.getActiveCount())));
+	private void publishWorkerStats(boolean fetched) {
+		if (this.executor != null) {
+			this.hc.getTopic("worker-stats").publish(new WorkerEvent(this.localMember.getAddress().toString(),
+					"worker-stats", new WorkerStats(this.localMember.getAddress().toString(), this.nThreads,
+							executor.getActiveCount(), executor.getTaskCount(), executor.getCompletedTaskCount()),
+					fetched));
+		}
 	}
 
 	public Map<String, Integer> sortMapByPriority(Map<String, QueueProperty> map) {
@@ -463,6 +471,8 @@ public class QueuesManager {
 			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
 		}
 
+		this.publishWorkerStats(false);
+
 		hc.getTopic("stop-algorithms-done").publish("");
 	}
 
@@ -506,10 +516,18 @@ public class QueuesManager {
 		}
 
 		try {
-			executor.awaitTermination(7, TimeUnit.SECONDS);
-			scheduleExecutor.awaitTermination(7, TimeUnit.SECONDS);
+			executor.awaitTermination(5, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+			log.warn("ThreadPoolExecutor for tasks couldn't be gracefully shutdown. Forcing with shutdownNow");
+			executor.shutdownNow();
+		}
+
+		try {
+			scheduleExecutor.awaitTermination(5, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			log.warn(
+					"ScheduledExecutorService for timeout threads couldn't be gracefully shutdown. Forcing with shutdownNow");
+			scheduleExecutor.shutdownNow();
 		}
 
 		if (nThreads > 0) {
@@ -517,6 +535,8 @@ public class QueuesManager {
 					new LinkedBlockingQueue<Runnable>());
 			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
 		}
+
+		this.publishWorkerStats(false);
 
 		hc.getTopic("stop-algorithms-done").publish("");
 
@@ -532,10 +552,12 @@ public class QueuesManager {
 		// Clear algorithm queue
 		queue.clear();
 
-		this.mapOfQueues.remove(algorithmId);
-
 		// Destroy algorithm queue
 		queue.destroy();
+
+		this.mapOfQueues.remove(algorithmId);
+
+		this.publishWorkerStats(false);
 
 		hc.getTopic("stop-one-algorithm-done").publish(algorithmId);
 
