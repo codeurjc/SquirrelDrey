@@ -97,7 +97,7 @@
 			success: function (response) {
 
 				if (!response) {
-					window.clearInterval(interval);
+					// window.clearInterval(interval);
 					$('#stop-btn').prop("disabled", true);
 					$(".btn-stop-one").each(function (index, btn) {
 						$(btn).prop("disabled", true);

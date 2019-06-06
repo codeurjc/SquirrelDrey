@@ -12,9 +12,9 @@ public class LoadTaskParameters {
 
 	public Class<?> getType() {
 		switch (this.type) {
-		case "PiDigitsTask":
+		case "cpu":
 			return PiDigitsTask.class;
-		case "MemTask":
+		case "mem":
 			return MemTask.class;
 		default:
 			return PiDigitsTask.class;
