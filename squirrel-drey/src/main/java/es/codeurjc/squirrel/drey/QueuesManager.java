@@ -266,10 +266,12 @@ public class QueuesManager {
 	public void runTask(Task task) {
 		task.setHazelcastInstance(this.hc);
 
+		AtomicBoolean taskTimeout = new AtomicBoolean(false);
 		final Future<?>[] futures = new Future<?>[2];
 
 		if (task.getMaxDuration() != 0) {
 			futures[1] = scheduleExecutor.schedule(() -> {
+				taskTimeout.getAndSet(true);
 				futures[0].cancel(true);
 				log.info(
 						"Scheduled termination task triggered for task [{}] of algorithm [{}] due to timeout of {} ms passed",
@@ -289,12 +291,20 @@ public class QueuesManager {
 			task.initializeTask();
 			try {
 				task.process();
-				if (futures[1] != null) {
-					futures[1].cancel(true);
-				}
-			} catch (InterruptedException e) {
-				log.error("Task {} was interrupted", this);
+			} catch (Exception e) {
+				log.error("Exception {} in task", e);
 				return null;
+			}
+
+			if (futures[1] != null) {
+				futures[1].cancel(true);
+			}
+
+			if (taskTimeout.get()) {
+				log.error("Task {} TIMEOUT", task);
+				return null;
+			} else {
+				log.info("Task {} COMPLETED", task);
 			}
 
 			try {

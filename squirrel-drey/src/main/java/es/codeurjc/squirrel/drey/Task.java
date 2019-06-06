@@ -111,18 +111,18 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		return null;
 	}
 
-	void initializeTask() {
+	final void initializeTask() {
 		this.timeStarted = System.currentTimeMillis();
 		this.status = Status.RUNNING;
 	}
 
-	public void callback() {
+	public final void callback() {
 		this.status = Status.COMPLETED;
 		hazelcastInstance.getTopic("task-completed")
 				.publish(new AlgorithmEvent(this.algorithmId, "task-completed", this));
 	}
 
-	protected void addNewTask(Task t) {
+	protected final void addNewTask(Task t) {
 		t.setAlgorithm(this.algorithmId);
 		t.setHazelcastStructures(this.hazelcastStructures);
 		IQueue<Task> queue = hazelcastInstance.getQueue(this.algorithmId);
@@ -234,5 +234,10 @@ public class Task implements Callable<Void>, Serializable, HazelcastInstanceAwar
 		String id = this.getStructureId(customId, HazelcastStructure.COUNTDOWN_LATCH);
 		this.hazelcastStructures.putIfAbsent(id, id);
 		return this.hazelcastInstance.getCPSubsystem().getCountDownLatch(id);
+	}
+
+	@Override
+	public String toString() {
+		return this.algorithmId + "@" + this.getClass().getSimpleName() + "@" + this.getId();
 	}
 }
