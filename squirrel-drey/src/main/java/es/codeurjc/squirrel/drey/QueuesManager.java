@@ -292,7 +292,7 @@ public class QueuesManager {
 			try {
 				task.process();
 			} catch (Exception e) {
-				log.error("Exception {} in task", e);
+				log.error("Exception {} in task {}", e.getMessage(), task);
 				return null;
 			}
 

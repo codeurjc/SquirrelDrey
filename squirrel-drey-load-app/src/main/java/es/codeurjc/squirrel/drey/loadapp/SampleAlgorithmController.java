@@ -2,6 +2,7 @@ package es.codeurjc.squirrel.drey.loadapp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
@@ -59,6 +60,11 @@ public class SampleAlgorithmController {
 						log.info("STATUS FOR ALGORITHM {}: {}", alg.getId(), alg.getStatus());
 						// Store the algorithm to send one final response to front
 						algorithm = alg;
+						try {
+							algorithmManager.fetchWorkers(5);
+						} catch (TimeoutException e) {
+							e.printStackTrace();
+						}
 					}
 
 					@Override
@@ -68,6 +74,11 @@ public class SampleAlgorithmController {
 							log.error("TASK {} TIMEOUT IN ALGORITHM {}", errorTask, alg.getId());
 						});
 						algorithm = alg;
+						try {
+							algorithmManager.fetchWorkers(5);
+						} catch (TimeoutException e) {
+							e.printStackTrace();
+						}
 					}
 				});
 
@@ -82,13 +93,24 @@ public class SampleAlgorithmController {
 	@RequestMapping(value = "/statistics", method = RequestMethod.GET)
 	public ResponseEntity<Response> getStats() {
 
+		// Workers statistics
+		List<WorkerStats> workerStats = new ArrayList<>();
+		for (String id : this.algorithmManager.getWorkers().keySet()) {
+			workerStats.add(this.algorithmManager.getWorkers().get(id));
+		}
+
 		// Algorithm statistics
 		Algorithm<String> alg = this.algorithmManager.getAlgorithm(INUSE_ALGORITHM_ID);
 		if (alg == null) {
 			alg = this.algorithm;
 			if (alg == null) {
 				if (this.terminatedAlgorithm == null) {
-					return ResponseEntity.ok(null);
+					try {
+						algorithmManager.fetchWorkers(5);
+					} catch (TimeoutException e) {
+						e.printStackTrace();
+					}
+					return ResponseEntity.ok(new Response(null, workerStats));
 				} else {
 					alg = this.terminatedAlgorithm;
 				}
@@ -115,12 +137,6 @@ public class SampleAlgorithmController {
 		Long time = alg.getTimeOfProcessing();
 		algorithmStats = new AlgorithmStats(alg.getId(), (result == null) ? "" : result, status, tasksAdded,
 				tasksCompleted, tasksQueued, time);
-
-		// Workers statistics
-		List<WorkerStats> workerStats = new ArrayList<>();
-		for (String id : this.algorithmManager.getWorkers().keySet()) {
-			workerStats.add(this.algorithmManager.getWorkers().get(id));
-		}
 
 		Response response = new Response(algorithmStats, workerStats);
 
