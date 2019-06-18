@@ -9,13 +9,11 @@ public class WorkerEvent implements Serializable {
 	String workerId;
 	String name;
 	Object content;
-	boolean fetched;
 
-	public WorkerEvent(String workerId, String name, Object content, boolean fetched) {
+	public WorkerEvent(String workerId, String name, Object content) {
 		this.workerId = workerId;
 		this.name = name;
 		this.content = content;
-		this.fetched = fetched;
 	}
 
 	public String getWorkerId() {
@@ -40,10 +38,6 @@ public class WorkerEvent implements Serializable {
 
 	public void setContent(Object content) {
 		this.content = content;
-	}
-
-	public boolean getFetched() {
-		return this.fetched;
 	}
 
 }

@@ -123,7 +123,13 @@ public class QueuesManager {
 		});
 
 		hc.getTopic("fetch-worker-stats").addMessageListener((message) -> {
-			this.publishWorkerStats(true);
+			if (this.executor != null) {
+				this.hc.getTopic("worker-stats")
+						.publish(new WorkerEvent(this.localMember.getAddress().toString(), "worker-stats",
+								new WorkerStats(this.localMember.getAddress().toString(), this.nThreads,
+										executor.getActiveCount(), executor.getTaskCount(),
+										executor.getCompletedTaskCount())));
+			}
 		});
 
 		// Start looking for tasks
@@ -255,7 +261,6 @@ public class QueuesManager {
 			log.info("New iterator [{}]", queueId);
 		} while (hasNext && !taskAvailable);
 
-		this.publishWorkerStats(false);
 		return taskAvailable;
 	}
 
@@ -322,15 +327,6 @@ public class QueuesManager {
 
 			return null;
 		});
-	}
-
-	private void publishWorkerStats(boolean fetched) {
-		if (this.executor != null) {
-			this.hc.getTopic("worker-stats").publish(new WorkerEvent(this.localMember.getAddress().toString(),
-					"worker-stats", new WorkerStats(this.localMember.getAddress().toString(), this.nThreads,
-							executor.getActiveCount(), executor.getTaskCount(), executor.getCompletedTaskCount()),
-					fetched));
-		}
 	}
 
 	public Map<String, Integer> sortMapByPriority(Map<String, QueueProperty> map) {
@@ -481,8 +477,6 @@ public class QueuesManager {
 			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
 		}
 
-		this.publishWorkerStats(false);
-
 		hc.getTopic("stop-algorithms-done").publish("");
 	}
 
@@ -546,8 +540,6 @@ public class QueuesManager {
 			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
 		}
 
-		this.publishWorkerStats(false);
-
 		hc.getTopic("stop-algorithms-done").publish("");
 
 		log.info("GRACEFULLY TERMINATED ALL ALGORITHMS");
@@ -566,8 +558,6 @@ public class QueuesManager {
 		queue.destroy();
 
 		this.mapOfQueues.remove(algorithmId);
-
-		this.publishWorkerStats(false);
 
 		hc.getTopic("stop-one-algorithm-done").publish(algorithmId);
 

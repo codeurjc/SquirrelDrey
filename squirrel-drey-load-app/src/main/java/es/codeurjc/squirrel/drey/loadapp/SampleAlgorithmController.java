@@ -90,11 +90,23 @@ public class SampleAlgorithmController {
 		return "solve";
 	}
 
+	@RequestMapping(value = "/graph")
+	public String graph(Model model) {
+		return "graph";
+	}
+
 	@RequestMapping(value = "/statistics", method = RequestMethod.GET)
 	public ResponseEntity<Response> getStats() {
 
 		// Workers statistics
 		List<WorkerStats> workerStats = new ArrayList<>();
+		try {
+			this.algorithmManager.fetchWorkers(5);
+		} catch (TimeoutException e1) {
+			log.error("Worker stats couldn't be gathered in 5 seconds");
+			return ResponseEntity.ok(new Response(null, null));
+		}
+
 		for (String id : this.algorithmManager.getWorkers().keySet()) {
 			workerStats.add(this.algorithmManager.getWorkers().get(id));
 		}

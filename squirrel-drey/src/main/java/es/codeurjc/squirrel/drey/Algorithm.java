@@ -10,7 +10,7 @@ import com.hazelcast.core.IQueue;
 import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 
 /**
- * @author Pablo Fuente (pablo.fuente@urjc.es)
+ * @author Pablo Fuente (pablofuenteperez@gmail.com)
  */
 public class Algorithm<R> {
 

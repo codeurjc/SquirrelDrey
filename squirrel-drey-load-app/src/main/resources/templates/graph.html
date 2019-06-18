@@ -1,0 +1,202 @@
+<html>
+
+<head>
+	<title>Hazelcast Web App</title>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1" charset="utf-8">
+	</meta>
+
+	<!-- Bootstrap -->
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js"
+		integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+		integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	</link>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+		integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous">
+	</script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js"></script>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	</link>
+	<!-- Bootstrap -->
+
+	<link rel="styleSheet" href="style.css" type="text/css" media="screen">
+	</link>
+</head>
+
+<body>
+
+	<nav class="navbar navbar-default">
+		<div class="container">
+			<div class="navbar-header">
+				<a class="navbar-brand" href="/">Hazelcast Web App</a>
+				<a class="navbar-brand graph-link" href="/graph" target="_blank">GRAPH</a>
+			</div>
+		</div>
+	</nav>
+
+	<div class="graph-container">
+		<canvas id="myChart" style="max-height: 85vh; width: auto; margin: auto"></canvas>
+	</div>
+
+	<footer class="footer">
+		<div class="container">
+			<div class="text-muted">CodeURJC</div>
+			<a href="http://www.codeurjc.es/" target="_blank">
+				<img class="footer-logo" src="images/code.png" />
+			</a>
+		</div>
+	</footer>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		const initTime = Date.now();
+
+		var nPetitions = 0;
+		var myLabels = [];
+		var myDatasets = [];
+		var myChart;
+		var requestInterval = 3; // Seconds
+
+		function ajaxGet() {
+			var previousRequestTime = Date.now();
+			$.ajax({
+				type: "GET",
+				url: window.location.origin + "/statistics",
+				success: function (response) {
+
+					if (!response) {
+						// window.clearInterval(interval);
+						$('#stop-btn').prop("disabled", true);
+						$(".btn-stop-one").each(function (index, btn) {
+							$(btn).prop("disabled", true);
+						});
+					}
+
+					myLabels[nPetitions] = ((Date.now() - initTime) / 1000);
+					nPetitions++;
+
+					console.log(response);
+					var workerStats = response.workerStats;
+
+					if (!!workerStats) {
+						for (var i = 0; i < workerStats.length; i++) {
+							var stat = workerStats[i];
+							if (stat.workerId) {
+								var pos = existingWorkerPosition(myDatasets, stat.workerId);
+								if (pos >= 0) {
+									// Worker already exists
+									myDatasets[pos].data.push(stat.workingCores);
+								} else {
+									// New worker
+									var newData = [];
+									for (var k = 0; k < nPetitions - 1; k++) {
+										newData[k] = '';
+									}
+									newData[nPetitions - 1] = stat.workingCores;
+									var randomColor = getRandomColor();
+									myDatasets.push({
+										label: stat.workerId + " (" + stat.totalCores + " cores)",
+										fill: false,
+										borderColor: randomColor,
+										backgroundColor: randomColor,
+										data: newData
+									});
+								}
+							}
+						}
+					}
+					myChart.update();
+
+					// Wait until request interval has elapsed before making a new one
+					var msUntilInterval = Date.now() - previousRequestTime;
+					if (msUntilInterval >= (requestInterval * 1000)) {
+						ajaxGet();
+					} else {
+						setTimeout(() => {
+							ajaxGet();
+						}, (requestInterval * 1000) - msUntilInterval);
+					}
+
+				},
+				error: function (xhr) {
+					console.error("ERROR: ", xhr);
+				}
+			});
+		}
+
+		ajaxGet();
+
+		function terminateAlgorithm() {
+			$.ajax({
+				type: 'POST',
+				url: 'stop',
+				success: function (xhr) {
+					console.log('TERMINATED ALGORITHM');
+					$('#loader').hide();
+					$('#stop-btn').prop("disabled", true);
+				},
+				error: function (xhr) {
+					console.error("ERROR: ", xhr);
+				}
+			});
+		}
+
+		function getRandomColor() {
+			return 'hsla(' + Math.floor(Math.random() * 360) + ', 100%, 70%, 1)';
+		}
+
+		function existingWorkerPosition(dataset, workerId) {
+			var contains = false;
+			var i = 0;
+			while (i < dataset.length && !contains) {
+				contains = dataset[i].label.indexOf(workerId) !== -1;
+				i++;
+			}
+			if (!contains) return -1;
+			else return (i - 1);
+		}
+
+		var ctx = document.getElementById("myChart").getContext('2d');
+		myChart = new Chart(ctx, {
+			type: 'line',
+			responsive: true,
+			maintainAspectRatio: false,
+			data: {
+				labels: myLabels,
+				datasets: myDatasets,
+				fill: false
+			},
+			options: {
+				scales: {
+					xAxes: [{
+						display: true,
+						scaleLabel: {
+							display: true,
+							labelString: 'TIME'
+						}
+					}],
+					yAxes: [{
+						display: true,
+						ticks: {
+							beginAtZero: true,
+							stepSize: 1,
+							max: 12
+						},
+						scaleLabel: {
+							display: true,
+							labelString: 'WORKING CORES'
+						}
+					}]
+				},
+			}
+		});
+
+		/*]]>*/
+	</script>
+
+</body>
+
+</html>

@@ -31,7 +31,7 @@ import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 import es.codeurjc.squirrel.drey.Algorithm.Status;
 
 /**
- * @author Pablo Fuente (pablo.fuente@urjc.es)
+ * @author Pablo Fuente (pablofuenteperez@gmail.com)
  */
 public class AlgorithmManager<R> {
 
@@ -268,10 +268,7 @@ public class AlgorithmManager<R> {
 			WorkerEvent ev = (WorkerEvent) message.getMessageObject();
 			log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 			this.workers.put(ev.getWorkerId(), (WorkerStats) ev.getContent());
-			if (ev.getFetched()) {
-				// Countdown latch if these stats where sent as a call to fetchWorkers method
-				this.workerStatsFetched.countDown();
-			}
+			this.workerStatsFetched.countDown();
 		});
 	}
 

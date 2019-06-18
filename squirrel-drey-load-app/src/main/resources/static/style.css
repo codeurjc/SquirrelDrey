@@ -11,6 +11,7 @@ nav {
 	border-color: #c68400 !important;
 	border-top-right-radius: 0 !important;
 	border-top-left-radius: 0 !important;
+	margin-bottom: 0 !important;
 }
 
 .navbar-header {
@@ -58,20 +59,18 @@ tr.first-row {
 }
 
 .solve-container {
-	margin-top: 3em;
-	margin-bottom: 6em;
 	width: 100%;
+	height: calc(100% - 110px);
 	display: flex;
 }
 
-.half-screen {
-	max-width: 47%;
-	display: inline-block;
-	margin-left: 2em;
+.graph-container {
+	height: calc(100% - 110px) !important;
+	width: 100% !important;
 }
 
 #chart {
-	width: 600px;
+	width: 800px;
 }
 
 .stop-btn {
@@ -195,12 +194,16 @@ table {
 
 #algorithm-store {
 	display: flex;
-    margin-bottom: 15px;
-    justify-content: space-between;
+	margin-bottom: 15px;
+	justify-content: space-between;
 }
 
 select {
 	width: 125px !important;
+}
+
+.graph-link {
+	float: right;
 }
 
 
