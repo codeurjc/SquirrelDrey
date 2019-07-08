@@ -5,7 +5,7 @@ import es.codeurjc.squirrel.drey.Task;
 import es.codeurjc.squirrel.drey.Worker;
 
 /**
- * @author Pablo Fuente (pablo.fuente@urjc.es)
+ * @author Pablo Fuente (pablofuenteperez@gmail.com)
  */
 public class App {
 
