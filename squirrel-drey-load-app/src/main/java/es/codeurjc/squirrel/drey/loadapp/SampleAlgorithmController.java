@@ -2,6 +2,7 @@ package es.codeurjc.squirrel.drey.loadapp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
@@ -30,7 +31,10 @@ public class SampleAlgorithmController {
 	AlgorithmManager<String> algorithmManager;
 
 	Algorithm<String> algorithm;
-	final String ALGORITHM_ID = "LOAD_ALGORITHM";
+	Algorithm<String> terminatedAlgorithm;
+
+	final String DEFAULT_ALGORITHM_ID = "LOAD_ALGORITHM";
+	String INUSE_ALGORITHM_ID = DEFAULT_ALGORITHM_ID;
 
 	@RequestMapping(value = "/")
 	public String index() {
@@ -47,71 +51,124 @@ public class SampleAlgorithmController {
 				.reduce(0, Integer::sum);
 		numberOfTasks += tasks.size();
 
-		algorithmManager.solveAlgorithm(ALGORITHM_ID, initialTask, 1, new AlgorithmCallback<String>() {
-			@Override
-			public void onSuccess(String result, Algorithm<String> alg) {
-				log.info("RESULT FOR ALGORITHM {}: {}", alg.getId(), result == null ? "NULL" : result.toString());
-				log.info("STATUS FOR ALGORITHM {}: {}", alg.getId(), alg.getStatus());
-				// Store the algorithm to send one final response to front
-				algorithm = alg;
-			}
+		String algId = algorithmManager.solveAlgorithm(DEFAULT_ALGORITHM_ID, initialTask, 1,
+				new AlgorithmCallback<String>() {
+					@Override
+					public void onSuccess(String result, Algorithm<String> alg) {
+						log.info("RESULT FOR ALGORITHM {}: {}", alg.getId(),
+								result == null ? "NULL" : result.toString());
+						log.info("STATUS FOR ALGORITHM {}: {}", alg.getId(), alg.getStatus());
+						// Store the algorithm to send one final response to front
+						algorithm = alg;
+						try {
+							algorithmManager.fetchWorkers(5);
+						} catch (TimeoutException e) {
+							e.printStackTrace();
+						}
+					}
 
-			@Override
-			public void onError(Algorithm<String> alg) {
-				log.error("ERROR WHILE SOLVING ALGORITHM {}. Status: {}", alg.getId(), alg.getStatus());
-				algorithm = alg;
-			}
-		});
+					@Override
+					public void onError(Algorithm<String> alg) {
+						log.error("ERROR WHILE SOLVING ALGORITHM {}. Status: {}", alg.getId(), alg.getStatus());
+						alg.getErrorTasks().forEach(errorTask -> {
+							log.error("TASK {} TIMEOUT IN ALGORITHM {}", errorTask, alg.getId());
+						});
+						algorithm = alg;
+						try {
+							algorithmManager.fetchWorkers(5);
+						} catch (TimeoutException e) {
+							e.printStackTrace();
+						}
+					}
+				});
+
+		if (algId != null) {
+			INUSE_ALGORITHM_ID = algId;
+		}
 
 		model.addAttribute("numberOfTasks", numberOfTasks);
 		return "solve";
 	}
 
+	@RequestMapping(value = "/graph")
+	public String graph(Model model) {
+		return "graph";
+	}
+
 	@RequestMapping(value = "/statistics", method = RequestMethod.GET)
 	public ResponseEntity<Response> getStats() {
 
+		// Workers statistics
+		List<WorkerStats> workerStats = new ArrayList<>();
+		try {
+			this.algorithmManager.fetchWorkers(5);
+		} catch (TimeoutException e1) {
+			log.error("Worker stats couldn't be gathered in 5 seconds");
+			return ResponseEntity.ok(new Response(null, null));
+		}
+
+		for (String id : this.algorithmManager.getWorkers().keySet()) {
+			workerStats.add(this.algorithmManager.getWorkers().get(id));
+		}
+
 		// Algorithm statistics
-		Algorithm<String> alg = this.algorithmManager.getAlgorithm(ALGORITHM_ID);
+		Algorithm<String> alg = this.algorithmManager.getAlgorithm(INUSE_ALGORITHM_ID);
 		if (alg == null) {
 			alg = this.algorithm;
 			if (alg == null) {
-				return ResponseEntity.ok(null);
+				if (this.terminatedAlgorithm == null) {
+					try {
+						algorithmManager.fetchWorkers(5);
+					} catch (TimeoutException e) {
+						e.printStackTrace();
+					}
+					return ResponseEntity.ok(new Response(null, workerStats));
+				} else {
+					alg = this.terminatedAlgorithm;
+				}
 			}
 		}
 
 		AlgorithmStats algorithmStats;
 		String result = alg.getResult();
 		Status status = alg.getStatus();
-		Integer tasksAdded = alg.getTasksAdded();
+		Integer tasksAdded;
+
+		try {
+			tasksAdded = alg.getTasksAdded();
+		} catch (Exception e) {
+			log.warn("The queue for added tasks of the algorithm {} is destroyed. Algorithm terminated", alg.getId());
+			algorithmStats = new AlgorithmStats(alg.getId(), (result == null) ? "" : result, status, 0, 0, 0, 0);
+			this.algorithm = null;
+			this.terminatedAlgorithm = null;
+			return ResponseEntity.ok(new Response(algorithmStats, new ArrayList<>()));
+		}
+
 		Integer tasksCompleted = alg.getTasksCompleted();
 		Integer tasksQueued = alg.getTasksQueued();
 		Long time = alg.getTimeOfProcessing();
 		algorithmStats = new AlgorithmStats(alg.getId(), (result == null) ? "" : result, status, tasksAdded,
 				tasksCompleted, tasksQueued, time);
 
-		// Workers statistics
-		List<WorkerStats> workerStats = new ArrayList<>();
-		for (String id : this.algorithmManager.getWorkers().keySet()) {
-			workerStats.add(this.algorithmManager.getWorkers().get(id));
-		}
-
 		Response response = new Response(algorithmStats, workerStats);
 
 		// Delete solved algorithm
 		this.algorithm = null;
+		this.terminatedAlgorithm = null;
 
 		return ResponseEntity.ok(response);
 	}
 
 	@RequestMapping(value = "/stop", method = RequestMethod.POST)
 	public ResponseEntity<String> stopOneAlgorithm() {
-		log.info("TERMINATING ALGORITHM {}...");
+		log.info("TERMINATING ALGORITHM...");
 		try {
-			this.algorithmManager.blockingTerminateOneAlgorithm(ALGORITHM_ID);
+			terminatedAlgorithm = this.algorithmManager.blockingTerminateOneAlgorithm(INUSE_ALGORITHM_ID);
+			log.info("ALGORITHM {} TERMINATED. Algorithm status: {}", INUSE_ALGORITHM_ID,
+					terminatedAlgorithm.getStatus());
 		} catch (InterruptedException e) {
 			return ResponseEntity.status(HttpStatus.SC_INTERNAL_SERVER_ERROR).build();
 		}
-		log.info("ALGORITHM TERMINATED", ALGORITHM_ID);
 		return ResponseEntity.status(HttpStatus.SC_OK).build();
 	}
 

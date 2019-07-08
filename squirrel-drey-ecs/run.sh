@@ -1,5 +1,7 @@
 #!/bin/bash
 
+NUM_CORES=$(nproc)
+
 if [ -z "$IAM_ROLE" ]; then echo "No IAM_ROLE specified"; exit 1; fi
 if [ -z "$REGION" ]; then echo "No REGION specified"; exit 1; fi
 if [ -z "$SECURITY_GROUP_NAME" ]; then echo "No SECURITY_GROUP_NAME specified"; exit 1; fi
@@ -9,25 +11,19 @@ if [ -z "$HZ_PORT" ]; then echo "No HZ_PORT specified"; exit 1; fi
 
 if [ -z "$INTERFACE" ]; then echo "No INTERFACE specified"; exit 1; fi
 
+sed -i "s/IAM_ROLE/$IAM_ROLE/" hazelcast-config.xml
+sed -i "s/REGION/$REGION/" hazelcast-config.xml
+sed -i "s/SECURITY_GROUP_NAME/$SECURITY_GROUP_NAME/" hazelcast-config.xml
+sed -i "s/TAG_KEY/$TAG_KEY/" hazelcast-config.xml
+sed -i "s/TAG_VALUE/$TAG_VALUE/" hazelcast-config.xml
+sed -i "s/HZ_PORT/$HZ_PORT/" hazelcast-config.xml
+sed -i "s/INTERFACE/$INTERFACE/" hazelcast-config.xml
+
 if [ "$TYPE" == "web" ]; then
-  sed -i "s/IAM_ROLE/$IAM_ROLE/" hazelcast-client-config.xml
-  sed -i "s/REGION/$REGION/" hazelcast-client-config.xml
-  sed -i "s/SECURITY_GROUP_NAME/$SECURITY_GROUP_NAME/" hazelcast-client-config.xml
-  sed -i "s/TAG_KEY/$TAG_KEY/" hazelcast-client-config.xml
-  sed -i "s/TAG_VALUE/$TAG_VALUE/" hazelcast-client-config.xml
-  sed -i "s/HZ_PORT/$HZ_PORT/" hazelcast-client-config.xml
-
-  java -Dworker=false -Dhazelcast-client-config=/hazelcast-client-config.xml -Daws=true -jar /distributed-algorithm-aws-0.0.1-SNAPSHOT.jar
+  java -XX:ActiveProcessorCount=${NUM_CORES} -Dworker=false -Dhazelcast-config=/hazelcast-config.xml -Daws=true -jar /app.jar
 else
-  sed -i "s/IAM_ROLE/$IAM_ROLE/" hazelcast-config.xml
-  sed -i "s/REGION/$REGION/" hazelcast-config.xml
-  sed -i "s/SECURITY_GROUP_NAME/$SECURITY_GROUP_NAME/" hazelcast-config.xml
-  sed -i "s/TAG_KEY/$TAG_KEY/" hazelcast-config.xml
-  sed -i "s/TAG_VALUE/$TAG_VALUE/" hazelcast-config.xml
-  sed -i "s/HZ_PORT/$HZ_PORT/" hazelcast-config.xml
-  sed -i "s/INTERFACE/$INTERFACE/" hazelcast-config.xml
-
-  java -Dworker=true -Dhazelcast-config=/hazelcast-config.xml -Dmode=PRIORITY -jar /distributed-algorithm-aws-0.0.1-SNAPSHOT.jar
+  java -XX:ActiveProcessorCount=${NUM_CORES} -Dworker=true -Dhazelcast-config=/hazelcast-config.xml -Dmode=PRIORITY -jar /app.jar
 fi
 
-
+# To limit the number of idle cores. If equal to NUM_CORES means no task will schedule there
+# -Didle-cores-app=${NUM_CORES}

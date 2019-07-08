@@ -1,0 +1,457 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Deploying SquirrelDrey on AWS ECS.
+
+Parameters:
+
+  HazelcastWorkersCluster:
+    Type: String
+    Description: >-
+      Specifies the Hazelcast ECS Cluster Name with which the resources would be
+      associated (Workers)
+    Default: HazelcastWorkersCluster
+
+  HazelcastWebappCluster:
+    Type: String
+    Description: >-
+      Specifies the Hazelcast ECS Cluster Name with which the resources would be
+      associated (Sample App)
+    Default: HazelcastWebCluster
+
+  EcsAmiId:
+    Type: String
+    Description: Specifies the AMI ID for your container instances.
+    Default: ami-0c5abd45f676aab4f
+
+  EcsInstanceType:
+    Type: String
+    Description: >
+      Specifies the EC2 instance type for your workers container instances.
+    Default: r5.2xlarge
+    ConstraintDescription: Must be a valid EC2 instance type.
+
+  KeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Description: >
+      Specifies the name of an existing Amazon EC2 key pair to enable SSH access
+      to the EC2 instances in your cluster.
+    ConstraintDescription: Must be the name of an existing EC2 KeyPair.
+
+  HazelcastSecurityGroupName:
+    Type: String
+    Description: Descriptive name for the security group
+    Default: HZsecgroup
+
+  HazelcastRoleName:
+    Type: String
+    Description: A valid identifier for your role
+    Default: hzrole
+
+  HazelcastAvailabilityZones:
+    Type: String
+    Description: must be the name of an existing AWS Availability Zone
+    Default: eu-west-1a
+
+  HazelcastCidrBlock:
+    Description: Dedicated VPC for Hazelcast
+    Type: String
+    Default: 172.16.0.0/16
+
+  HazelcastSubnet:
+    Description: Subnet for Hazelcast instances
+    Type: String
+    Default: 172.16.0.0/24
+
+  HazelcastAsgMaxSize:
+    Type: Number
+    Description: >
+      Specifies the max number of instances and containers to launch and
+      register to the cluster. Defaults to 5.
+    Default: '5'
+
+  HazelcastDesiredSize:
+    Type: Number
+    Description: >
+      Specifies the desired number of instances to launch and register to the
+      cluster. Defaults to 1.
+    Default: '2'
+
+  HazelcastTagName:
+    Type: String
+    Description: Tag name to identify Hazelcast instances
+    Default: hz-tag
+
+  HazelcastTagValue:
+    Type: String
+    Description: Tag name to identify Hazelcast instances
+    Default: hz-value
+
+  AWSRegion:
+    Type: String
+    Description: AWS Region to deploy to
+    Default: eu-west-1
+
+  SquirrelDreyDockerImage:
+    Type: String
+    Description: Docker image for SquirrelDrey
+    Default: 849201093595.dkr.ecr.eu-west-1.amazonaws.com/squirreldrey:latest
+
+Resources:
+
+  HazelcastVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref HazelcastCidrBlock
+
+  HazelcastSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: !Ref HazelcastSubnet
+      VpcId: !Ref HazelcastVPC
+      AvailabilityZone: !Ref HazelcastAvailabilityZones
+      MapPublicIpOnLaunch: 'true'
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+
+  AttachInternetGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref HazelcastVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  HazelcastRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref HazelcastVPC
+
+  InternetRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref HazelcastRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref HazelcastRouteTable
+      SubnetId: !Ref HazelcastSubnet1
+
+  HazelcastSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Ref HazelcastSecurityGroupName
+      GroupDescription: Hazelcast Allowed Ports
+      VpcId: !Ref HazelcastVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '5701'
+          ToPort: '5701'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '5000'
+          ToPort: '5000'
+          CidrIp: 0.0.0.0/0
+
+  HazelcastRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: HazelcastPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:DescribeInstances'
+                  - 'cloudwatch:PutMetricData'
+                  - 'ecs:CreateCluster'
+                  - 'ecs:DeregisterContainerInstance'
+                  - 'ecs:DiscoverPollEndpoint'
+                  - 'ecs:Poll'
+                  - 'ecs:RegisterContainerInstance'
+                  - 'ecs:StartTelemetrySession'
+                  - 'ecs:Submit*'
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'ecs:DescribeServices'
+                  - 'ecs:UpdateService'
+                Resource: '*'
+      RoleName: !Ref HazelcastRoleName
+
+  HazelcastInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref HazelcastRoleName
+    DependsOn:
+      - HazelcastRole
+
+  HZWorkersCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref HazelcastWorkersCluster
+
+  HazelcastWorkerTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      NetworkMode: host
+      TaskRoleArn: !Ref HazelcastRoleName
+      ContainerDefinitions:
+        - Name: Hazelcast-container
+          Image: !Ref SquirrelDreyDockerImage
+          Memory: '2048'
+          Environment:
+            - Name: HZ_PORT
+              Value: '5701'
+            - Name: IAM_ROLE
+              Value: !Ref HazelcastRoleName
+            - Name: INTERFACE
+              Value: 172.16.0.*
+            - Name: MODE
+              Value: RANDOM
+            - Name: REGION
+              Value: !Ref AWSRegion
+            - Name: SECURITY_GROUP_NAME
+              Value: !Ref HazelcastSecurityGroupName
+            - Name: TAG_KEY
+              Value: !Ref HazelcastTagName
+            - Name: TAG_VALUE
+              Value: !Ref HazelcastTagValue
+            - Name: TYPE
+              Value: worker
+  
+  HazelcastWorkerService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref HazelcastWorkersCluster
+      DesiredCount: '2'
+      ServiceName: HZWorkersService
+      TaskDefinition: !Ref HazelcastWorkerTaskDefinition
+      PlacementConstraints:
+        - Type: distinctInstance
+    DependsOn:
+      - HazelcastRole
+      - HazelcastWorkerTaskDefinition
+  
+  HazelcastWorkersLaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    DependsOn: AttachInternetGateway
+    Properties:
+      ImageId: !Ref EcsAmiId
+      InstanceType: !Ref EcsInstanceType
+      EbsOptimized: false
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref HazelcastInstanceProfile
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref HazelcastSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${HazelcastWorkersCluster} >> /etc/ecs/ecs.config
+  
+  HazelcastWorkersAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      AvailabilityZones:
+        - !Ref HazelcastAvailabilityZones
+      LaunchConfigurationName: !Ref HazelcastWorkersLaunchConfiguration
+      VPCZoneIdentifier:
+        - !Ref HazelcastSubnet1
+      MinSize: '2'
+      MaxSize: !Ref HazelcastAsgMaxSize
+      DesiredCapacity: !Ref HazelcastDesiredSize
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - ''
+            - - 'Hazelcast worker - '
+              - !Ref 'AWS::StackName'
+          PropagateAtLaunch: 'true'
+        - Key: !Ref HazelcastTagName
+          Value: !Ref HazelcastTagValue
+          PropagateAtLaunch: 'true'
+      TerminationPolicies:
+        - NewestInstance
+  
+  HZWebappCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Ref HazelcastWebappCluster
+  
+  HazelcastWebappTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      NetworkMode: host
+      TaskRoleArn: !Ref HazelcastRoleName
+      ContainerDefinitions:
+        - Name: Hazelcast-container
+          Image: !Ref SquirrelDreyDockerImage
+          Memory: '2048'
+          Environment:
+            - Name: HZ_PORT
+              Value: '5701'
+            - Name: IAM_ROLE
+              Value: !Ref HazelcastRoleName
+            - Name: INTERFACE
+              Value: 172.16.0.*
+            - Name: MODE
+              Value: RANDOM
+            - Name: REGION
+              Value: !Ref AWSRegion
+            - Name: SECURITY_GROUP_NAME
+              Value: !Ref HazelcastSecurityGroupName
+            - Name: TAG_KEY
+              Value: !Ref HazelcastTagName
+            - Name: TAG_VALUE
+              Value: !Ref HazelcastTagValue
+            - Name: TYPE
+              Value: web
+  
+  HazelcastWebappService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Ref HazelcastWebappCluster
+      DesiredCount: 1
+      ServiceName: HZWebappService
+      TaskDefinition: !Ref HazelcastWebappTaskDefinition
+      PlacementConstraints:
+        - Type: distinctInstance
+    DependsOn:
+      - HazelcastRole
+      - HazelcastWebappTaskDefinition
+  
+  HazelcastWebappAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      AvailabilityZones:
+        - !Ref HazelcastAvailabilityZones
+      LaunchConfigurationName: !Ref HazelcastWebappLaunchConfiguration
+      VPCZoneIdentifier:
+        - !Ref HazelcastSubnet1
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - ''
+            - - 'Hazelcast web - '
+              - !Ref 'AWS::StackName'
+          PropagateAtLaunch: 'true'
+        - Key: !Ref HazelcastTagName
+          Value: !Ref HazelcastTagValue
+          PropagateAtLaunch: 'true'
+  
+  HazelcastWebappLaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: !Ref EcsAmiId
+      InstanceType: !Ref EcsInstanceType
+      EbsOptimized: false
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref HazelcastInstanceProfile
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref HazelcastSecurityGroup
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${HazelcastWebappCluster} >> /etc/ecs/ecs.config
+          
+          sudo yum install -y python-pip aws-cfn-bootstrap
+          sudo pip install boto3
+
+          cat>/opt/aws/bin/ecs-update-service.py<<EOF
+          import boto3
+          cluster_name = "${HazelcastWorkersCluster}"
+          service_name = "HZWorkersService"
+          region = "${AWSRegion}"
+          dc = ${HazelcastAsgMaxSize}
+          ecs_client = boto3.client ("ecs", region_name=region)
+          response = ecs_client.update_service (cluster = cluster_name, service = service_name, desiredCount = dc)
+          EOF
+
+          # Wait for the service to be ready and then change it
+          sleep 5m
+          chmod +x /opt/aws/bin/ecs-update-service.py
+          python /opt/aws/bin/ecs-update-service.py
+
+          # sending the finish call
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WaitCondition --region ${AWS::Region}
+  
+  HazelcastIncreaseAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Queue increase
+      AlarmName: HazelcastIncreaseAlarm
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+      MetricName: TASKS_QUEUED
+      Namespace: HAZELCAST_METRIC
+      Statistic: Average
+      EvaluationPeriods: '3'
+      Period: '10'
+      Threshold: '2'
+      ComparisonOperator: GreaterThanThreshold
+  
+  HazelcastDecreaseAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmDescription: Queue decrease
+      AlarmName: HazelcastDecreaseAlarm
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+      MetricName: TASKS_QUEUED
+      Namespace: HAZELCAST_METRIC
+      Statistic: Average
+      EvaluationPeriods: '3'
+      Period: '10'
+      Threshold: '1'
+      ComparisonOperator: LessThanOrEqualToThreshold
+  
+  ScaleUpPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref HazelcastWorkersAutoScalingGroup
+      Cooldown: '60'
+      ScalingAdjustment: '1'
+  
+  ScaleDownPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref HazelcastWorkersAutoScalingGroup
+      Cooldown: '60'
+      ScalingAdjustment: '-1'
+  
+  WaitCondition:
+    Type: 'AWS::CloudFormation::WaitCondition'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        Count: '1'
+

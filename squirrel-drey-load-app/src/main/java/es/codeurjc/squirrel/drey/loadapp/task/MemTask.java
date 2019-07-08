@@ -1,8 +1,16 @@
 package es.codeurjc.squirrel.drey.loadapp.task;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import es.codeurjc.squirrel.drey.Task;
 
 public class MemTask extends LoadTask {
+
+	class DummyObject {
+		Integer dummyInt = 1234;
+		Double dummyDouble = 1234.1;
+	}
 
 	private static final long serialVersionUID = 1L;
 
@@ -15,9 +23,21 @@ public class MemTask extends LoadTask {
 
 	@Override
 	public void process() throws Exception {
+
 		super.runDelay();
 
-		// TODO: add memory load according to 'megabytes' param
+		Map<String, Object> dummyMap = new LinkedHashMap<>();
+		for (int i = 0; i < megabytes; i++) {
+			dummyMap.put(Integer.toString(i), new DummyObject());
+			if (i % 10000 == 0) {
+				if (Thread.interrupted()) {
+					System.out.println("THREAD INTERRUPTED!!!");
+					return;
+				}
+			}
+		}
+
+		dummyMap.clear();
 
 		super.addNewInsertionTaskIfNecessary();
 	}

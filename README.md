@@ -124,12 +124,12 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -jar target/squirrel-drey-hello-world-1.0.4.jar
+java -Dworker=true -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -jar target/squirrel-drey-hello-world-1.0.4.jar
+java -Dworker=false -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
@@ -146,17 +146,17 @@ mvn -DskipTests=true package
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-1.0.4.jar
+java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-1.0.4.jar
+java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
 
-> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-1.0.4.jar`.
+> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-*.jar`.
 
 ----------
 
@@ -187,7 +187,7 @@ Your project must have the following dependency:
 ```
 
 Because of the way Hazelcast manages distributed objects, your application will have to be responsible of launching the workers (for security reasons, custom objects cannot be sent between nodes if their classes are not purposely declared and available on the node's classpath).
-An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.main()`).
+An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.launch()`).
 
 *squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
@@ -229,7 +229,8 @@ But one **worker** will be launched if done like this:
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
 | *constructor* | `String:hazelcastClientConfig`<br>`boolean:withAwsCloudWatch` | | New AlgorithmManager, searching for configuration file on path `hazelcastClientConfig` (default one if not found) and initializing the AWS CloudWatch module if `withAWSCloudWatch` is true (false by default) |
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | void | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
 | `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
 | `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
 | `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
@@ -241,18 +242,32 @@ But one **worker** will be launched if done like this:
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
 | `getResult` |  | `T` | Get the final result of the algorithm. Only available when the algorithm is done (same value is received by callback parameter `Consumer<T>:callback` on method `AlgorithmManager.solveAlgorithm`) |
-| `getTasksAdded` |  | int | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
-| `getTasksCompleted` |  | int | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
-| `getTasksQueued` |  | int | Get the total number of tasks waiting in the algorithm's queue |
+| `getStatus`  |  | `Algorithm.Status` | Returns the status of the algorithm |
+| `getTasksAdded` |  | `int` | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
+| `getTasksCompleted` |  | `int` | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
+| `getTasksQueued` |  | `int` | Get the total number of tasks waiting in the algorithm's queue |
+| `getTimeOfProcessing` |  | `int` | Seconds that the algorithm has been executing |
+| `getInitialTask` |  | `Task` | Entrypoint task of the algorithm (task passed to method `AlgorithmManager.solveAlgorithm`) |
+| `getErrorTasks` |  | `List<Task>` | Every task of the algorithm that has triggered an error. In the current version, only possible errors that tasks can throw are timeouts. So this method returns all tasks that have triggered a timeout |
+
+
+##### Algorithm.Status (enum)
+
+- `STARTED`: Algorithm has started (method `AlgorithmManager.solveAlgorithm` has been called)
+- `COMPLETED`: Algorithm has successfully finished
+- `TERMINATED`: Algorithm has been manually cancelled by calling any of the termination methods of `AlgorithmManager`}
+- `TIMEOUT`: Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so.
 
 #### Task
 
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
+| `setMaxDuration` | `long:milliseconds` | void | Set the timeout of the Task. If this time elapses, the algorithm will be stopped with status `TIMEOUT`. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so. |
 | `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
 | `process`  |  | void | Main code of the distributed task |
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
-| `getId`  | void | `int` | Returns the unique identifier for this task |
+| `getId`  |  | `int` | Returns the unique identifier for this task |
+| `getStatus`  |  | `Task.Status` | Returns the status of the task |
 | `getMap`  | String:id | `IMap` | Returns a distributed Hazelcast Map associated to the Algorithm of this Task |
 | `getQueue`  | String:id | `IQueue` | Returns a distributed Hazelcast Queue associated to the Algorithm of this Task |
 | `getRingbuffer`  | String:id | `Ringbuffer` | Returns a distributed Hazelcast Ringbuffer associated to the Algorithm of this Task |
@@ -269,6 +284,26 @@ But one **worker** will be launched if done like this:
 | `getCountDownLatch`  | String:id | `ICountDownLatch` | Returns a distributed Hazelcast CountDownLatch associated to the Algorithm of this Task |
 
 > All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the distributed data structures associated to one algorithm when it is over. Users can always get any Hazelcast distributed object by calling `Task.hazelcastInstance.get[DATA_STRUCTURE]` instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of destroying them at some time during the execution**. You may prefer doing this when you want a distributed object to be **common to every algorithm** and not just to one.
+
+##### Task.Status (enum)
+
+- `QUEUED`: Task is waiting in the algorithm's distributed queue
+- `RUNNING`: Task is running on some worker
+- `COMPLETED`: Task has successfully finished
+- `TIMEOUT`: Task didn't manage to finish within its specified timeout
+
+#### System properties
+
+- **hazelcast-config**: path to hazelcast configuration file. Default to `"src/main/resources/hazelcast-config.xml"`, which ultimately leads to [this file](https://github.com/codeurjc/SquirrelDrey/blob/master/squirrel-drey/src/main/resources/hazelcast-config.xml).
+- **mode**: `PRIORITY` (default) or `RANDOM`. Defines the strategy followed by SquirrelDrey to select the next task to solve.
+- **idle-cores-worker**: number of cores that will remain idle per worker. Default is 1, so ideally worker communications will never get blocked, but this property can be increased to ensure it.
+- **idle-cores-app**: number of cores that will remain idle in the application. Default is 3/4 of the cores.
+- **init-timeout**: minutes that a worker node will wait for the HazelCast CP subsystem cluster to be up and ready. If it elapses, then the worker Java process will be terminated.
+- **devmode**: if true 2 worker nodes will be automatically launched by the library when initializing a new `AlgorithmManager`.
+- **cp-member-count** _(CP Hazelcast config property)_: number of CP members. Default: 3 (MINIMUM)
+- **cp-session-heartbeat** _(CP Hazelcast config property)_: interval in seconds for the periodically-committed CP session heartbeats. Default: 30
+- **cp-session-ttl** _(CP Hazelcast config property)_: duration in seconds for a CP session to be kept alive after the last heartbeat. Default: 180
+- **cp-missing-member-autoremoval**: _(CP Hazelcast config property)_: duration in seconds to wait before automatically removing a missing CP member from the CP subsystem. For a normal-operating system this property is not necessary in principle, as master node will immediately remove the CP member from the CP group on member disconnection. Default: 300
 
 ## Some thoughts about Hazelcast approach compared to other alternatives
 

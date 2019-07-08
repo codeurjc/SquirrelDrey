@@ -12,9 +12,9 @@ public class Web {
 	@Bean
 	public AlgorithmManager<String> clusterManager(final ApplicationArguments args) {
 		
-		String hazelcastConfigPath = System.getProperty("hazelcast-client-config") != null ? 
-				System.getProperty("hazelcast-client-config") : 
-				"src/main/resources/hazelcast-client-config.xml";
+		String hazelcastConfigPath = System.getProperty("hazelcast-config") != null ? 
+				System.getProperty("hazelcast-config") : 
+				"src/main/resources/hazelcast-config.xml";
 		boolean withAWS = System.getProperty("aws") != null ? Boolean.valueOf(System.getProperty("aws")) : false;
 		
 		return new AlgorithmManager<>(hazelcastConfigPath, withAWS);

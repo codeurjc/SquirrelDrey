@@ -2,9 +2,6 @@ package es.codeurjc.squirrel.drey.loadapp;
 
 import java.util.List;
 
-import es.codeurjc.squirrel.drey.loadapp.task.MemTask;
-import es.codeurjc.squirrel.drey.loadapp.task.PiDigitsTask;
-
 public class InsertionTaskParameters {
 
 	private String id;

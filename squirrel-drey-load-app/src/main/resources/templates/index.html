@@ -31,56 +31,53 @@
 		<div class="container">
 			<div class="navbar-header">
 				<a class="navbar-brand" href="/">Hazelcast Web App</a>
+				<a class="navbar-brand graph-link" href="/graph" target="_blank">GRAPH</a>
 			</div>
 		</div>
 	</nav>
 
 	<div class="container vertical-center">
 		<form id="parent-form" class="form-group jumbotron">
-			<div id="group1" class="group">
-				<div class="task">
-					<div class="form-row">
-						<div style="display: inline-block; width: 125px">
-							<label>Type of task</label>
-							<div>
-								<input type="radio" name="typeOfTask11" value="PiDigitsTask" checked>
-								PiDigitsTask<br>
-								<input type="radio" name="typeOfTask11" value="MemTask"> MemTask
-							</div>
-						</div>
-						<p>
-							<label>Task load</label>
-							<input id="taskLoad11" class="form-control" type="number" name="taskLoad11" required="true"
-								value="15000"></input>
-						</p>
-						<p>
-							<label>Max task duration</label>
-							<input id="duration11" class="form-control" type="number" name="duration11" required="true"
-								value="8"></input>
-						</p>
-						<p>
-							<label>Delay</label>
-							<input id="delay11" class="form-control" type="number" name="delay11" required="true"
-								value="0"></input>
-						</p>
-					</div>
-				</div>
-				<p class="task-buttons">
-					<button id="add-task-1" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(1)">Add
-						task</button>
-					<button id="remove-task-1" type="button" class="btn btn-lg btn-warning"
-						onclick="removeLoadTask(1)">Remove
-						task</button>
-				</p>
+			<div id="algorithm-store">
+				<button type="button" class="btn" data-toggle="modal" data-target="#saveAlgorithmModal">Save</button>
+				<button id="delete-algorithm-btn" class="btn" type="button" onclick="deleteAlgorithm()"
+					disabled>Delete</button>
+				<button id="load-algorithm-btn" class="btn btn-outline-secondary" type="button"
+					onclick="loadAlgorithm()" disabled>Load</button>
+				<select id="loadAlgorithmSelector" class="custom-select form-control" onmousedown="updateLoadValues()"
+					onchange="toggleLoadBtn()">
+					<option value="Choose..." selected>Choose...</option>
+				</select>
 			</div>
 			<p class="group-buttons">
 				<button id="add-group-btn" type="button" class="btn btn-lg btn-info" onclick="addGroup()">Add
 					group</button>
-				<button id="remove-group" type="button" class="btn btn-lg btn-warning" onclick="removeGroup()">Remove
+				<button id="remove-group" type="button" class="btn btn-lg btn-warning" onclick="removeGroup()" disabled>Remove
 					group</button>
 				<button id="submit-btn" type="button" class="btn btn-lg btn-success" onclick="post()">Go</button>
 			</p>
 		</form>
+	</div>
+
+	<!-- Modal -->
+	<div class="modal fade" id="saveAlgorithmModal" tabindex="-1" role="dialog" data-backdrop="static">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="exampleModalLabel">Save algorithm with name</h5>
+				</div>
+				<div class="modal-body">
+					<input class="form-control" id="algorithm-store-name" placeholder="MyAlgorithm" value="MyAlgorithm">
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+					<button type="button" class="btn btn-primary"
+						onclick="saveAlgorithm(document.getElementById('algorithm-store-name').value)"
+						data-dismiss="modal">Save
+						algorithm</button>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<footer class="footer">
@@ -94,72 +91,135 @@
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
-		var nGroups = 1;
-		var nTasks = {
-			1: 1
-		};
+		window.TASKS = [];
 
 		function addLoadTask(index) {
-			if (!nTasks[index]) {
-				nTasks[index] = 0;
+			if (!window.TASKS[index]) {
+				window.TASKS[index] = [];
 			}
-
-			nTasks[index] = nTasks[index] + 1;
-			var str =
-				'<div class="task"><div class="form-row"><div style="display: inline-block; width: 125px">' +
-				'<label>Type of task</label><div>' +
-				'<input type="radio" name="typeOfTask' + index + nTasks[index] +
-				'" value="PiDigitsTask" checked> PiDigitsTask<br>' +
-				'<input type="radio" name="typeOfTask' + index + nTasks[index] + '" value="MemTask"> MemTask</div></div>' +
-				'<p><label>Task load</label>' +
-				'<input id="taskLoad' + index + nTasks[index] + '" class="form-control" type="number" name="taskLoad' +
-				index + nTasks[
-					index] +
-				'" required="true" value="15000"></input>' +
-				'</p><p><label>Max task duration</label>' +
-				'<input id="duration' + index + nTasks[index] + '" class="form-control" type="number" name="duration' +
-				index + nTasks[
-					index] +
-				'" required="true" value="8"></input>' +
-				'</p><p><label>Delay</label>' +
-				'<input id="delay' + index + nTasks[index] + '" class="form-control" type="number" name="delay' + index +
-				nTasks[index] +
-				'" required="true" value="0"></input>' +
-				'</p></div></div>';
-
-			var node = $.parseHTML(str);
-
-			if (nTasks[index] === 1) {
-				$('#group' + index + ' .task-buttons').last().before(str);
-				$('#remove-task-' + index).prop("disabled", false);
-			} else {
-				$('#group' + index + ' .task').last().before(str);
-			}
-			return false;
+			return addLoadTaskAux('cpu', index, 15000, 14, 0);
 		}
 
 		function removeLoadTask(index) {
 			$('#group' + index + ' .task').last().remove();
-			nTasks[index] = nTasks[index] - 1;
-			if (nTasks[index] === 0) {
+			window.TASKS[index].pop();
+			if (window.TASKS[index].length === 0) {
 				$('#remove-task-' + index).prop("disabled", true);
 			}
 			return false;
 		}
 
-		function addGroup() {
-			nGroups++;
-			nTasks[nGroups] = 0;
+		function addLoadTaskAux(type, group, load, duration, delay) {
 			var str =
-				'<div id="group' + nGroups + '" class="group"><p class="task-buttons">' +
-				'<button id="add-task-' + nGroups + '" type="button" class="btn btn-lg btn-info" onclick="addLoadTask(' +
-				nGroups + ')">Add task</button>' +
-				'<button id="remove-task-' + nGroups +
-				'" type="button" class="btn btn-lg btn-warning" onclick="removeLoadTask(' + nGroups +
+				'<div class="task"><div class="form-row"><div style="display: inline-block; width: 125px">' +
+				'<label>Type of task</label><div>' +
+				'<input type="radio" name="typeOfTask' + group + window.window.TASKS[group].length +
+				'" value="cpu" ' + (type === 'cpu' ? 'checked' : '') + ' oninput="updateInputValue(this.value, ' + group +
+				', ' + window.TASKS[group].length + ', \'type\')"> PiDigitsTask<br>' +
+				'<input type="radio" name="typeOfTask' + group + window.TASKS[group].length + '" value="mem" ' + (type ===
+					'mem' ?
+					'checked' : '') + ' oninput="updateInputValue(this.value, ' + group + ', ' + window.TASKS[group].length +
+				', \'type\')"> MemTask</div></div>' +
+				'<p><label>Task load</label>' +
+				'<input id="taskLoad' + group + window.TASKS[group].length +
+				'" class="form-control" type="number" name="taskLoad' +
+				group + window.TASKS[group].length +
+				'" required="true" value="' + load + '" oninput="updateInputValue(this.value, ' + group + ', ' + window.TASKS[
+					group].length + ', \'load\')"></input>' +
+				'</p><p><label>Max task duration</label>' +
+				'<input id="duration' + group + window.TASKS[group].length +
+				'" class="form-control" type="number" name="duration' +
+				group + window.TASKS[group].length +
+				'" required="true" value="' + duration + '" oninput="updateInputValue(this.value, ' + group + ', ' + window
+				.TASKS[group].length + ', \'duration\')"></input>' +
+				'</p><p><label>Delay</label>' +
+				'<input id="delay' + group + window.TASKS[group].length + '" class="form-control" type="number" name="delay' +
+				group +
+				window.TASKS[group].length +
+				'" required="true" value="' + delay + '" oninput="updateInputValue(this.value, ' + group + ', ' + window
+				.TASKS[group].length + ', \'delay\')"></input>' +
+				'</p></div></div>';
+
+			var node = $.parseHTML(str);
+
+			window.TASKS[group].push({
+				type,
+				load,
+				duration,
+				delay
+			});
+
+			if (window.TASKS[group].length === 1) {
+				$('#group' + group + ' .task-buttons').last().before(str);
+				$('#remove-task-' + group).prop("disabled", false);
+			} else {
+				$('#group' + group + ' .task').last().after(str);
+			}
+		}
+
+		function updateInputValue(newValue, groupIndex, taskIndex, taskProperty) {
+			window.TASKS[groupIndex][taskIndex][taskProperty] = newValue;
+		}
+
+		function updateLoadValues() {
+			var selector = document.getElementById('loadAlgorithmSelector');
+			var previousOptions = [];
+			selector.childNodes.forEach(node => {
+				if (node.innerHTML !== 'Choose...') {
+					previousOptions.push(node.innerHTML);
+				}
+			});
+			var savedAlgorithms = JSON.parse(localStorage.getItem('squirrel-drey-algorithms'));
+			if (!!savedAlgorithms) {
+				Object.keys(savedAlgorithms).forEach((key, index) => {
+					if (previousOptions.indexOf(key) === -1) {
+						var option = document.createElement("option");
+						option.value = key;
+						var optionText = document.createTextNode(key);
+						option.appendChild(optionText);
+						selector.appendChild(option);
+					} else {
+						previousOptions.splice(previousOptions.indexOf(key), 1);
+					}
+				});
+				selector.childNodes.forEach(node => {
+					if (previousOptions.indexOf(node.innerHTML) !== -1) {
+						selector.removeChild(node);
+					}
+				});
+			}
+		}
+
+		function toggleLoadBtn() {
+			var selector = document.getElementById('loadAlgorithmSelector');
+			var selectedAlgorithm = selector.options[selector.selectedIndex].value;
+			var isDisabled = selectedAlgorithm === 'Choose...';
+			document.getElementById('load-algorithm-btn').disabled = isDisabled;
+			document.getElementById('delete-algorithm-btn').disabled = isDisabled;
+		}
+
+		function addCpuTask(group, load, duration, delay) {
+			return addLoadTaskAux('cpu', group, load, duration, delay);
+		}
+
+		function addMemTask(group, load, duration, delay) {
+			return addLoadTaskAux('mem', group, load, duration, delay);
+		}
+
+		function addGroup() {
+			window.TASKS.push([]);
+			var groupIndex = window.TASKS.length - 1;
+			var str =
+				'<div id="group' + groupIndex + '" class="group"><p class="task-buttons">' +
+				'<button id="add-task-' + groupIndex +
+				'" type="button" class="btn btn-lg btn-info btn-add-task" onclick="addLoadTask(' +
+				groupIndex + ')">Add task</button>' +
+				'<button id="remove-task-' + groupIndex +
+				'" type="button" class="btn btn-lg btn-warning" onclick="removeLoadTask(' + groupIndex +
 				')" disabled>Remove task</button></p>';
 			var node = $.parseHTML(str);
 
-			if (nGroups === 1) {
+			if (groupIndex === 0) {
 				$('#parent-form .group-buttons').last().before(str);
 				$('#remove-group').prop("disabled", false);
 			} else {
@@ -170,34 +230,78 @@
 		}
 
 		function removeGroup() {
+			window.TASKS.pop();
 			$('#parent-form .group').last().remove();
-			delete nTasks[nGroups];
-			nGroups--;
-			if (nGroups === 0) {
+			if (window.TASKS.length === 0) {
 				$('#remove-group').prop("disabled", true);
 			}
 			return false;
 		}
 
-		function post() {
-			var insertionTasks = [];
-			for (var i = 1; i <= nGroups; i++) {
-				var loadTasks = [];
-				for (var j = 1; j <= nTasks[i]; j++) {
-					loadTasks[j - 1] = {
-						typeOfTask: $('input[name="typeOfTask' + i + j + '"]:checked').val(),
-						taskLoad: ($('#taskLoad' + i + j)).val(),
-						maxTaskDuration: ($('#duration' + i + j)).val(),
-						delay: ($('#delay' + i + j)).val()
+		function saveAlgorithm(id) {
+			var savedAlgorithms = JSON.parse(localStorage.getItem('squirrel-drey-algorithms'));
+			if (!savedAlgorithms) {
+				savedAlgorithms = {};
+			}
+			savedAlgorithms[id] = window.TASKS;
+			localStorage.setItem('squirrel-drey-algorithms', JSON.stringify(savedAlgorithms));
+		}
+
+		function loadAlgorithm() {
+			var selector = document.getElementById('loadAlgorithmSelector');
+			var selectedAlgorithm = selector.options[selector.selectedIndex].value;
+			var savedAlgorithms = JSON.parse(localStorage.getItem('squirrel-drey-algorithms'));
+			var retrievedAlgorithm = savedAlgorithms[selectedAlgorithm];
+			if (!retrievedAlgorithm) {
+				console.error('Algorithm not found');
+				return;
+			}
+			while (window.TASKS.length > 0) {
+				removeGroup();
+			}
+			console.log('Algorithm loaded: ', retrievedAlgorithm);
+			for (var i = 0; i < retrievedAlgorithm.length; i++) {
+				this.addGroup();
+				for (var j = 0; j < retrievedAlgorithm[i].length; j++) {
+					if (retrievedAlgorithm[i][j].type === 'cpu') {
+						addCpuTask(i, retrievedAlgorithm[i][j].load, retrievedAlgorithm[i][j].duration, retrievedAlgorithm[i][
+							j
+						].delay);
+					} else if (retrievedAlgorithm[i][j].type === 'mem') {
+						addMemTask(i, retrievedAlgorithm[i][j].load, retrievedAlgorithm[i][j].duration, retrievedAlgorithm[i][
+							j
+						].delay);
 					}
 				}
-				insertionTasks[i - 1] = {
+			}
+		}
+
+		function deleteAlgorithm() {
+			var selector = document.getElementById('loadAlgorithmSelector');
+			var selectedAlgorithm = selector.options[selector.selectedIndex].value;
+			var savedAlgorithms = JSON.parse(localStorage.getItem('squirrel-drey-algorithms'));
+			if (!savedAlgorithms) {
+				savedAlgorithms = {};
+			}
+			delete savedAlgorithms[selectedAlgorithm];
+			localStorage.setItem('squirrel-drey-algorithms', JSON.stringify(savedAlgorithms));
+			while (window.TASKS.length > 0) {
+				removeGroup();
+			}
+			updateLoadValues();
+			toggleLoadBtn();
+		}
+
+		function post() {
+			var insertionTasks = [];
+			for (var i = 0; i < window.TASKS.length; i++) {
+				insertionTasks[i] = {
 					id: 'InsertionTask-' + i,
-					loadTasks
+					loadTasks: window.TASKS[i]
 				};
 			}
-			insertionTasks[nGroups] = {
-				id: 'InsertionTask-' + (nGroups + 1),
+			insertionTasks[window.TASKS.length] = {
+				id: 'InsertionTask-' + (window.TASKS.length),
 				loadTasks: []
 			}
 			console.log(insertionTasks);

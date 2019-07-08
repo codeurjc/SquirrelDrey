@@ -16,12 +16,29 @@ public class Node {
 
 	public void start(String HAZELCAST_CONFIG, Mode mode, int idleCores) {
 
-		Config cfg = new Config();
+		Config config = new Config();
 		try {
-			cfg = new FileSystemXmlConfig(HAZELCAST_CONFIG);
+			config = new FileSystemXmlConfig(HAZELCAST_CONFIG);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		}
+
+		int cpMemeberCount = System.getProperty("cp-member-count") != null
+				? Integer.parseInt(System.getProperty("cp-member-count"))
+				: 3;
+		int cpSessionHeartbeat = System.getProperty("cp-session-heartbeat") != null
+				? Integer.parseInt(System.getProperty("cp-session-heartbeat"))
+				: 30;
+		int cpSessionTTL = System.getProperty("cp-session-ttl") != null
+				? Integer.parseInt(System.getProperty("cp-session-ttl"))
+				: 180;
+		int cpMissingMemberAutoremoval = System.getProperty("cp-missing-member-autoremoval") != null
+				? Integer.parseInt(System.getProperty("cp-missing-member-autoremoval"))
+				: 300;
+
+		config.getCPSubsystemConfig().setCPMemberCount(cpMemeberCount)
+				.setSessionHeartbeatIntervalSeconds(cpSessionHeartbeat).setSessionTimeToLiveSeconds(cpSessionTTL)
+				.setMissingCPMemberAutoRemovalSeconds(cpMissingMemberAutoremoval);
 
 		this.queuesManager = new QueuesManager(mode);
 
@@ -30,11 +47,12 @@ public class Node {
 		MapConfig mapConfig = new MapConfig();
 		mapConfig.setName("QUEUES");
 		mapConfig.addEntryListenerConfig(new EntryListenerConfig(mapOfQueuesListener, false, true));
-		cfg.addMapConfig(mapConfig);
-		
-		this.hc = Hazelcast.newHazelcastInstance(cfg);
+		config.addMapConfig(mapConfig);
+
+		this.hc = Hazelcast.newHazelcastInstance(config);
+
 		this.queuesManager.initializeHazelcast(hc, idleCores);
-		
+
 	}
 
 }

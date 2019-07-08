@@ -1,32 +1,39 @@
 package es.codeurjc.squirrel.drey;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IQueue;
+import com.hazelcast.spi.exception.DistributedObjectDestroyedException;
 
 /**
- * @author Pablo Fuente (pablo.fuente@urjc.es)
+ * @author Pablo Fuente (pablofuenteperez@gmail.com)
  */
 public class Algorithm<R> {
 
 	public enum Status {
 		/**
-	     * Algorithm has started (method {@link AlgorithmManager#solveAlgorithm(String, Task, Integer)} has been called)
-	     */
+		 * Algorithm has started (method
+		 * {@link AlgorithmManager#solveAlgorithm(String, Task, Integer)} has been
+		 * called)
+		 */
 		STARTED,
 		/**
-	     * Algorithm has successfully finished
-	     */
+		 * Algorithm has successfully finished
+		 */
 		COMPLETED,
 		/**
-	     * Algorithm has been manually cancelled by calling any of the termination methods of {@link AlgorithmManager}
-	     */
+		 * Algorithm has been manually cancelled by calling any of the termination
+		 * methods of {@link AlgorithmManager}
+		 */
 		TERMINATED,
 		/**
-	     * Algorithm has been forcibly finished by a task that didn't manage to complete within its specified timeout
-	     */
+		 * Algorithm has been forcibly finished by a task that didn't manage to complete
+		 * within its specified timeout
+		 */
 		TIMEOUT
 	}
 
@@ -48,6 +55,7 @@ public class Algorithm<R> {
 	private Long finishTime;
 
 	private Task initialTask;
+	private List<Task> errorTasks;
 	private Consumer<R> callback;
 	private AlgorithmCallback<R> algorithmCallback;
 
@@ -57,6 +65,7 @@ public class Algorithm<R> {
 		this.priority = priority;
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask, Consumer<R> callback) {
@@ -66,6 +75,7 @@ public class Algorithm<R> {
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.callback = callback;
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public Algorithm(HazelcastInstance hc, String id, Integer priority, Task initialTask,
@@ -76,6 +86,21 @@ public class Algorithm<R> {
 		initialTask.setAlgorithm(this.getId());
 		this.initialTask = initialTask;
 		this.algorithmCallback = callback;
+		this.errorTasks = new ArrayList<>();
+	}
+
+	public Algorithm(HazelcastInstance hc, String id, Algorithm<R> otherAlgorithm) {
+		this.hc = hc;
+		this.id = id;
+		this.priority = otherAlgorithm.getPriority();
+		this.initialTask = otherAlgorithm.getInitialTask();
+		this.initialTask.setAlgorithm(this.getId());
+		if (otherAlgorithm.callback != null) {
+			this.callback = otherAlgorithm.callback;
+		} else if (otherAlgorithm.algorithmCallback != null) {
+			this.algorithmCallback = otherAlgorithm.algorithmCallback;
+		}
+		this.errorTasks = new ArrayList<>();
 	}
 
 	public String getId() {
@@ -97,39 +122,39 @@ public class Algorithm<R> {
 	public void solve(IQueue<Task> queue) throws Exception {
 		this.status = Status.STARTED;
 		this.initTime = System.currentTimeMillis();
-		
+
 		this.initialTask.status = Task.Status.QUEUED;
 		queue.add(this.initialTask);
 
-		this.hc.getAtomicLong("added" + this.id).incrementAndGet();
+		this.hc.getCPSubsystem().getAtomicLong("added" + this.id).incrementAndGet();
 	}
 
-	public int getTasksAdded() {
+	public int getTasksAdded() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksAdded;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("added" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("added" + this.id).get());
 	}
 
-	public int getTasksCompleted() {
+	public int getTasksCompleted() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksCompleted;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("completed" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("completed" + this.id).get());
 	}
 
-	public int getTasksQueued() {
+	public int getTasksQueued() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksQueued;
 		}
 		return this.hc.getQueue(this.id).size();
 	}
 
-	public int getTasksTimeout() {
+	public int getTasksTimeout() throws DistributedObjectDestroyedException {
 		if (this.finished.get()) {
 			return this.finalTasksTimeout;
 		}
-		return Math.toIntExact(this.hc.getAtomicLong("timeout" + this.id).get());
+		return Math.toIntExact(this.hc.getCPSubsystem().getAtomicLong("timeout" + this.id).get());
 	}
 
 	public int getTasksFinished() {
@@ -154,6 +179,14 @@ public class Algorithm<R> {
 
 	public Task getInitialTask() {
 		return this.initialTask;
+	}
+
+	public List<Task> getErrorTasks() {
+		return this.errorTasks;
+	}
+
+	public void addErrorTask(Task errorTask) {
+		this.errorTasks.add(errorTask);
 	}
 
 	public void runCallbackSuccess() throws Exception {
@@ -190,7 +223,7 @@ public class Algorithm<R> {
 		}
 		return hasSuccessullyFinished;
 	}
-	
+
 	public boolean hasFinishedRunningTasks(int addedMinusQueued) {
 		final int finished = this.getTasksFinished();
 		System.out.println("Added minus queued: " + addedMinusQueued);
