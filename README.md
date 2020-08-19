@@ -10,6 +10,7 @@ SquirrelDrey
 * [API](#api)
 * [Some thoughts about Hazelcast approach compared to other alternatives](#some-thoughts-about-hazelcast-approach-compared-to-other-alternatives)
 * [Running on Amazon ECS](#running-on-amazon-ecs)
+* [Local scaling version](#local-scaling-version)
 
 ----------
 
@@ -585,3 +586,44 @@ At this poing you should be able to access the [web](http://IP_EC2_INSTANCE:5000
 #### CloudFormation
 
 You can find a CloudFormation recipe in this repo which make easier to deploy this infreastructure. We encourage you to use that rather than a configuration by hand.
+
+## Local scaling version
+
+This version doesn't use Hazelcast, and is intended to be for using the framework on a single machine.
+
+Differences with the main version:
+
+- There are no longer differences between worker and app as there is only one machine (no need to use the -Dworker property).
+- No Hazelcast, which implies the following methods from the API are not implemented:
+	- Task: All `get[DATA_STRUCTURE]` methods.
+	- AlgorithmManager<T>: constructor no longer needs parameters.
+- The following previous system properties are ignored:
+	- **hazelcast-config**
+	- **idle-cores-worker**
+	- **init-timeout**
+	- **devmode**
+	- **cp-member-count**
+	- **cp-session-heartbeat**
+	- **cp-session-ttl**
+	- **cp-missing-member-autoremoval**
+- CloudWatch not implemented.
+
+To use this version, you can compile and use it running the following commands: 
+
+```
+cd SquirrelDrey/squirrel-drey-local
+mvn clean install
+```
+
+### Code example (*squirrel-drey-hello-world-local*)
+
+This example works exactly the same as the [hello world code example](#code-example-squirrel-drey-hello-world), the main difference is that the structures from the tasks previously provided and managed by Hazelcast have been created in the **Structures** class.
+
+To run this example run the following commands:
+
+```
+cd SquirrelDrey/squirrel-drey-local
+mvn install
+cd ../squirrel-drey-hello-world
+mvn -DskipTests=true clean package
+```
