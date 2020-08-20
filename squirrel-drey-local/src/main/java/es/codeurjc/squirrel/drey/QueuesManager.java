@@ -30,8 +30,6 @@ public class QueuesManager<R> {
 
 	Map<String, QueueProperty> mapOfQueues; // Map storing all the queues and their properties (priority,
 											// last time pushed)
-	Queue<Task> maxPriorityQueue; // Queue for tasks with maximum priority. It will always be the first queue
-									// checked on polling
 	Map<Integer, Task> runningTasks; // Map of running tasks <taskUniqueId, task>
 
 	int nThreads;
@@ -57,7 +55,6 @@ public class QueuesManager<R> {
 		}
 
 		this.mapOfQueues = this.algManager.QUEUES;
-		this.maxPriorityQueue = new LinkedBlockingQueue<>();
 		this.runningTasks = new ConcurrentHashMap<>();
 
 		log.info("Queues on startup {}", mapOfQueues.keySet().toString());
@@ -197,26 +194,28 @@ public class QueuesManager<R> {
 
 	private boolean submitTaskIfAvailable(Map<String, ?> orderedMap) {
 		boolean taskAvailable = false;
-		boolean hasNext = true;
-		String queueId = "MAX_PRIORITY_QUEUE";
 		Iterator<String> iterator = orderedMap.keySet().iterator();
-		Queue<Task> q = this.maxPriorityQueue;
-		do {
-			log.info("Trying search on queue [{}]", queueId);
-			Task task = q.poll();
-			if (task != null) {
-				runTask(task);
-				log.info("Task [{}] submitted for algorithm [{}] from queue [{}]", task, task.algorithmId, queueId);
-				taskAvailable = true;
+		boolean hasNext = iterator.hasNext();
+		String queueId;
+		if (hasNext) {
+			queueId = iterator.next();
+			log.info("New iterator [{}]", queueId);
+			while (hasNext && !taskAvailable) {
+				Queue<Task> q = this.algManager.algorithmQueues.get(queueId);
+				log.info("Trying search on queue [{}]", queueId);
+				Task task = q.poll();
+				if (task != null) {
+					runTask(task);
+					log.info("Task [{}] submitted for algorithm [{}] from queue [{}]", task, task.algorithmId, queueId);
+					taskAvailable = true;
+				}
+				hasNext = iterator.hasNext();
+				if (hasNext) {
+					queueId = iterator.next();
+					log.info("New iterator [{}]", queueId);
+				}
 			}
-			hasNext = iterator.hasNext();
-			if (hasNext) {
-				queueId = iterator.next();
-				q = this.algManager.algorithmQueues.get(queueId);
-				log.info("New iterator [{}]", queueId);
-			}
-		} while (hasNext && !taskAvailable);
-
+		}
 		return taskAvailable;
 	}
 
