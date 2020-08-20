@@ -258,6 +258,8 @@ public class AlgorithmManager<R> {
 		this.algorithmCompletedTasks.remove(algorithmId);
 		this.algorithmTimeoutTasks.remove(algorithmId);
 
+		this.QUEUES.remove(algorithmId);
+
 		return alg;
 	}
 
