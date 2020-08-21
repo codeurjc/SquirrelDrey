@@ -607,6 +607,7 @@ Differences with the main version:
 	- **cp-session-ttl**
 	- **cp-missing-member-autoremoval**
 - CloudWatch not implemented.
+- By default it leaves no idle cores, but number of idle cores can be specified by using the **idle-cores-app** system property.
 
 To use this version, you can compile and use it running the following commands: 
 
