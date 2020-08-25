@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Task implements Callable<Void> {
@@ -26,6 +27,10 @@ public class Task implements Callable<Void> {
         TIMEOUT
     }
 
+    private enum Structures {
+        MAP, ATOMICLONG
+    }
+
     protected AlgorithmManager<?> algorithmManager;
 
     protected Status status;
@@ -36,6 +41,8 @@ public class Task implements Callable<Void> {
 
     private long timeStarted;
     private long maxDuration;
+
+    private Map<String, String> structures = new ConcurrentHashMap<>();
 
     public void setAlgorithmManager(AlgorithmManager<?> algorithmManager) {
         this.algorithmManager = algorithmManager;
@@ -74,6 +81,14 @@ public class Task implements Callable<Void> {
         this.maxDuration = milliseconds;
     }
 
+    public Map<String, String> getStructures() {
+        return this.structures;
+    }
+
+    public void setStructures(Map<String, String> structures) {
+        this.structures = structures;
+    }
+
     public void algorithmSolved(Object finalResult) {
         this.finalResult = finalResult;
     }
@@ -94,6 +109,7 @@ public class Task implements Callable<Void> {
 
     protected final void addNewTask(Task t) {
         t.setAlgorithm(this.algorithmId);
+        t.setStructures(this.structures);
         Queue<Task> queue = this.algorithmManager.algorithmQueues.get(this.algorithmId);
 
         t.status = Status.QUEUED;
@@ -122,5 +138,31 @@ public class Task implements Callable<Void> {
     @Override
     public String toString() {
         return this.algorithmId + "@" + this.getClass().getSimpleName() + "@" + this.getId();
+    }
+
+    private String getStructureId(String customId, Structures structure) {
+        return this.algorithmId + "-" + customId + "-" + structure.toString();
+    }
+
+    public Map<?, ?> getMap(String customId) {
+        String id = this.getStructureId(customId, Structures.MAP);
+        this.structures.putIfAbsent(id, id);
+        Map<?, ?> map = (Map<?, ?>) TaskStructures.mapOfStructures.get(id);
+        if (map == null) {
+            map = new ConcurrentHashMap<>();
+            TaskStructures.mapOfStructures.put(id, map);
+        }
+        return map;
+    }
+
+    public AtomicLong getAtomicLong(String customId) {
+        String id = this.getStructureId(customId, Structures.ATOMICLONG);
+        this.structures.putIfAbsent(id, id);
+        AtomicLong atomicLong = (AtomicLong) TaskStructures.mapOfStructures.get(id);
+        if (atomicLong == null) {
+            atomicLong = new AtomicLong();
+            TaskStructures.mapOfStructures.put(id, atomicLong);
+        }
+        return atomicLong;
     }
 }

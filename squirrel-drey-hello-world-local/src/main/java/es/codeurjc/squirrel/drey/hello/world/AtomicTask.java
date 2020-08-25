@@ -14,8 +14,8 @@ public class AtomicTask extends Task {
 	public void process() throws Exception {
 		Thread.sleep(5000);
 
-		Map<Integer, Integer> results = Structures.resultsMap;
-		AtomicLong atomicLong = Structures.countDown;
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
+		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
 		results.put(this.getId(), 1);
 		if (atomicLong.decrementAndGet() == 0L) {
 			System.out.println("ADDING SOLVE TASK FOR ALGORITHM " + this.algorithmId);

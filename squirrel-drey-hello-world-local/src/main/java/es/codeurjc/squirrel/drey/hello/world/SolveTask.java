@@ -9,7 +9,7 @@ public class SolveTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		Map<Integer, Integer> results = Structures.resultsMap;
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
 
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {

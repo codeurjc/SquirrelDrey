@@ -14,7 +14,7 @@ public class PreparationTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		AtomicLong atomicLong = Structures.countDown;
+		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
 		atomicLong.set(this.numberOfAtomicTasks);
 
 		for (int i = 0; i < this.numberOfAtomicTasks; i++) {

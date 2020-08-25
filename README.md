@@ -595,8 +595,10 @@ Differences with the main version:
 
 - There are no longer differences between worker and app as there is only one machine (no need to use the -Dworker property).
 - No Hazelcast, which implies the following methods from the API are not implemented:
-	- Task: All `get[DATA_STRUCTURE]` methods.
-	- AlgorithmManager<T>: constructor no longer needs parameters.
+	- Task: All `get[DATA_STRUCTURE]` methods except of:  
+		- `getMap` (which returns now `Map` instead of `IMap`).
+		- `getAtomicLong` (which returns now `AtomicLong` instead of `IAtomicLong`).
+	- AlgorithmManager<T>: constructor no longer needs parameters (can put any number of parameters but they will be ignored).
 - The following previous system properties are ignored:
 	- **hazelcast-config**
 	- **idle-cores-worker**
@@ -618,7 +620,7 @@ mvn clean install
 
 ### Code example (*squirrel-drey-hello-world-local*)
 
-This example works exactly the same as the [hello world code example](#code-example-squirrel-drey-hello-world), the main difference is that the structures from the tasks previously provided and managed by Hazelcast have been created in the **Structures** class.
+This example works exactly the same as the [hello world code example](#code-example-squirrel-drey-hello-world).
 
 To run this example run the following commands:
 

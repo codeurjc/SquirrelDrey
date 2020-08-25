@@ -40,7 +40,7 @@ public class AlgorithmManager<R> {
 
 	CountDownLatch workerStatsFetched;
 
-	public AlgorithmManager() {
+	public AlgorithmManager(Object... args) {
 		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
 
 		this.algorithms = new ConcurrentHashMap<>();
@@ -133,6 +133,7 @@ public class AlgorithmManager<R> {
 
 				final String algId = alg.getId();
 
+				this.algorithmStructures.get(algId).putAll(t.getStructures());
 				if (t.getFinalResult() != null)
 					alg.setResult((R) t.getFinalResult());
 
@@ -237,6 +238,15 @@ public class AlgorithmManager<R> {
 	}
 
 	private Algorithm<R> cleanAlgorithmStructures(String algorithmId) {
+
+		if (this.algorithmStructures.get(algorithmId) != null) {
+			for (String structureId : this.algorithmStructures.get(algorithmId).values()) {
+				TaskStructures.mapOfStructures.remove(structureId);
+			}
+			log.info("Destroyed {} Data Structures for algorithm {}: {}",
+					this.algorithmStructures.get(algorithmId).keySet().size(), algorithmId,
+					this.algorithmStructures.get(algorithmId).keySet());
+		}
 
 		// Remove algorithm
 		Algorithm<R> alg = this.algorithms.remove(algorithmId);
