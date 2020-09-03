@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QueuesManager<R> {
+public class QueuesManager<R extends Serializable> {
 
 	private static final Logger log = LoggerFactory.getLogger(QueuesManager.class);
 

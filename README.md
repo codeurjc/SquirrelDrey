@@ -10,46 +10,58 @@ SquirrelDrey
 * [API](#api)
 * [Some thoughts about Hazelcast approach compared to other alternatives](#some-thoughts-about-hazelcast-approach-compared-to-other-alternatives)
 * [Running on Amazon ECS](#running-on-amazon-ecs)
-* [Local scaling version](#local-scaling-version)
 
 ----------
 
 ## Introduction
 
-SquirrelDrey is a Java framework aimed to support distributed execution of algorithms thanks to Hazelcast technology. SquirrelDrey is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means that the entrypoint for the algorithm is no more than one initial Task.
+SquirrelDrey is a Java framework aimed to support distributed execution of algorithms. SquirrelDrey is a **Task-Driven Framework**: the logic of any custom algorithm must be contained in its custom tasks. This means that the entrypoint for the algorithm is no more than one initial Task.
 
-The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks. All of them will be executed in a distributed cluster. To control the internal logic of the custom algorithm Hazelcast objects may be used. For example, a distributed Latch can be used to make certain task generate another different one only when certain condition is met. Or a distributed Map can be useful for storing any intermediate task's result. For further information, see [Hazelcast Docs](http://docs.hazelcast.org/docs/latest-development/manual/html/Preface/Hazelcast_IMDG_Editions.html).
+The initial Task will generate as much other tasks as needed. In the same manner, these can also generate other tasks.
 
 Whenever SquirrelDrey founds that the number of tasks sent to be executed matches the number of completed tasks for one algorithm, it will be terminated. If any task has called method `Task.algorithmSolved(result)`, that will be the final result of the algorithm (`null` if not).
 
+SquirrelDrey distinguishes between 2 types of work:  
+- Master: Sends the algorithms to run to the workers using an input SQS FIFO queue, then waits for the results polling an output SQS FIFO queue and running the algorithm callback.
+- Worker: Runs algorithms sent by the master (received by polling the input SQS FIFO queue). When finished, returns the results to the master (sending them to the output SQS FIFO queue) to run the callback.
+
+As described above, the framework makes use of 2 SQS FIFO queues with Content Based Deduplication enabled: an input queue and an output queue. They can be created by the user or by the framework.
+The queues will be created by the master when needed if they don't exist (the names can be configured by passing arguments to the console).
+
 ----------
 
-## Code example (*squirrel-drey-hello-world*)
+## Code example (*squirrel-drey-hello-world-local*)
 
-We will explain our _hello-world_ sample app (***squirrel-drey-hello-world***). This app runs an algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
+We will explain our _hello-world_ sample app (***squirrel-drey-hello-world-local***). This app runs an algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
 
 Our **PreparationTask** will act as the initial task for the algorithm. It generates 10 **AtomicTask**, that simply wait for 5 seconds and set their result as '1'. The last executed **AtomicTask** will generate one **SolveTask**, which sums all the results from all **AtomicTask** and ends the algorithm (the final result will be the number of AtomicTasks executed).
 
-<p align="center">
-  <img src="https://docs.google.com/uc?id=1AQIGutVrqJLyq4JgezMAmTmoaeK65p8o">
-</p>
-
-To control which **AtomicTask** should generate the only **SolveTask**, we make use of a distributed *AtomicLong*, provided by Hazelcast. **PreparationTask** initilizes this parameter to the number of **AtomicTasks** and each **AtomicTask** decrements it at the end of its `process()` method. When any **AtomicTask** decrements the value to 0 it will mean that it is indeed the last of its kind and it will add one **SolveTask**.
+To control which **AtomicTask** should generate the only **SolveTask**, we make use of an *AtomicLong* managed by SquirrelDrey. **PreparationTask** initilizes this parameter to the number of **AtomicTasks** and each **AtomicTask** decrements it at the end of its `process()` method. When any **AtomicTask** decrements the value to 0 it will mean that it is indeed the last of its kind and it will add one **SolveTask**.
 
 This flow means that both **PreparationTask** and **SolveTask** block the execution: **PreparationTask** will always be the first Task executed and **SolveTask** the last one. In principle, we don't know (and we don't mind) the order of execution of the **AtomicTasks**.
 
 ```java
-AlgorithmManager<String> manager = new AlgorithmManager<>();
-Task initialTask = new PreparationTask(10);
+public class App {
 
-manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
-	System.out.println("MY RESULT: " + result);
-});
+	public static void main(String[] args) throws Exception {
+		if (!Boolean.valueOf(System.getProperty("worker"))) {
+			AlgorithmManager<String> manager = new AlgorithmManager<>();
+			Task initialTask = new PreparationTask(10);
+
+			manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
+				System.out.println("MY RESULT: " + result);
+				System.exit(0);
+			});
+		} else {
+			Worker.launch();
+		}
+	}
+}
 ```
 
 ```java
 public class PreparationTask extends Task {
-	
+
 	private Integer numberOfAtomicTasks;
 
 	public PreparationTask(Integer numberOfAtomicTasks) {
@@ -58,16 +70,16 @@ public class PreparationTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		IAtomicLong atomicLong = this.getAtomicLong("my_countdown");
+		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
 		atomicLong.set(this.numberOfAtomicTasks);
-		
+
 		for (int i = 0; i < this.numberOfAtomicTasks; i++) {
 			try {
 				addNewTask(new AtomicTask());
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-		}		
+		}
 	}
 }
 ```
@@ -75,16 +87,16 @@ public class PreparationTask extends Task {
 ```java
 public class AtomicTask extends Task {
 
-	public AtomicTask() {	}
+	public AtomicTask() {
+	}
 
 	@Override
 	public void process() throws Exception {
 		Thread.sleep(5000);
-		
-		IMap<Integer, Integer> results = (IMap<Integer, Integer>) this.getMap("my_results");
-		IAtomicLong atomicLong = this.getAtomicLong("my_countdown");
+
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
+		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
 		results.put(this.getId(), 1);
-		
 		if (atomicLong.decrementAndGet() == 0L) {
 			System.out.println("ADDING SOLVE TASK FOR ALGORITHM " + this.algorithmId);
 			addNewTask(new SolveTask());
@@ -98,13 +110,13 @@ public class SolveTask extends Task {
 
 	@Override
 	public void process() throws Exception {
-		IMap<Integer, Integer> results = (IMap<Integer, Integer>) this.getMap("my_results");
-		
+		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
+
 		Integer finalResult = 0;
 		for (Entry<Integer, Integer> e : results.entrySet()) {
 			finalResult += e.getValue();
 		}
-		
+
 		this.algorithmSolved(Integer.toString(finalResult));
 	}
 }
@@ -114,29 +126,33 @@ public class SolveTask extends Task {
 
 ## Running sample applications
 
-### squirrel-drey-hello-world
+Note: development has been done using (Localstack)[https://github.com/localstack/localstack] to simulate AWS SQS queues.
+
+### squirrel-drey-hello-world-local
 
 **Clone and build the project**
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
-cd SquirrelDrey/squirrel-drey-hello-world
-mvn -DskipTests=true package
+cd SquirrelDrey/squirrel-drey-hello-world-local
+mvn -DskipTests=true clean package
 ```
 
 **Launch a worker**
 ```
-java -Dworker=true -jar target/squirrel-drey-hello-world-*.jar
+java -Dworker=true -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 **Launch app** *(different console window)*
 ```
-java -Dworker=false -jar target/squirrel-drey-hello-world-*.jar
+java -Dworker=false -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
 
 
 ### squirrel-drey-sample-app
+
+TODO: remake the sample app for the local version. Documentation below is for the Hazelcast version.
 
 **Clone and build the project**
 ```
@@ -163,13 +179,15 @@ You will have the web app available at [localhost:5000](http://localhost:5000). 
 
 ## Using SNAPSHOT versions
 
+Note: Currently local version isn't on Maven Central, this steps are mandatory for installing.
+
 Do you want the latest version on *master* branch of SquirrelDrey, but it isn't on Maven Central yet? Just compile it locally. For example, for *squirrel-drey-hello-world*:
 
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
-cd SquirrelDrey/squirrel-drey
-mvn install
-cd ../squirrel-drey-hello-world
+cd SquirrelDrey/squirrel-drey-local
+mvn clean install
+cd ../squirrel-drey-hello-world-local
 mvn -DskipTests=true clean package
 ```
 
@@ -177,18 +195,21 @@ mvn -DskipTests=true clean package
 
 ## Building your own app
 
+Note: Currently local version isn't on Maven Central, use the steps above to install it.
+
 Your project must have the following dependency:
 
 ```xml
 <dependency>
 	<groupId>es.codeurjc</groupId>
-	<artifactId>squirrel-drey</artifactId>
+	<artifactId>squirrel-drey-local</artifactId>
 	<version>...</version>
 </dependency>
 ```
 
-Because of the way Hazelcast manages distributed objects, your application will have to be responsible of launching the workers (for security reasons, custom objects cannot be sent between nodes if their classes are not purposely declared and available on the node's classpath).
-An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (with static method `es.codeurjc.distributed.algorithm.Worker.launch()`).
+Your application will have to be responsible of launching the workers. An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (using the -Dworker system property).
+
+TODO: remake the sample app for the local version. Documentation below is for the Hazelcast version.
 
 *squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
@@ -221,22 +242,16 @@ But one **worker** will be launched if done like this:
 | Class  | Description  |
 |---|---|
 | `AlgorithmManager<T>`  | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object |
-| `Algorithm<T>` | Represents a project with one initial Task as entry point for its execution. Stores valuable information about the Tasks added, completed and queued |
-| `Task` | Callable objects that will be executed asynchronously in a distributed cluster. All classes extending it must have serializable attributes |
+| `Algorithm<T>` | Represents a project with one initial Task as entry point for its execution. Stores valuable information about the Tasks added, completed and queued. Algorithms will be run by the workers (one or more algorithms by worker) |
+| `Task` | Callable objects that will be executed asynchronously in a worker. All classes extending it must have serializable attributes |
 
 
 #### AlgorithmManager< T > 
 
 | Method  | Params (*italics* are optional) | Returns  | Description |
 |---|---|---|---|
-| *constructor* | `String:hazelcastClientConfig`<br>`boolean:withAwsCloudWatch` | | New AlgorithmManager, searching for configuration file on path `hazelcastClientConfig` (default one if not found) and initializing the AWS CloudWatch module if `withAWSCloudWatch` is true (false by default) |
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Solves the algorithm identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
-| `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
-| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the distributed structures are not clean and properly stopped |
-| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the distributed structures related to this algorithm are not clean and properly stopped |
-| `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
-| `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
+| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
 
 #### Algorithm< T > 
 
@@ -269,22 +284,10 @@ But one **worker** will be launched if done like this:
 | `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
 | `getId`  |  | `int` | Returns the unique identifier for this task |
 | `getStatus`  |  | `Task.Status` | Returns the status of the task |
-| `getMap`  | String:id | `IMap` | Returns a distributed Hazelcast Map associated to the Algorithm of this Task |
-| `getQueue`  | String:id | `IQueue` | Returns a distributed Hazelcast Queue associated to the Algorithm of this Task |
-| `getRingbuffer`  | String:id | `Ringbuffer` | Returns a distributed Hazelcast Ringbuffer associated to the Algorithm of this Task |
-| `getSet`  | String:id | `ISet` | Returns a distributed Hazelcast Set associated to the Algorithm of this Task |
-| `getList`  | String:id | `IList` | Returns a distributed Hazelcast List associated to the Algorithm of this Task |
-| `getMultiMap`  | String:id | `MultiMap` | Returns a distributed Hazelcast MultiMap associated to the Algorithm of this Task |
-| `getReplicatedMap`  | String:id | `ReplicatedMap` | Returns a distributed Hazelcast ReplicatedMap associated to the Algorithm of this Task |
-| `getTopic`  | String:id | `ITopic` | Returns a distributed Hazelcast Topic associated to the Algorithm of this Task |
-| `getLock`  | String:id | `ILock` | Returns a distributed Hazelcast Lock associated to the Algorithm of this Task |
-| `getSemaphore`  | String:id | `ISemaphore` | Returns a distributed Hazelcast Semaphore associated to the Algorithm of this Task |
-| `getAtomicLong`  | String:id | `IAtomicLong` | Returns a distributed Hazelcast AtomicLong associated to the Algorithm of this Task |
-| `getAtomicReference`  | String:id | `IAtomicReference` | Returns a distributed Hazelcast AtomicReference associated to the Algorithm of this Task |
-| `getIdGenerator`  | String:id | `IdGenerator` | Returns a distributed Hazelcast IdGenerator associated to the Algorithm of this Task |
-| `getCountDownLatch`  | String:id | `ICountDownLatch` | Returns a distributed Hazelcast CountDownLatch associated to the Algorithm of this Task |
+| `getMap`  | String:id | `Map` | Returns a Map associated to the Algorithm of this Task |
+| `getAtomicLong`  | String:id | `AtomicLong` | Returns an AtomicLong associated to the Algorithm of this Task |
 
-> All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the distributed data structures associated to one algorithm when it is over. Users can always get any Hazelcast distributed object by calling `Task.hazelcastInstance.get[DATA_STRUCTURE]` instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of destroying them at some time during the execution**. You may prefer doing this when you want a distributed object to be **common to every algorithm** and not just to one.
+> All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the data structures associated to one algorithm when it is over. Users can always use their own data structures instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of cleaning them up at some time during the execution**.
 
 ##### Task.Status (enum)
 
@@ -295,109 +298,19 @@ But one **worker** will be launched if done like this:
 
 #### System properties
 
-- **hazelcast-config**: path to hazelcast configuration file. Default to `"src/main/resources/hazelcast-config.xml"`, which ultimately leads to [this file](https://github.com/codeurjc/SquirrelDrey/blob/master/squirrel-drey/src/main/resources/hazelcast-config.xml).
+- **aws-region**: AWS Region of the SQS queues. Required unless in devmode.
+- **endpoint-url**: Endpoint URL of the AWS SQS queues. Required unless in devmode.
+- **worker**: `false` if the instance is a master, `true` if it is a worker. Required.
+- **input-queue**: Name of the input queue. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary.
+- **output-queue**: Name of the output queue. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary.
 - **mode**: `PRIORITY` (default) or `RANDOM`. Defines the strategy followed by SquirrelDrey to select the next task to solve.
-- **idle-cores-worker**: number of cores that will remain idle per worker. Default is 1, so ideally worker communications will never get blocked, but this property can be increased to ensure it.
-- **idle-cores-app**: number of cores that will remain idle in the application. Default is 3/4 of the cores.
-- **init-timeout**: minutes that a worker node will wait for the HazelCast CP subsystem cluster to be up and ready. If it elapses, then the worker Java process will be terminated.
-- **devmode**: if true 2 worker nodes will be automatically launched by the library when initializing a new `AlgorithmManager`.
-- **cp-member-count** _(CP Hazelcast config property)_: number of CP members. Default: 3 (MINIMUM)
-- **cp-session-heartbeat** _(CP Hazelcast config property)_: interval in seconds for the periodically-committed CP session heartbeats. Default: 30
-- **cp-session-ttl** _(CP Hazelcast config property)_: duration in seconds for a CP session to be kept alive after the last heartbeat. Default: 180
-- **cp-missing-member-autoremoval**: _(CP Hazelcast config property)_: duration in seconds to wait before automatically removing a missing CP member from the CP subsystem. For a normal-operating system this property is not necessary in principle, as master node will immediately remove the CP member from the CP group on member disconnection. Default: 300
-
-## Some thoughts about Hazelcast approach compared to other alternatives
-
-SquirrelDrey framework relies on Hazelcast, but other alternatives could be used. In this section we will compare the two current main options available to deal with distribution of algorithms on clusters, taking Hazelcast and Apache Flink as representatives for each approach. We will also discuss why Hazelcast is the final chosen technology.
-
-First of all, both frameworks share similar architecures. Users can launch slave nodes to build one cluster, and clients that can communicate with the cluster are available to use in Java applications.
-
-*Hazelcast* stands for the **imperative** approach, while [Apache Flink](https://flink.apache.org/) represents the **declarative** approach. A good analogy to ilustrate this statement can be set with Java 8 Stream API. These code snippets will return the same result *("4", "16", "36")* :
-
-```java
-public List<Double> imperative() {
-	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
-	List<Double> resultList = new ArrayList<>();
-	for (Integer i : input) {
-		if (i % 2 == 0) {
-			resultList.add(Math.sqrt(i));
-		}
-	}
-	return result;
-}
-
-public List<Double> declarative() {
-	List<Double> sourceList = Arrays.asList("1", "2", "3", "4", "5", "6");
-	return sourceList.stream()
-		.filter(i -> i % 2 == 0)
-		.map(Math::sqrt)
-		.collect(Collectors.toCollection(() -> new ArrayList<>()));
-}
-```
-
-Both functions return the same list, but the second one makes use of the Stream API and lambda functions as compared with the traditional loop of the first one.
-
-Now let's outline the distribution of a list of tasks (`Callable` objects) on a cluster. Let's suppose our tasks are:
-
-```java
-public class Task implements Callable<Void>, Serializable {
-	@Override
-	public Void call() throws Exception {
-		System.out.println("Task running!");
-		return null;
-	}
-}
-```
-
-#### With Hazelcast
-
-The client may insert tasks on a distributed queue (got thanks to a `HazelcastInstance` object):
-
-```java
-public void imperativeHAZELCAST(List<Task> tasks) {
-	Queue<Task> distributedQueue = hazelcastInstance.getQueue("queue");
-	for (Task task : tasks) {
-		distributedQueue.put(task);
-	}
-}
-```
-
-Slave nodes just need to indefinitely poll from the distributed queue and run the `call` method of the task.
-
-#### With Apache Flink
-
-```java
-public void declarativeFLINK(List<Task> tasks) {
-	ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-	DataSet<Task> tasks = environment.fromCollection(tasks);
-	tasks.flatMap((task) -> {
-		task.call();
-	});
-	env.execute("my_app");
-}
-```
-
-Client uses the Java API offered by Flink to build the execution pipeline and launch the job.
-
-For this extremely simple code, Flink option may seem like a good, clean choice, but things get much tougher when extending the pipeline and implementing scalability:
-
-- With Hazelcast approach users have **total control over the tasks**. It is a mandatory requirement to implement some logic in order to let slave nodes know when to poll from the queue of tasks, but that's precisely what SquirrelDrey offers. Just by implementing the task's logic, users can dynamically build pipelines to be distributed among nodes. And because Hazelcast offers a *In Memory Data Grid* framework, sharing information between nodes is very easy. Do you want the 10th *MyTask* to generate a *MyOtherTask*? Hazelcast offers an `AtomicLong` object that can be set to 10 and can be decremented by every *MyTask*, and directly after in the code check if that value is 0. If so, just make *MyTask* push a new *MyOtherTask* to the distributed queue. Or maybe you want to store the results of every *MyTask* to be consumed by a future task. No problem: just store them in the same code of *MyTask* in a distributed Map.  In short: *MyTask* custom code can handle all this logic in an easy, traditional way.
-- On the other hand, Apache Flink is at first much more limited regarding the control users have. Because of the declarative format, our pipeline must be fully declared on the client so Flink can build its internal DAG ([Directed Acyclic Graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph)). The previous examples would work in a different way: Flink pipeline needs to receive a list of 10 *MyTask*, and thanks to a *reduce* function wait to all of them to be finished. To store the results, every *MyTask* should add its own to a *Collector* object, and the inner magic of Flink can handle the retrieval of the final result on the *reduce* function.
-
-To sum up,  for algorithms implemented with Java, using the imperative Hazelcast approach means to have a comfortable, dynamic and object-oriented way of building the execution pipeline, while by using the functional Apache Flink approach means to deal with a framework ideal for processing huge data streams, such as search algorithms or word processing applications (in fact any algorithm based on a huge amount of similar and simple inputs on which to apply some transformation or reduction). But not so convenient for algorithms of other nature, containing tasks with more complex inputs, processing and communications among them.
-
-To conclude, it is also worth mentioning the state of **scalability** and **fault tolerance** on both technologies. 
-
-#### Fault tolerance
-Both of them support **fault tolerance**: Apache Flink can store the execution state of one pipeline, and SquirrelDrey adds some logic to ensure that if one node unexpectedly goes down, other node will execute the running tasks lost on the terminated node. The main difference between them is that Apache Flink requires a hard restart in order to be able to resume the execution. Our Hazelcast approach is implemented so the cluster status doesn't change in the event of a node crash: every other node will smoothly continue its execution, and the lost tasks will be executed (with high priority) over the next iterations of the remaining nodes.
-
-#### Scalability
-In terms of **scalability**, Apache Flink has a very important restriction: the parallelism must be declared on the cluster configuration or on the pipeline code. This means that when any node is dynamically added to the cluster, a whole reset of the cluster and re-configuration is needed for the new node to be fully exploited. This is supposed in a AWS scenario using a cluster made up of simple EC2 machines. That being said, Amazon offers a service called EMR (Elastic MapReduce) that can be used along Apache Flink and suitable for (returning to what has been said before) some specific kind of algorithms. SquirrelDrey behaviour makes scalability pretty easy: since nodes simply poll from the distributed queue, a new node will start polling when launched. Nobody cares about configuring parallelism: nodes are configured by default to accept as many tasks as cores to maximize performance and CPU usage. The only difference to other nodes is that maybe the task that one of them was going to poll can now be taken by the new node.
-
-
-As a final thought, both Hazelcast and Apache offer opposite frameworks: Apache Ignite is very similar to Hazelcast IMDG, and Hazelcast Jet is very similar to Apache Flink.
+- **idle-cores-app**: number of cores that will remain idle. Default is 1 (0 for devmode), so ideally worker communications will never get blocked, but this property can be increased to ensure it.
+- **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`.
+- **queue-creation-enabled**: `true` if SQS queues should be created when needed, `false` otherwise. Defaults to true.
 
 ## Running on Amazon ECS
+
+//TODO: Remake this section for the local version. Current documentation below is for Hazelcast version.
 
 If you want to run this software on Amazon ECS follow this steps.
 
@@ -586,47 +499,3 @@ At this poing you should be able to access the [web](http://IP_EC2_INSTANCE:5000
 #### CloudFormation
 
 You can find a CloudFormation recipe in this repo which make easier to deploy this infreastructure. We encourage you to use that rather than a configuration by hand.
-
-## Local scaling version
-
-This version doesn't use Hazelcast, and is intended to be for using the framework on a single machine.
-
-Differences with the main version:
-
-- There are no longer differences between worker and app as there is only one machine (no need to use the -Dworker property).
-- No Hazelcast, which implies the following methods from the API are not implemented:
-	- Task: All `get[DATA_STRUCTURE]` methods except of:  
-		- `getMap` (which returns now `Map` instead of `IMap`).
-		- `getAtomicLong` (which returns now `AtomicLong` instead of `IAtomicLong`).
-	- AlgorithmManager<T>: constructor no longer needs parameters (can put any number of parameters but they will be ignored).
-- The following previous system properties are ignored:
-	- **hazelcast-config**
-	- **idle-cores-worker**
-	- **init-timeout**
-	- **devmode**
-	- **cp-member-count**
-	- **cp-session-heartbeat**
-	- **cp-session-ttl**
-	- **cp-missing-member-autoremoval**
-- CloudWatch not implemented.
-- By default it leaves no idle cores, but number of idle cores can be specified by using the **idle-cores-app** system property.
-
-To use this version, you can compile and use it running the following commands: 
-
-```
-cd SquirrelDrey/squirrel-drey-local
-mvn clean install
-```
-
-### Code example (*squirrel-drey-hello-world-local*)
-
-This example works exactly the same as the [hello world code example](#code-example-squirrel-drey-hello-world).
-
-To run this example run the following commands:
-
-```
-cd SquirrelDrey/squirrel-drey-local
-mvn install
-cd ../squirrel-drey-hello-world
-mvn -DskipTests=true clean package
-```

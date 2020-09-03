@@ -1,12 +1,16 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public class Algorithm<R> {
+public class Algorithm<R extends Serializable> implements Serializable {
+
+    private static final long serialVersionUID = 6161365718029946250L;
+
     public enum Status {
         /**
          * Algorithm has started (method
@@ -47,10 +51,10 @@ public class Algorithm<R> {
 
     private Task initialTask;
     private List<Task> errorTasks;
-    private Consumer<R> callback;
-    private AlgorithmCallback<R> algorithmCallback;
+    private transient Consumer<R> callback;
+    private transient AlgorithmCallback<R> algorithmCallback;
 
-    private final AlgorithmManager<R> algManager;
+    private transient AlgorithmManager<R> algManager;
 
     public Algorithm(AlgorithmManager<R> algManager, String id, Integer priority, Task initialTask) {
         this.algManager = algManager;
@@ -189,13 +193,17 @@ public class Algorithm<R> {
     }
 
     public void runCallbackSuccess() throws Exception {
-        this.finishTime = System.currentTimeMillis();
-        this.status = Status.COMPLETED;
+        this.markCompleted();
         if (this.callback != null) {
             this.callback.accept(this.result);
         } else if (this.algorithmCallback != null) {
             this.algorithmCallback.onSuccess(this.result, this);
         }
+    }
+
+    public void markCompleted() {
+        this.finishTime = System.currentTimeMillis();
+        this.status = Status.COMPLETED;
     }
 
     public void runCallbackError(Status status) {
@@ -229,5 +237,29 @@ public class Algorithm<R> {
         } else {
             return 0L;
         }
+    }
+
+    public Consumer<R> getCallback() {
+        return callback;
+    }
+
+    public void setCallback(Consumer<R> callback) {
+        this.callback = callback;
+    }
+
+    public AlgorithmCallback<R> getAlgorithmCallback() {
+        return algorithmCallback;
+    }
+
+    public void setAlgorithmCallback(AlgorithmCallback<R> algorithmCallback) {
+        this.algorithmCallback = algorithmCallback;
+    }
+
+    public AlgorithmManager<R> getAlgorithmManager() {
+        return this.algManager;
+    }
+
+    public void setAlgorithmManager(AlgorithmManager<R> algManager) {
+        this.algManager = algManager;
     }
 }

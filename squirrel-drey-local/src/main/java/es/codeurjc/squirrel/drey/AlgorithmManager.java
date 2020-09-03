@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,9 +16,23 @@ import org.slf4j.LoggerFactory;
 
 import es.codeurjc.squirrel.drey.Algorithm.Status;
 
-public class AlgorithmManager<R> {
+/**
+ * 
+ * @author Iván Chicano (ivchicano.urjc@gmail.com)
+ */
+public class AlgorithmManager<R extends Serializable> {
 
 	private static final Logger log = LoggerFactory.getLogger(AlgorithmManager.class);
+
+	private boolean mastermode = false;
+	private boolean devmode = false;
+	private SQSConnectorMaster<R> sqsMaster;
+	private SQSConnectorWorker<R> sqsWorker;
+
+	// Algorithm callbacks for master
+	Map<String, Consumer<R>> algorithmCallbacksConsumers;
+	Map<String, AlgorithmCallback<R>> algorithmCallbacks;
+
 	QueuesManager<R> queuesManager;
 
 	Map<String, Algorithm<R>> algorithms;
@@ -41,6 +56,27 @@ public class AlgorithmManager<R> {
 	CountDownLatch workerStatsFetched;
 
 	public AlgorithmManager(Object... args) {
+		this.devmode = System.getProperty("devmode") != null && Boolean.valueOf(System.getProperty("devmode"));
+		if (this.devmode) {
+			this.initializeWorker();
+		} else {
+			this.mastermode = System.getProperty("worker") != null && !Boolean.valueOf(System.getProperty("worker"));
+			if (this.mastermode) {
+				this.initializeMaster();
+			} else {
+				this.sqsWorker = new SQSConnectorWorker<>(this);
+				this.initializeWorker();
+			}
+		}
+	}
+
+	private void initializeMaster() {
+		this.algorithmCallbacksConsumers = new ConcurrentHashMap<>();
+		this.algorithmCallbacks = new ConcurrentHashMap<>();
+		this.sqsMaster = new SQSConnectorMaster<>(this);
+	}
+
+	private void initializeWorker() {
 		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
 
 		this.algorithms = new ConcurrentHashMap<>();
@@ -65,9 +101,15 @@ public class AlgorithmManager<R> {
 		final int totalNumberOfCores = Runtime.getRuntime().availableProcessors();
 		log.info("Total number of cores: {}", totalNumberOfCores);
 
-		int idleCores = System.getProperty("idle-cores-app") != null
-				? Integer.parseInt(System.getProperty("idle-cores-app"))
-				: 0;
+		int idleCores;
+		String idlesCoresApp = System.getProperty("idle-cores-app");
+		if (idlesCoresApp != null) {
+			idleCores = Integer.parseInt(idlesCoresApp);
+		} else if (this.devmode) {
+			idleCores = 0;
+		} else {
+			idleCores = 1; // 1 idle core for comunications with SQS
+		}
 
 		log.info("Application worker will have {} idle cores", idleCores);
 
@@ -75,22 +117,36 @@ public class AlgorithmManager<R> {
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
-		Algorithm<R> alg = new Algorithm<>(this, id, priority, initialTask);
-		this.solveAlgorithmAux(id, alg);
+		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask);
+		if (this.mastermode) {
+			this.sqsMaster.sendAlgorithm(alg);
+		} else {
+			this.solveAlgorithmAux(id, alg);
+		}
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
-		Algorithm<R> alg = new Algorithm<>(this, id, priority, initialTask, callback);
-		this.solveAlgorithmAux(id, alg);
+		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
+		if (this.mastermode) {
+			this.algorithmCallbacksConsumers.put(id, callback);
+			this.sqsMaster.sendAlgorithm(alg);
+		} else {
+			this.solveAlgorithmAux(id, alg);
+		}
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, AlgorithmCallback<R> callback)
 			throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
-		this.solveAlgorithmAux(id, alg);
+		if (this.mastermode) {
+			this.algorithmCallbacks.put(id, callback);
+			this.sqsMaster.sendAlgorithm(alg);
+		} else {
+			this.solveAlgorithmAux(id, alg);
+		}
 	}
 
-	private void solveAlgorithmAux(String id, Algorithm<R> alg) throws Exception {
+	void solveAlgorithmAux(String id, Algorithm<R> alg) throws Exception {
 		if (this.algorithms.containsKey(id)) {
 			throw new Exception("Algorithm with id [" + id + "] already exists");
 		}
@@ -110,6 +166,10 @@ public class AlgorithmManager<R> {
 
 		Queue<Task> queue = this.algorithmQueues.get(alg.getId());
 		this.QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
+		
+		if (alg.getAlgorithmManager() == null) {
+			alg.setAlgorithmManager(this);
+		}
 
 		alg.solve(queue);
 	}
@@ -141,9 +201,15 @@ public class AlgorithmManager<R> {
 					log.info("ALGORITHM SOLVED: Algorithm: {}, Result: {}, Last task: {}", algId, t.getFinalResult(),
 							t);
 					try {
-						alg.runCallbackSuccess();
+						if (this.devmode) {
+							alg.runCallbackSuccess();
+						} else {
+							alg.markCompleted();
+							this.sqsWorker.sendResult(alg);
+						}
 					} catch (Exception e) {
 						log.error(e.getMessage());
+						e.printStackTrace();
 					}
 
 					this.cleanAlgorithmStructures(algId);
@@ -299,5 +365,19 @@ public class AlgorithmManager<R> {
 		log.info("Item [" + t.toString() + "] added to queue [" + queueId + "]");
 
 		this.queuesManager.lookQueuesForTask();
+	}
+
+	public void runCallback(Algorithm<R> algorithm) throws Exception{
+		Consumer<R> callback = this.algorithmCallbacksConsumers.get(algorithm.getId());
+		if (callback != null) {
+			algorithm.setCallback(callback);
+			algorithm.runCallbackSuccess();
+        } else {
+			AlgorithmCallback<R> algorithmCallback = this.algorithmCallbacks.get(algorithm.getId());
+			if (algorithmCallback != null) {
+            	algorithm.setAlgorithmCallback(algorithmCallback);
+			}
+			algorithm.runCallbackSuccess();
+		}
 	}
 }

@@ -1,6 +1,8 @@
 package es.codeurjc.squirrel.drey;
 
-public interface AlgorithmCallback<R> {
+import java.io.Serializable;
+
+public interface AlgorithmCallback<R extends Serializable> {
 
 	void onSuccess(R result, Algorithm<R> algorithm);
 

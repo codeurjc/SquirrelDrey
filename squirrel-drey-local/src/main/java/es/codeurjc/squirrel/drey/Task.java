@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
@@ -7,7 +8,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class Task implements Callable<Void> {
+public class Task implements Callable<Void>, Serializable {
+
+    private static final long serialVersionUID = -4469819964697776806L;
+
     public enum Status {
         /**
          * Task is waiting in the algorithm's queue
@@ -31,7 +35,7 @@ public class Task implements Callable<Void> {
         MAP, ATOMICLONG
     }
 
-    protected AlgorithmManager<?> algorithmManager;
+    protected transient AlgorithmManager<?> algorithmManager;
 
     protected Status status;
 

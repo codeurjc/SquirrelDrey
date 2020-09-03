@@ -2,7 +2,8 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>es.codeurjc</groupId>
 	<artifactId>squirrel-drey-hello-world-local</artifactId>
-	<version>0.1</version>
+	<version>0.2</version>
+	<name>squirrel-drey-hello-world-local</name>
 	<properties>
 			<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 			<maven.compiler.target>1.8</maven.compiler.target>
@@ -13,7 +14,7 @@
 		<dependency>
 			<groupId>es.codeurjc</groupId>
 			<artifactId>squirrel-drey-local</artifactId>
-			<version>0.1</version>
+			<version>0.2</version>
 		</dependency>
 	</dependencies>
 	<build>
