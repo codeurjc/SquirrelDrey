@@ -25,8 +25,11 @@ SquirrelDrey distinguishes between 2 types of work:
 - Master: Sends the algorithms to run to the workers using an input SQS FIFO queue, then waits for the results polling an output SQS FIFO queue and running the algorithm callback.
 - Worker: Runs algorithms sent by the master (received by polling the input SQS FIFO queue). When finished, returns the results to the master (sending them to the output SQS FIFO queue) to run the callback.
 
-As described above, the framework makes use of 2 SQS FIFO queues with Content Based Deduplication enabled: an input queue and an output queue. They can be created by the user or by the framework.
-The queues will be created by the master when needed if they don't exist (the names can be configured by passing arguments to the console).
+As described above, the framework makes use of SQS FIFO queues with Content Based Deduplication enabled: an input queue and an output queue:
+- The input queue is used for communications from the master to the workers.
+- The output queue is used for communications from the workers to the master.
+- For each worker there is a direct queue between the master and that worker.
+They can be created by the user or by the framework. The queues will be created by the master when needed if they don't exist (the names can be configured by passing arguments to the console).
 
 ----------
 
@@ -252,6 +255,8 @@ But one **worker** will be launched if done like this:
 |---|---|---|---|
 | `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
 | `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
+| `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
+| `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
 
 #### Algorithm< T > 
 
@@ -303,10 +308,10 @@ But one **worker** will be launched if done like this:
 - **worker**: `false` if the instance is a master, `true` if it is a worker. Required.
 - **input-queue**: Name of the input queue. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary.
 - **output-queue**: Name of the output queue. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary.
+- **direct-queue**: Only used by workers. Name of the direct queue between this worker and the master. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary. Warning: remember to use unique names for the queues.
 - **mode**: `PRIORITY` (default) or `RANDOM`. Defines the strategy followed by SquirrelDrey to select the next task to solve.
 - **idle-cores-app**: number of cores that will remain idle. Default is 1 (0 for devmode), so ideally worker communications will never get blocked, but this property can be increased to ensure it.
 - **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`.
-- **queue-creation-enabled**: `true` if SQS queues should be created when needed, `false` otherwise. Defaults to true.
 
 ## Running on Amazon ECS
 

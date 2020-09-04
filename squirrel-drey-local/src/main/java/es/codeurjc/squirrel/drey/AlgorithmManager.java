@@ -1,12 +1,17 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -32,6 +37,9 @@ public class AlgorithmManager<R extends Serializable> {
 	// Algorithm callbacks for master
 	Map<String, Consumer<R>> algorithmCallbacksConsumers;
 	Map<String, AlgorithmCallback<R>> algorithmCallbacks;
+
+	Map<String, WorkerStats> workers;
+	String workerId;
 
 	QueuesManager<R> queuesManager;
 
@@ -71,14 +79,17 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	private void initializeMaster() {
+		this.algorithms = new ConcurrentHashMap<>();
 		this.algorithmCallbacksConsumers = new ConcurrentHashMap<>();
 		this.algorithmCallbacks = new ConcurrentHashMap<>();
+		this.workers = new ConcurrentHashMap<>();
 		this.sqsMaster = new SQSConnectorMaster<>(this);
 	}
 
 	private void initializeWorker() {
 		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
 
+		this.workerId = UUID.randomUUID().toString();
 		this.algorithms = new ConcurrentHashMap<>();
 		this.taskCompletedEventsCount = new ConcurrentHashMap<>();
 		this.taskCompletedLocks = new ConcurrentHashMap<>();
@@ -119,6 +130,10 @@ public class AlgorithmManager<R extends Serializable> {
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask);
 		if (this.mastermode) {
+			if (this.algorithms.containsKey(id)) {
+				throw new Exception("Algorithm with id [" + id + "] already exists");
+			}
+			this.algorithms.putIfAbsent(id, alg);
 			this.sqsMaster.sendAlgorithm(alg);
 		} else {
 			this.solveAlgorithmAux(id, alg);
@@ -128,6 +143,10 @@ public class AlgorithmManager<R extends Serializable> {
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
+			if (this.algorithms.containsKey(id)) {
+				throw new Exception("Algorithm with id [" + id + "] already exists");
+			}
+			this.algorithms.putIfAbsent(id, alg);
 			this.algorithmCallbacksConsumers.put(id, callback);
 			this.sqsMaster.sendAlgorithm(alg);
 		} else {
@@ -139,6 +158,10 @@ public class AlgorithmManager<R extends Serializable> {
 			throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
+			if (this.algorithms.containsKey(id)) {
+				throw new Exception("Algorithm with id [" + id + "] already exists");
+			}
+			this.algorithms.putIfAbsent(id, alg);
 			this.algorithmCallbacks.put(id, callback);
 			this.sqsMaster.sendAlgorithm(alg);
 		} else {
@@ -166,7 +189,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 		Queue<Task> queue = this.algorithmQueues.get(alg.getId());
 		this.QUEUES.put(alg.getId(), new QueueProperty(alg.getPriority(), System.currentTimeMillis()));
-		
+
 		if (alg.getAlgorithmManager() == null) {
 			alg.setAlgorithmManager(this);
 		}
@@ -304,38 +327,49 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	private Algorithm<R> cleanAlgorithmStructures(String algorithmId) {
-
-		if (this.algorithmStructures.get(algorithmId) != null) {
-			for (String structureId : this.algorithmStructures.get(algorithmId).values()) {
-				TaskStructures.mapOfStructures.remove(structureId);
+		if (this.mastermode) {
+			return cleanAlgorithmStructuresMaster(algorithmId);
+		} else {
+			if (this.algorithmStructures.get(algorithmId) != null) {
+				for (String structureId : this.algorithmStructures.get(algorithmId).values()) {
+					TaskStructures.mapOfStructures.remove(structureId);
+				}
+				log.info("Destroyed {} Data Structures for algorithm {}: {}",
+						this.algorithmStructures.get(algorithmId).keySet().size(), algorithmId,
+						this.algorithmStructures.get(algorithmId).keySet());
 			}
-			log.info("Destroyed {} Data Structures for algorithm {}: {}",
-					this.algorithmStructures.get(algorithmId).keySet().size(), algorithmId,
-					this.algorithmStructures.get(algorithmId).keySet());
-		}
 
+			// Remove algorithm
+			Algorithm<R> alg = this.algorithms.remove(algorithmId);
+			// Remove the count of task completed events
+			this.taskCompletedEventsCount.remove(algorithmId);
+			// Remove the completed locks for this algorithm
+			this.taskCompletedLocks.remove(algorithmId);
+			// Remove the tiemout locks for this algorithm
+			this.taskTimeoutLocks.remove(algorithmId);
+			// Remove algorithm structures
+			this.algorithmStructures.remove(algorithmId);
+			// Remove algorithm timeout marks
+			this.algorithmsMarkedWithTimeout.remove(algorithmId);
+			// Remove algorithm running tasks on timeout
+			this.algorithmsRunningAndFinishedTasksOnTimeout.remove(algorithmId);
+
+			this.algorithmQueues.remove(algorithmId);
+			this.algorithmAddedTasks.remove(algorithmId);
+			this.algorithmCompletedTasks.remove(algorithmId);
+			this.algorithmTimeoutTasks.remove(algorithmId);
+
+			this.QUEUES.remove(algorithmId);
+
+			return alg;
+		}
+	}
+
+	private Algorithm<R> cleanAlgorithmStructuresMaster(String algorithmId) {
 		// Remove algorithm
 		Algorithm<R> alg = this.algorithms.remove(algorithmId);
-		// Remove the count of task completed events
-		this.taskCompletedEventsCount.remove(algorithmId);
-		// Remove the completed locks for this algorithm
-		this.taskCompletedLocks.remove(algorithmId);
-		// Remove the tiemout locks for this algorithm
-		this.taskTimeoutLocks.remove(algorithmId);
-		// Remove algorithm structures
-		this.algorithmStructures.remove(algorithmId);
-		// Remove algorithm timeout marks
-		this.algorithmsMarkedWithTimeout.remove(algorithmId);
-		// Remove algorithm running tasks on timeout
-		this.algorithmsRunningAndFinishedTasksOnTimeout.remove(algorithmId);
-
-		this.algorithmQueues.remove(algorithmId);
-		this.algorithmAddedTasks.remove(algorithmId);
-		this.algorithmCompletedTasks.remove(algorithmId);
-		this.algorithmTimeoutTasks.remove(algorithmId);
-
-		this.QUEUES.remove(algorithmId);
-
+		this.algorithmCallbacksConsumers.remove(algorithmId);
+		this.algorithmCallbacks.remove(algorithmId);
 		return alg;
 	}
 
@@ -367,17 +401,67 @@ public class AlgorithmManager<R extends Serializable> {
 		this.queuesManager.lookQueuesForTask();
 	}
 
-	public void runCallback(Algorithm<R> algorithm) throws Exception{
+	public void runCallback(Algorithm<R> algorithm) throws Exception {
 		Consumer<R> callback = this.algorithmCallbacksConsumers.get(algorithm.getId());
 		if (callback != null) {
 			algorithm.setCallback(callback);
 			algorithm.runCallbackSuccess();
-        } else {
+		} else {
 			AlgorithmCallback<R> algorithmCallback = this.algorithmCallbacks.get(algorithm.getId());
 			if (algorithmCallback != null) {
-            	algorithm.setAlgorithmCallback(algorithmCallback);
+				algorithm.setAlgorithmCallback(algorithmCallback);
 			}
 			algorithm.runCallbackSuccess();
 		}
+	}
+
+	public Algorithm<R> getAlgorithm(String algorithmId) {
+		return this.algorithms.get(algorithmId);
+	}
+
+	public Collection<Algorithm<R>> getAllAlgorithms() {
+		return this.algorithms.values();
+	}
+
+	public Map<String, WorkerStats> getWorkers() {
+		return this.workers;
+	}
+
+	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait)
+			throws TimeoutException, IOException {
+
+		// We get the current number of workers as countdown measure
+		// Other workers could join during the process
+		final int NUMBER_OF_WORKERS = this.workers.size();
+		this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+
+		this.sqsMaster.fetchWorkerStats();
+
+		try {
+			if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+				return this.workers;
+			} else {
+				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+						NUMBER_OF_WORKERS);
+				throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+			}
+		} catch (InterruptedException e) {
+			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
+			return null;
+		}
+	}
+
+	public synchronized WorkerStats getWorkerStats() {
+		return this.queuesManager.fetchWorkerStats();
+	}
+
+	synchronized void workerStatsReceived(String id, WorkerStats workerStats) {
+		this.workers.put(id, workerStats);
+		this.workerStatsFetched.countDown();
+	}
+
+	public WorkerStats workerStats(WorkerEvent ev) {
+		log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
+		return (WorkerStats) ev.getContent();
 	}
 }

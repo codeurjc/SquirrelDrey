@@ -4,10 +4,15 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
+import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.CreateQueueResult;
+import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 
@@ -19,6 +24,11 @@ import org.slf4j.LoggerFactory;
  */
 public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> {
 
+    private String directQueueUrl;
+
+    private final String DEFAULT_DIRECT_QUEUE = this.id + ".fifo";
+    private String directQueueName = DEFAULT_DIRECT_QUEUE;
+
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
     private long listenerPeriod;
@@ -26,10 +36,131 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public SQSConnectorWorker(AlgorithmManager<R> algorithmManager) {
         super(algorithmManager);
 
+        try {
+            this.lookForDirectQueue();
+        } catch (QueueDoesNotExistException e) {
+            log.info("Direct queue does not exist. Attempting to create direct queue with name: {}", this.directQueueName);
+            this.createDirectQueue();
+        }
+
+        try {
+            this.establishDirectConnection();
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            e.printStackTrace();
+        }
+        
+
         // Set up thread to listen to queue
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null ? Integer.valueOf(System.getProperty("sqs-listener-timer")) : 10;
-        this.scheduleExecutor = Executors.newScheduledThreadPool(1);
-        this.startListen();
+        this.scheduleExecutor = Executors.newScheduledThreadPool(2);
+        this.startListenDirect();
+        this.startListenInput();
+    }
+
+    private void createDirectQueue() {
+        CreateQueueResult result = this.createQueue(this.directQueueName);
+        this.directQueueUrl = result.getQueueUrl();
+    }
+
+    private String lookForDirectQueue() throws QueueDoesNotExistException {
+        this.directQueueUrl = System.getProperty("direct-queue") != null ? System.getProperty("direct-queue") : DEFAULT_DIRECT_QUEUE;
+        if (!this.directQueueUrl.substring(this.directQueueUrl.length() - 5).equals(".fifo")) {
+            log.info("Direct queue name does not end in .fifo, appending");
+            this.directQueueUrl = this.directQueueUrl + ".fifo";
+        }
+        this.outputQueueUrl = this.sqs.getQueueUrl(directQueueUrl).getQueueUrl();
+        return this.outputQueueUrl;
+    }
+
+    private SendMessageResult establishDirectConnection() throws IOException, InterruptedException {
+        if (this.directQueueUrl == null) {
+            try {
+                this.lookForDirectQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Direct queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return establishDirectConnection();
+            }
+        }
+        log.info("Establishing direct connection with master via SQS: {}", this.directQueueUrl);
+        SendMessageResult message = this.send(this.outputQueueUrl, this.directQueueUrl, MessageType.ESTABLISH_CONNECTION);
+        return message;
+    }
+
+    public void startListenInput() {
+        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+            try {
+                if (this.inputQueueUrl == null) {
+                    this.lookForInputQueue();
+                }
+                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
+                for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                    switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                        case RESULT: 
+                            solveAlgorithm(si.getKey());
+                        case FETCH_WORKER_STATS:
+                            retrieveWorkerStats();
+                        default:
+                            throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
+                    }
+                }
+            } catch (Exception e) {
+                log.error(e.getMessage());
+                e.printStackTrace();
+            }
+        }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    public void startListenDirect() {
+        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+            try {
+                if (this.directQueueUrl == null) {
+                    this.lookForDirectQueue();
+                }
+                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
+                for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                    switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                        default:
+                            throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
+                    }
+                }
+            } catch (QueueDoesNotExistException e) {
+                log.info("Direct queue does not exist. Attempting to create direct queue with name: {}", this.directQueueName);
+                this.createDirectQueue();
+            } catch (Exception e) {
+                log.error(e.getMessage());
+                e.printStackTrace();
+            }
+        }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    public void stopListen() {
+        this.scheduleExecutor.shutdown();
+    }
+
+    private void solveAlgorithm(ObjectInputStream si) throws Exception {
+        Algorithm<R> algorithm = (Algorithm<R>) si.readObject();
+        log.info("Received algorithm from SQS: {}", algorithm);
+        this.algorithmManager.solveAlgorithmAux(algorithm.getId(), algorithm);
+    }
+
+    private SendMessageResult retrieveWorkerStats() throws InterruptedException, IOException {
+        if (this.outputQueueUrl == null) {
+            try {
+                this.lookForOutputQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return retrieveWorkerStats();
+            }
+        }
+        WorkerStats result = this.algorithmManager.getWorkerStats();
+        log.info("Sending worker stats: {}", result);
+        SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.WORKER_STATS);
+        return message;
     }
 
     public SendMessageResult sendResult(Algorithm<R> result) throws Exception {
@@ -40,36 +171,11 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 int retryTime = 1000;
                 log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
                 Thread.sleep(retryTime);
-                sendResult(result);
+                return sendResult(result);
             }
-            
         }
         log.info("Sending solved algorithm to SQS: {}", result);
-        SendMessageResult message = this.send(this.outputQueueUrl, result);
+        SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.RESULT);
         return message;
-    }
-
-    public void startListen() {
-        this.scheduleExecutor.scheduleAtFixedRate(() -> {
-            try {
-                if (this.inputQueueUrl == null) {
-                    this.lookForInputQueue();
-                }
-                List<ObjectInputStream> siList = messageListener(this.inputQueueUrl);
-                for (ObjectInputStream si : siList) {
-                    Algorithm<R> algorithm = (Algorithm<R>) si.readObject();
-                    log.info("Received algorithm from SQS: {}", algorithm);
-                    this.algorithmManager.solveAlgorithmAux(algorithm.getId(), algorithm);
-                }
-            } catch (Exception e) {
-                log.error(e.getMessage());
-                e.printStackTrace();
-            }
-        }, 0, listenerPeriod, TimeUnit.SECONDS);
-        
-    }
-
-    public void stopListen() {
-        this.scheduleExecutor.shutdown();
     }
 }

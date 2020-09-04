@@ -329,6 +329,16 @@ public class QueuesManager<R extends Serializable> {
 		return labels;
 	}
 
+	public WorkerStats fetchWorkerStats() {
+		if (this.executor != null) {
+			return this.algManager.workerStats(new WorkerEvent(this.algManager.workerId, "worker-stats",
+				new WorkerStats(this.algManager.workerId, this.nThreads,
+					executor.getActiveCount(), executor.getTaskCount(),
+					executor.getCompletedTaskCount())));
+		} else {
+			return null;
+		}
+	}
 	private class Pair {
 		double bottom;
 		double top;

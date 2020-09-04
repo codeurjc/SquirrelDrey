@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
@@ -16,18 +17,26 @@ import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import com.amazonaws.services.sqs.model.CreateQueueResult;
 import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import java.util.Base64;
+import java.util.HashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public abstract class SQSConnector<R extends Serializable> {
-
-    private AmazonSQS sqs;
+    protected enum MessageType {
+        ESTABLISH_CONNECTION,
+        ALGORITHM,
+        RESULT,
+        FETCH_WORKER_STATS,
+        WORKER_STATS
+    }
+    protected AmazonSQS sqs;
 
     protected String inputQueueUrl = null;
     protected String outputQueueUrl = null;
@@ -37,7 +46,7 @@ public abstract class SQSConnector<R extends Serializable> {
     protected String inputQueueName = DEFAULT_INPUT_QUEUE;
     protected String outputQueueName = DEFAULT_OUTPUT_QUEUE;
 
-    private String messageGroupId = UUID.randomUUID().toString();
+    protected String id = UUID.randomUUID().toString();
 
     protected AlgorithmManager<R> algorithmManager;
 
@@ -70,24 +79,41 @@ public abstract class SQSConnector<R extends Serializable> {
         }
     }
 
-    protected SendMessageResult send(String queue, Object object) throws IOException {
+    protected SendMessageResult send(String queue, Object object, MessageType messageType) throws IOException {
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
         ObjectOutputStream so = new ObjectOutputStream(bo);
         so.writeObject(object);
         so.flush();
-        String serializedObject = Base64.getEncoder().encodeToString(bo.toByteArray()); 
+        String serializedObject = Base64.getEncoder().encodeToString(bo.toByteArray());
+        Map<String, MessageAttributeValue> attributes = new HashMap<>();
+        attributes.put("Id", new MessageAttributeValue()
+            .withDataType("String")
+            .withStringValue(this.id));
+        attributes.put("Type", new MessageAttributeValue()
+            .withDataType("String")
+            .withStringValue(messageType.toString()));
         SendMessageRequest send_msg_request = new SendMessageRequest()
             .withQueueUrl(queue)
-            .withMessageGroupId(this.messageGroupId)
-            .withMessageBody(serializedObject);
+            .withMessageGroupId(this.id)
+            .withMessageBody(serializedObject)
+            .withMessageAttributes(attributes);
         SendMessageResult sentMessage = sqs.sendMessage(send_msg_request);
         log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
         return sentMessage;
     }
 
-    protected List<ObjectInputStream> messageListener(String queue) throws IOException {
+    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue) throws IOException {
+        return this.messageListenerAux(queue, true);
+    }
+
+    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue, boolean deleteMsg) throws IOException {
+        return this.messageListenerAux(queue, deleteMsg);
+    }
+
+    private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue, boolean deleteMsg)
+            throws IOException {
         ReceiveMessageResult messages = sqs.receiveMessage(queue);
-        List<ObjectInputStream> siList = new ArrayList<>();
+        Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();
         for(Message message: messages.getMessages()) {
             String receiptHandle = message.getReceiptHandle();
             String messageBody = message.getBody();
@@ -96,9 +122,9 @@ public abstract class SQSConnector<R extends Serializable> {
             ObjectInputStream si = new ObjectInputStream(bi);
             log.info("Received object from SQS queue {} with size (bytes): {}", queue, b.length);
             sqs.deleteMessage(queue, receiptHandle);
-            siList.add(si);
+            siMap.put(si, message.getMessageAttributes());
         }
-        return siList;
+        return siMap;
     }
 
     public void createQueues() {
@@ -107,19 +133,21 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     public void createInputQueue() {
-        CreateQueueRequest request = new CreateQueueRequest(this.inputQueueName);
-        request.addAttributesEntry("FifoQueue", "true");
-        request.addAttributesEntry("ContentBasedDeduplication ", "true");
-        CreateQueueResult result = this.sqs.createQueue(request);
+        CreateQueueResult result = this.createQueue(this.inputQueueUrl);
         this.inputQueueUrl = result.getQueueUrl();
     }
 
     public void createOutputQueue() {
-        CreateQueueRequest request = new CreateQueueRequest(this.outputQueueName);
+        CreateQueueResult result = this.createQueue(this.outputQueueName);
+        this.outputQueueUrl = result.getQueueUrl();
+    }
+
+    protected CreateQueueResult createQueue(String queueName) {
+        CreateQueueRequest request = new CreateQueueRequest(queueName);
         request.addAttributesEntry("FifoQueue", "true");
         request.addAttributesEntry("ContentBasedDeduplication ", "true");
         CreateQueueResult result = this.sqs.createQueue(request);
-        this.outputQueueUrl = result.getQueueUrl();
+        return result;
     }
 
     protected String lookForInputQueue() throws QueueDoesNotExistException {
