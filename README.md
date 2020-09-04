@@ -257,6 +257,7 @@ But one **worker** will be launched if done like this:
 | `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
 | `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
 | `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
+| `getWorkers` |  | `Map<String, WorkerStats>` | Get the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved |
 
 #### Algorithm< T > 
 
