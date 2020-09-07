@@ -50,12 +50,16 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case ALGORITHM: 
+                        case RESULT: 
                             runCallback(si.getKey());
                         case ESTABLISH_CONNECTION:
                             establishConnection(si.getKey(), si.getValue().get("Id").getStringValue());
                         case WORKER_STATS:
                             receivedWorkerStats(si.getKey(), si.getValue().get("Id").getStringValue());
+                        case TERMINATE_ALL_DONE:
+                            this.algorithmManager.stopAlgorithmsDone();
+                        case TERMINATE_ONE_DONE:
+                            this.algorithmManager.stopOneAlgorithmDone((String) si.getKey().readObject());
                         default:
                             throw new Exception("Incorrent message type received in master: " + si.getValue().get("Type").getStringValue());
                     }
@@ -114,4 +118,25 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             this.send(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
         }
     }
+
+    public void terminateAlgorithms() throws IOException {
+        log.info("Terminating all algorithms");
+        for (String directQueue : this.directQueuesUrls.values()) {
+            this.send(directQueue, MessageType.TERMINATE_ALL, MessageType.TERMINATE_ALL);
+        }
+    }
+
+	public void terminateAlgorithmsBlocking() throws IOException {
+        log.info("Terminating all algorithms (blocking)");
+        for (String directQueue : this.directQueuesUrls.values()) {
+            this.send(directQueue, MessageType.TERMINATE_ALL_BLOCKING, MessageType.TERMINATE_ALL_BLOCKING);
+        }
+	}
+
+	public void stopOneAlgorithmBlocking(String algorithmId) throws IOException {
+        log.info("Terminating algorithm: {}", algorithmId);
+        for (String directQueue : this.directQueuesUrls.values()) {
+            this.send(directQueue, algorithmId, MessageType.TERMINATE_ONE);
+        }
+	}
 }

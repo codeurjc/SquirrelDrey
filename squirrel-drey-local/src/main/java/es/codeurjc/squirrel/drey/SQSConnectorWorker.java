@@ -8,9 +8,6 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import com.amazonaws.services.sqs.model.CreateQueueResult;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
@@ -98,10 +95,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case RESULT: 
+                        case ALGORITHM: 
                             solveAlgorithm(si.getKey());
-                        case FETCH_WORKER_STATS:
-                            retrieveWorkerStats();
                         default:
                             throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
                     }
@@ -122,6 +117,14 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                        case FETCH_WORKER_STATS:
+                            retrieveWorkerStats();
+                        case TERMINATE_ALL:
+                            terminateAllAlgorithms();
+                        case TERMINATE_ALL_BLOCKING:
+                            terminateAllAlgorithmsBlocking();
+                        case TERMINATE_ONE:
+                            terminateOneAlgorithmBlocking(si.getKey());
                         default:
                             throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
                     }
@@ -134,6 +137,58 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 e.printStackTrace();
             }
         }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    private List<Algorithm<R>> terminateAllAlgorithmsBlocking() throws IOException, InterruptedException {
+        List<Algorithm<R>> algs = this.algorithmManager.terminateAlgorithmsBlockingWorker();
+        this.sendTerminateAllAlgorithmsBlocking(algs);
+        return algs;
+    }
+
+    private SendMessageResult sendTerminateAllAlgorithmsBlocking(List<Algorithm<R>> algs) throws IOException,
+            InterruptedException {
+        if (this.outputQueueUrl == null) {
+            try {
+                this.lookForOutputQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return sendTerminateAllAlgorithmsBlocking(algs);
+            }
+        }
+        log.info("Sending terminate all algorithms blocking done: {}", algs);
+        SendMessageResult message = this.send(this.outputQueueUrl, algs, MessageType.TERMINATE_ALL_DONE);
+        return message;
+    }
+
+    private List<Algorithm<R>> terminateAllAlgorithms() {
+        return this.algorithmManager.terminateAlgorithmsWorker();
+    }
+
+    private Algorithm<R> terminateOneAlgorithmBlocking(ObjectInputStream si) throws IOException, InterruptedException,
+            ClassNotFoundException {
+        String algorithmId = (String) si.readObject();
+        Algorithm<R> alg = this.algorithmManager.terminateOneAlgorithmBlockingWorker(algorithmId);
+        this.sendTerminateOneAlgorithmBlocking(alg);
+        return alg;
+    }
+
+    private SendMessageResult sendTerminateOneAlgorithmBlocking(Algorithm<R> alg) throws InterruptedException,
+            IOException {
+        if (this.outputQueueUrl == null) {
+            try {
+                this.lookForOutputQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return sendTerminateOneAlgorithmBlocking(alg);
+            }
+        }
+        log.info("Sending terminate one algorithm blocking done: {}", alg);
+        SendMessageResult message = this.send(this.outputQueueUrl, alg, MessageType.TERMINATE_ONE_DONE);
+        return message;
     }
 
     public void stopListen() {

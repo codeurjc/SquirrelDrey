@@ -6,8 +6,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,7 +32,12 @@ public abstract class SQSConnector<R extends Serializable> {
         ALGORITHM,
         RESULT,
         FETCH_WORKER_STATS,
-        WORKER_STATS
+        WORKER_STATS,
+        TERMINATE_ALL,
+        TERMINATE_ALL_BLOCKING,
+        TERMINATE_ALL_DONE,
+        TERMINATE_ONE,
+        TERMINATE_ONE_DONE,
     }
     protected AmazonSQS sqs;
 

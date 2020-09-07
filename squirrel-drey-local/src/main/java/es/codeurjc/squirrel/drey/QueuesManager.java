@@ -130,6 +130,82 @@ public class QueuesManager<R extends Serializable> {
 		}
 	}
 
+	public void terminateAlgorithmsNotBlocking() {
+		log.info("STOPPING ALL ALGORITHMS...");
+
+		for (String queueId : mapOfQueues.keySet()) {
+			Queue<Task> queue = this.algManager.algorithmQueues.get(queueId);
+			queue.clear();
+			this.algManager.algorithmQueues.remove(queueId);
+		}
+
+		runningTasks.clear();
+		mapOfQueues.clear();
+
+		executor.shutdown();
+		scheduleExecutor.shutdown();
+
+		if (nThreads > 0) {
+			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+					new LinkedBlockingQueue<Runnable>());
+			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
+		}
+
+	}
+
+	void terminateAlgorithmsBlocking() {
+		log.info("STOPPING ALL ALGORITHMS...");
+
+		// Destroy all algorithm queues
+		for (String queueId : mapOfQueues.keySet()) {
+			Queue<Task> queue = this.algManager.algorithmQueues.get(queueId);
+			queue.clear();
+			this.algManager.algorithmQueues.remove(queueId);
+		}
+
+		runningTasks.clear();
+		mapOfQueues.clear();
+
+		executor.shutdown();
+		scheduleExecutor.shutdown();
+
+		// Active wait for all data structures to be empty
+		boolean allEmpty = false;
+		while (!allEmpty) {
+			allEmpty = runningTasks.isEmpty() && mapOfQueues.isEmpty();
+			if (allEmpty)
+				break;
+			try {
+				Thread.sleep(250);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+
+		try {
+			executor.awaitTermination(5, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			log.warn("ThreadPoolExecutor for tasks couldn't be gracefully shutdown. Forcing with shutdownNow");
+			executor.shutdownNow();
+		}
+
+		try {
+			scheduleExecutor.awaitTermination(5, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			log.warn(
+					"ScheduledExecutorService for timeout threads couldn't be gracefully shutdown. Forcing with shutdownNow");
+			scheduleExecutor.shutdownNow();
+		}
+
+		if (nThreads > 0) {
+			this.executor = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,
+					new LinkedBlockingQueue<Runnable>());
+			this.scheduleExecutor = Executors.newScheduledThreadPool(nThreads);
+		}
+
+		log.info("GRACEFULLY TERMINATED ALL ALGORITHMS");
+	}
+
 	public void terminateOneAlgorithmBlocking(String algorithmId) {
 		log.info("STOPPING ALGORITHM [{}]...", algorithmId);
 
