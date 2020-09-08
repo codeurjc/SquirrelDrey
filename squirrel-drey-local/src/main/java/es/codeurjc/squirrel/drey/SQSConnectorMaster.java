@@ -17,7 +17,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Master class, listens to the output queue for results and sends tasks to the input queue
+ * Master class, listens to the output queue for results and sends tasks to the
+ * input queue
  */
 public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> {
 
@@ -30,7 +31,9 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         super(algorithmManager);
 
         // Set up thread to listen to queue
-        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null ? Integer.valueOf(System.getProperty("sqs-listener-timer")) : 10;
+        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
+                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
+                : 10;
         this.scheduleExecutor = Executors.newScheduledThreadPool(1);
         this.startListen();
     }
@@ -42,30 +45,39 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                     this.lookForOutputQueue();
                 }
             } catch (QueueDoesNotExistException e) {
-                log.info("Output queue does not exist. Attempting to create output queue with name: {}", this.outputQueueName);
+                log.info("Output queue does not exist. Attempting to create output queue with name: {}",
+                        this.outputQueueName);
                 this.createOutputQueue();
             }
             try {
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.outputQueueUrl);
+                log.debug("Received: {}", siMap);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                    log.debug("Message: {}", si);
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case RESULT: 
+                        case RESULT: {
                             runCallback(si.getKey());
                             break;
-                        case ESTABLISH_CONNECTION:
+                        }
+                        case ESTABLISH_CONNECTION: {
                             establishConnection(si.getKey(), si.getValue().get("Id").getStringValue());
                             break;
-                        case WORKER_STATS:
+                        }
+                        case WORKER_STATS: {
                             receivedWorkerStats(si.getKey(), si.getValue().get("Id").getStringValue());
                             break;
-                        case TERMINATE_ALL_DONE:
+                        }
+                        case TERMINATE_ALL_DONE: {
                             this.algorithmManager.stopAlgorithmsDone();
                             break;
-                        case TERMINATE_ONE_DONE:
+                        }
+                        case TERMINATE_ONE_DONE: {
                             this.algorithmManager.stopOneAlgorithmDone((String) si.getKey().readObject());
                             break;
+                        }
                         default:
-                            throw new Exception("Incorrent message type received in master: " + si.getValue().get("Type").getStringValue());
+                            throw new Exception("Incorrent message type received in master: "
+                                    + si.getValue().get("Type").getStringValue());
                     }
                 }
             } catch (Exception e) {
@@ -104,7 +116,8 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 try {
                     this.lookForInputQueue();
                 } catch (QueueDoesNotExistException e) {
-                    log.info("Input queue does not exist. Attempting to create input queue with name: {}", this.inputQueueName);
+                    log.info("Input queue does not exist. Attempting to create input queue with name: {}",
+                            this.inputQueueName);
                     this.createInputQueue();
                 }
             }
@@ -130,20 +143,20 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-	public void terminateAlgorithmsBlocking() throws IOException {
+    public void terminateAlgorithmsBlocking() throws IOException {
         log.info("Terminating all algorithms (blocking)");
         for (String directQueue : this.directQueuesUrls.values()) {
             this.send(directQueue, MessageType.TERMINATE_ALL_BLOCKING, MessageType.TERMINATE_ALL_BLOCKING);
         }
-	}
+    }
 
-	public void stopOneAlgorithmBlocking(String algorithmId) throws IOException {
+    public void stopOneAlgorithmBlocking(String algorithmId) throws IOException {
         log.info("Terminating algorithm: {}", algorithmId);
         for (String directQueue : this.directQueuesUrls.values()) {
             this.send(directQueue, algorithmId, MessageType.TERMINATE_ONE);
         }
     }
-    
+
     public void deleteDirectQueues() {
         log.info("Deleting direct SQS queues: {}", this.directQueuesUrls.values());
         for (String queueUrl : this.directQueuesUrls.values()) {

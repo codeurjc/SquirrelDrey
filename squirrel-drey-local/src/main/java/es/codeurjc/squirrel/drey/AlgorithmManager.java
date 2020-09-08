@@ -420,7 +420,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.workers;
 	}
 
-	public synchronized Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait)
+	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait)
 			throws TimeoutException, IOException {
 
 		// We get the current number of workers as countdown measure

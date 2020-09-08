@@ -18,7 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Worker class, listens to the input queue for tasks and sends results to the output queue
+ * Worker class, listens to the input queue for tasks and sends results to the
+ * output queue
  */
 public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> {
 
@@ -37,7 +38,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         try {
             this.lookForDirectQueue();
         } catch (QueueDoesNotExistException e) {
-            log.info("Direct queue does not exist. Attempting to create direct queue with name: {}", this.directQueueName);
+            log.info("Direct queue does not exist. Attempting to create direct queue with name: {}",
+                    this.directQueueName);
             this.createDirectQueue();
         }
 
@@ -47,24 +49,24 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             log.error(e.getMessage());
             e.printStackTrace();
         }
-        
 
         // Set up thread to listen to queue
-        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null ? Integer.valueOf(System.getProperty("sqs-listener-timer")) : 10;
+        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
+                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
+                : 10;
         this.scheduleExecutor = Executors.newScheduledThreadPool(2);
         this.startListenDirect();
         this.startListenInput();
     }
 
     private void createDirectQueue() {
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put("MessageRetentionPeriod", "15");
-        CreateQueueResult result = this.createQueue(this.directQueueName, attributes);
+        CreateQueueResult result = this.createQueue(this.directQueueName);
         this.directQueueUrl = result.getQueueUrl();
     }
 
     private String lookForDirectQueue() throws QueueDoesNotExistException {
-        this.directQueueUrl = System.getProperty("direct-queue") != null ? System.getProperty("direct-queue") : DEFAULT_DIRECT_QUEUE;
+        this.directQueueUrl = System.getProperty("direct-queue") != null ? System.getProperty("direct-queue")
+                : DEFAULT_DIRECT_QUEUE;
         if (!this.directQueueUrl.substring(this.directQueueUrl.length() - 5).equals(".fifo")) {
             log.info("Direct queue name does not end in .fifo, appending");
             this.directQueueUrl = this.directQueueUrl + ".fifo";
@@ -84,7 +86,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 return establishDirectConnection();
             }
         }
-        SendMessageResult message = this.send(this.outputQueueUrl, this.directQueueUrl, MessageType.ESTABLISH_CONNECTION);
+        log.info("Establishing direct connection with master via SQS: {}", this.directQueueUrl);
+        SendMessageResult message = this.send(this.outputQueueUrl, this.directQueueUrl,
+                MessageType.ESTABLISH_CONNECTION);
         return message;
     }
 
@@ -95,13 +99,17 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                     this.lookForInputQueue();
                 }
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
+                log.debug("Received (input): {}", siMap);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                    log.debug("Message (input): {}", si);
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case ALGORITHM: 
+                        case ALGORITHM: {
                             solveAlgorithm(si.getKey());
                             break;
+                        }
                         default:
-                            throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
+                            throw new Exception("Incorrent message type received in worker: "
+                                    + si.getValue().get("Type").getStringValue());
                     }
                 }
             } catch (Exception e) {
@@ -118,7 +126,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                     this.lookForDirectQueue();
                 }
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.directQueueUrl);
+                log.info("Received (direct): {}", siMap);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                    log.info("Message (direct): {}", si);
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
                         case FETCH_WORKER_STATS:
                             retrieveWorkerStats();
@@ -133,13 +143,13 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                             terminateOneAlgorithmBlocking(si.getKey());
                             break;
                         default:
-                            throw new Exception("Incorrent message type received in worker: " + si.getValue().get("Type").getStringValue());
+                            throw new Exception("Incorrent message type received in worker: "
+                                    + si.getValue().get("Type").getStringValue());
                     }
                 }
-                // Try to establish connection to new masters
-                this.establishDirectConnection();
             } catch (QueueDoesNotExistException e) {
-                log.info("Direct queue does not exist. Attempting to create direct queue with name: {}", this.directQueueName);
+                log.info("Direct queue does not exist. Attempting to create direct queue with name: {}",
+                        this.directQueueName);
                 this.createDirectQueue();
             } catch (Exception e) {
                 log.error(e.getMessage());
@@ -154,8 +164,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return algs;
     }
 
-    private SendMessageResult sendTerminateAllAlgorithmsBlocking(List<Algorithm<R>> algs) throws IOException,
-            InterruptedException {
+    private SendMessageResult sendTerminateAllAlgorithmsBlocking(List<Algorithm<R>> algs)
+            throws IOException, InterruptedException {
         if (this.outputQueueUrl == null) {
             try {
                 this.lookForOutputQueue();
@@ -175,16 +185,16 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return this.algorithmManager.terminateAlgorithmsWorker();
     }
 
-    private Algorithm<R> terminateOneAlgorithmBlocking(ObjectInputStream si) throws IOException, InterruptedException,
-            ClassNotFoundException {
+    private Algorithm<R> terminateOneAlgorithmBlocking(ObjectInputStream si)
+            throws IOException, InterruptedException, ClassNotFoundException {
         String algorithmId = (String) si.readObject();
         Algorithm<R> alg = this.algorithmManager.terminateOneAlgorithmBlockingWorker(algorithmId);
         this.sendTerminateOneAlgorithmBlocking(alg);
         return alg;
     }
 
-    private SendMessageResult sendTerminateOneAlgorithmBlocking(Algorithm<R> alg) throws InterruptedException,
-            IOException {
+    private SendMessageResult sendTerminateOneAlgorithmBlocking(Algorithm<R> alg)
+            throws InterruptedException, IOException {
         if (this.outputQueueUrl == null) {
             try {
                 this.lookForOutputQueue();
