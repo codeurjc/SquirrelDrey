@@ -425,7 +425,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 		// We get the current number of workers as countdown measure
 		// Other workers could join during the process
-		final int NUMBER_OF_WORKERS = this.workers.size();
+		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
 		this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
 
 		this.sqsMaster.fetchWorkerStats();
@@ -518,5 +518,23 @@ public class AlgorithmManager<R extends Serializable> {
 		} else {
 			return null;
 		}
+	}
+
+	public void deleteDirectQueues() {
+		this.sqsMaster.deleteDirectQueues();
+	}
+
+	public void deleteInputQueue() {
+		this.sqsMaster.deleteInputQueues();
+	}
+
+	public void deleteOutputQueue() {
+		this.sqsMaster.deleteOutputQueues();
+	}
+
+	public void deleteQueues() {
+		this.deleteDirectQueues();
+		this.deleteInputQueue();
+		this.deleteOutputQueue();
 	}
 }

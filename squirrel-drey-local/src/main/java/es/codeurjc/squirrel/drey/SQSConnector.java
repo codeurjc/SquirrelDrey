@@ -146,9 +146,23 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected CreateQueueResult createQueue(String queueName) {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("FifoQueue", "true");
+        attributes.put("ContentBasedDeduplication ", "true");
+        return this.createQueueAux(queueName, attributes);
+    }
+
+    protected CreateQueueResult createQueue(String queueName, Map<String, String> attributes) {
+        attributes.put("FifoQueue", "true");
+        attributes.put("ContentBasedDeduplication ", "true");
+        return this.createQueueAux(queueName, attributes);
+    }
+
+    private CreateQueueResult createQueueAux(String queueName, Map<String, String> attributes) {
         CreateQueueRequest request = new CreateQueueRequest(queueName);
-        request.addAttributesEntry("FifoQueue", "true");
-        request.addAttributesEntry("ContentBasedDeduplication ", "true");
+        for (Map.Entry<String, String> attribute : attributes.entrySet()) {
+            request.addAttributesEntry(attribute.getKey(), attribute.getValue());
+        }
         CreateQueueResult result = this.sqs.createQueue(request);
         return result;
     }

@@ -3,9 +3,8 @@ package es.codeurjc.squirrel.drey;
 import java.io.Serializable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +21,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> {
 
-    private Map<String, String> directQueuesUrls = new HashMap<>();
+    private Map<String, String> directQueuesUrls = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorMaster.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
     private long listenerPeriod;
@@ -47,19 +46,24 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.createOutputQueue();
             }
             try {
-                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(outputQueueUrl);
+                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.outputQueueUrl);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
                         case RESULT: 
                             runCallback(si.getKey());
+                            break;
                         case ESTABLISH_CONNECTION:
                             establishConnection(si.getKey(), si.getValue().get("Id").getStringValue());
+                            break;
                         case WORKER_STATS:
                             receivedWorkerStats(si.getKey(), si.getValue().get("Id").getStringValue());
+                            break;
                         case TERMINATE_ALL_DONE:
                             this.algorithmManager.stopAlgorithmsDone();
+                            break;
                         case TERMINATE_ONE_DONE:
                             this.algorithmManager.stopOneAlgorithmDone((String) si.getKey().readObject());
+                            break;
                         default:
                             throw new Exception("Incorrent message type received in master: " + si.getValue().get("Type").getStringValue());
                     }
@@ -78,9 +82,9 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     private void establishConnection(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {
         String directQueueUrl = (String) si.readObject();
-        log.info("Established direct connection with worker: {}", id);
-        this.directQueuesUrls.put(id, directQueueUrl);
-        this.algorithmManager.workers.put(id, null);
+        if (this.directQueuesUrls.put(id, directQueueUrl) == null) {
+            log.info("Established direct connection with worker: {}", id);
+        }
     }
 
     public void stopListen() {
@@ -138,5 +142,26 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         for (String directQueue : this.directQueuesUrls.values()) {
             this.send(directQueue, algorithmId, MessageType.TERMINATE_ONE);
         }
-	}
+    }
+    
+    public void deleteDirectQueues() {
+        log.info("Deleting direct SQS queues: {}", this.directQueuesUrls.values());
+        for (String queueUrl : this.directQueuesUrls.values()) {
+            this.sqs.deleteQueue(queueUrl);
+        }
+    }
+
+    public void deleteInputQueues() {
+        log.info("Deleting input SQS queues: {}", this.inputQueueUrl);
+        this.sqs.deleteQueue(this.inputQueueUrl);
+    }
+
+    public void deleteOutputQueues() {
+        log.info("Deleting output SQS queues: {}", this.outputQueueUrl);
+        this.sqs.deleteQueue(this.outputQueueUrl);
+    }
+
+    public int getNumberOfWorkers() {
+        return this.directQueuesUrls.size();
+    }
 }
