@@ -137,7 +137,7 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     public void createInputQueue() {
-        CreateQueueResult result = this.createQueue(this.inputQueueUrl);
+        CreateQueueResult result = this.createQueue(this.inputQueueName);
         this.inputQueueUrl = result.getQueueUrl();
     }
 
