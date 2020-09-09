@@ -17,6 +17,8 @@ import com.amazonaws.services.sqs.model.SendMessageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import es.codeurjc.squirrel.drey.Algorithm.Status;
+
 /**
  * Worker class, listens to the input queue for tasks and sends results to the
  * output queue
@@ -108,7 +110,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                             break;
                         }
                         default:
-                            throw new Exception("Incorrent message type received in worker: "
+                            throw new Exception("Incorrect message type received in worker: "
                                     + si.getValue().get("Type").getStringValue());
                     }
                 }
@@ -193,7 +195,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return alg;
     }
 
-    private SendMessageResult sendTerminateOneAlgorithmBlocking(Algorithm<R> alg)
+    public SendMessageResult sendTerminateOneAlgorithmBlocking(Algorithm<R> alg)
             throws InterruptedException, IOException {
         if (this.outputQueueUrl == null) {
             try {
@@ -252,4 +254,22 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.RESULT);
         return message;
     }
+
+	public SendMessageResult sendError(Algorithm<R> alg, Status reason) throws InterruptedException, IOException {
+        if (this.outputQueueUrl == null) {
+            try {
+                this.lookForOutputQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return sendError(alg, reason);
+            }
+        }
+        Map<Algorithm<R>, Status> algReasonMap = new HashMap<>(1);
+        algReasonMap.put(alg, reason);
+        log.info("Sending error in algorithm to SQS: , with reason: {}", alg, reason);
+        SendMessageResult message = this.send(this.outputQueueUrl, algReasonMap, MessageType.ERROR);
+        return message;
+	}
 }

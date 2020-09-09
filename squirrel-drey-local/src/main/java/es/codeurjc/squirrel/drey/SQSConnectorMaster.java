@@ -3,6 +3,7 @@ package es.codeurjc.squirrel.drey;
 import java.io.Serializable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -15,6 +16,8 @@ import com.amazonaws.services.sqs.model.SendMessageResult;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import es.codeurjc.squirrel.drey.Algorithm.Status;
 
 /**
  * Master class, listens to the output queue for results and sends tasks to the
@@ -75,8 +78,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                             this.algorithmManager.stopOneAlgorithmDone((String) si.getKey().readObject());
                             break;
                         }
+                        case ERROR: {
+                            runCallbackError(si.getKey());
+                        }
                         default:
-                            throw new Exception("Incorrent message type received in master: "
+                            throw new Exception("Incorrect message type received in master: "
                                     + si.getValue().get("Type").getStringValue());
                     }
                 }
@@ -85,6 +91,12 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 e.printStackTrace();
             }
         }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    private void runCallbackError(ObjectInputStream si) throws Exception {
+        Map<Algorithm<R>, Status> erroredAlgMap = (HashMap<Algorithm<R>, Status>) si.readObject();
+        Map.Entry<Algorithm<R>, Status> erroredAlgEntry = erroredAlgMap.entrySet().iterator().next();
+        this.algorithmManager.runCallbackError(erroredAlgEntry.getKey(), erroredAlgEntry.getValue());
     }
 
     private void receivedWorkerStats(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {

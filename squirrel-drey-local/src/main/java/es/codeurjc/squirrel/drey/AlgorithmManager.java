@@ -197,7 +197,7 @@ public class AlgorithmManager<R extends Serializable> {
 		alg.solve(queue);
 	}
 
-	public void taskCompleted(AlgorithmEvent ev) {
+	public void taskCompleted(AlgorithmEvent ev) throws InterruptedException, IOException {
 		Task t = (Task) ev.getContent();
 		log.info("TASK [{}] completed for algorithm [{}]. Took {} ms", t, ev.getAlgorithmId(),
 				System.currentTimeMillis() - t.getTimeStarted());
@@ -241,17 +241,22 @@ public class AlgorithmManager<R extends Serializable> {
 					final Integer runningAndFinishedTasks = this.algorithmsRunningAndFinishedTasksOnTimeout.get(algId);
 					if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
 						try {
-							//TODO: Warn master of timeout
 							log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t,
 									algId);
-							this.terminateOneAlgorithmBlockingWorker(algId);
+							Algorithm<R> terminatedAlg = this.terminateOneAlgorithmBlockingWorker(algId);
+							if (!this.devmode) {
+								this.sqsWorker.sendTerminateOneAlgorithmBlocking(terminatedAlg);
+							}
 						} catch (Exception e) {
 							log.error(
 									"Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}",
 									algId, t, e.getMessage());
 						}
-						//TODO: Run callback error on master instead worker
-						alg.runCallbackError(Status.TIMEOUT);
+						if (this.devmode) {
+							alg.runCallbackError(Status.TIMEOUT);
+						} else {
+							this.sqsWorker.sendError(alg, Status.TIMEOUT);
+						}
 					} else {
 						log.warn(
 								"There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout",
@@ -264,7 +269,7 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	public void taskTimeout(AlgorithmEvent ev) {
+	public void taskTimeout(AlgorithmEvent ev) throws InterruptedException, IOException {
 		Task t = (Task) ev.getContent();
 		log.warn("TASK [{}] timeout ({} ms) for algorithm [{}]", t, t.getMaxDuration(), ev.getAlgorithmId());
 		Algorithm<R> alg = this.algorithms.get(ev.getAlgorithmId());
@@ -308,16 +313,21 @@ public class AlgorithmManager<R extends Serializable> {
 
 				if (alg.hasFinishedRunningTasks(runningAndFinishedTasks)) {
 					try {
-						//TODO: Warn master of timeout
 						log.warn("Last running task [{}] in algorithm [{}]. Starting algorithm termination", t, algId);
-						this.terminateOneAlgorithmBlockingWorker(algId);
+						Algorithm<R> terminatedAlg = this.terminateOneAlgorithmBlockingWorker(algId);
+						if (!this.devmode) {
+							this.sqsWorker.sendTerminateOneAlgorithmBlocking(terminatedAlg);
+						}
 					} catch (Exception e) {
 						log.error(
 								"Error while forcibly terminating algorithm [{}] for task [{}] triggering timeout: {}",
 								algId, t, e.getMessage());
 					}
-					//TODO: Run callback error on master instead worker
-					alg.runCallbackError(Status.TIMEOUT);
+					if (this.devmode) {
+						alg.runCallbackError(Status.TIMEOUT);
+					} else {
+						this.sqsWorker.sendError(alg, Status.TIMEOUT);
+					}
 				} else {
 					log.warn(
 							"There are still running tasks in algorithm [{}]. Last running task will trigger algorithm termination by timeout",
@@ -408,6 +418,14 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
+	public void runCallbackError(Algorithm<R> algorithm, Status errorStatus) throws Exception {
+		AlgorithmCallback<R> algorithmCallback = this.algorithmCallbacks.get(algorithm.getId());
+		if (algorithmCallback != null) {
+			algorithm.setAlgorithmCallback(algorithmCallback);
+		}
+		algorithm.runCallbackError(errorStatus);
+	}
+
 	public Algorithm<R> getAlgorithm(String algorithmId) {
 		return this.algorithms.get(algorithmId);
 	}
@@ -464,19 +482,22 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public List<Algorithm<R>> blockingTerminateAlgorithms() throws InterruptedException, IOException {
-		this.terminateBlockingLatch = new CountDownLatch(1);
+		// We get the current number of workers as countdown measure
+		// Other workers could join during the process
+		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
+		this.terminateBlockingLatch = new CountDownLatch(NUMBER_OF_WORKERS);
 		timeForTerminate = System.currentTimeMillis();
 		
 		this.sqsMaster.terminateAlgorithmsBlocking();
 
-		this.terminateBlockingLatch.await(12, TimeUnit.SECONDS);
+		this.terminateBlockingLatch.await(20, TimeUnit.SECONDS);
 		return this.clearAllAlgorithmsFromTermination();
 	}
 
 	public Algorithm<R> blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException, IOException {
 		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
 		this.sqsMaster.stopOneAlgorithmBlocking(algorithmId);
-		this.terminateOneBlockingLatches.get(algorithmId).await(12, TimeUnit.SECONDS);
+		this.terminateOneBlockingLatches.get(algorithmId).await(20, TimeUnit.SECONDS);
 		Algorithm<R> alg = this.cleanAlgorithmStructures(algorithmId);
 		if (alg != null) {
 			alg.setStatus(Status.TERMINATED);

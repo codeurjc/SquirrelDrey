@@ -38,6 +38,7 @@ public abstract class SQSConnector<R extends Serializable> {
         TERMINATE_ALL_DONE,
         TERMINATE_ONE,
         TERMINATE_ONE_DONE,
+        ERROR
     }
     protected AmazonSQS sqs;
 

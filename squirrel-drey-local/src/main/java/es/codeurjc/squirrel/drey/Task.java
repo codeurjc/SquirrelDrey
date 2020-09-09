@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Queue;
@@ -106,7 +107,7 @@ public class Task implements Callable<Void>, Serializable {
         this.status = Status.RUNNING;
     }
 
-    public final void callback() {
+    public final void callback() throws InterruptedException, IOException {
         this.status = Status.COMPLETED;
         this.algorithmManager.taskCompleted(new AlgorithmEvent(this.algorithmId, "task-completed", this));
     }

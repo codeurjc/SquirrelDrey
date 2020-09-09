@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -75,7 +76,12 @@ public class QueuesManager<R extends Serializable> {
 						"Scheduled termination task triggered for task [{}] of algorithm [{}] due to timeout of {} ms passed",
 						task, task.algorithmId, task.getMaxDuration());
 				task.status = Task.Status.TIMEOUT;
-				this.algManager.taskTimeout(new AlgorithmEvent(task.algorithmId, "task-timeout", task));
+				try {
+					this.algManager.taskTimeout(new AlgorithmEvent(task.algorithmId, "task-timeout", task));
+				} catch (InterruptedException | IOException e) {
+					log.error(e.getMessage());
+					e.printStackTrace();
+				}
 			}, task.getMaxDuration(), TimeUnit.MILLISECONDS);
 		}
 
@@ -115,6 +121,7 @@ public class QueuesManager<R extends Serializable> {
 				log.info("Finished task [{}] for algorithm [{}]", task, task.algorithmId);
 				lookQueuesForTask();
 			} catch (Exception e) {
+				log.error(e.getMessage());
 				e.printStackTrace();
 			}
 
