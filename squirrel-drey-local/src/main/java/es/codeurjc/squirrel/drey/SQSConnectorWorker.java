@@ -96,27 +96,34 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     public void startListenInput() {
         this.scheduleExecutor.scheduleAtFixedRate(() -> {
-            try {
-                if (this.inputQueueUrl == null) {
-                    this.lookForInputQueue();
+            boolean runningAlg = false;
+            for (Map.Entry<String, Algorithm<R>> algEntry: this.algorithmManager.algorithms.entrySet()) {
+                if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
+                    runningAlg = true;
+                    break;
                 }
-                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
-                log.debug("Received (input): {}", siMap);
-                for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
-                    log.debug("Message (input): {}", si);
-                    switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case ALGORITHM: {
-                            solveAlgorithm(si.getKey());
-                            break;
-                        }
-                        default:
-                            throw new Exception("Incorrect message type received in worker: "
-                                    + si.getValue().get("Type").getStringValue());
+            }
+            if (!runningAlg) {
+                try {
+                    if (this.inputQueueUrl == null) {
+                        this.lookForInputQueue();
                     }
+                    Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
+                    for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                        switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                            case ALGORITHM: {
+                                solveAlgorithm(si.getKey());
+                                break;
+                            }
+                            default:
+                                throw new Exception("Incorrect message type received in worker: "
+                                        + si.getValue().get("Type").getStringValue());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error(e.getMessage());
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                log.error(e.getMessage());
-                e.printStackTrace();
             }
         }, 0, listenerPeriod, TimeUnit.SECONDS);
     }
@@ -128,9 +135,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                     this.lookForDirectQueue();
                 }
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.directQueueUrl);
-                log.info("Received (direct): {}", siMap);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
-                    log.info("Message (direct): {}", si);
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
                         case FETCH_WORKER_STATS:
                             retrieveWorkerStats();

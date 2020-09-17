@@ -17,6 +17,7 @@ import com.amazonaws.services.sqs.model.CreateQueueResult;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
+import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
@@ -28,18 +29,10 @@ import org.slf4j.LoggerFactory;
 
 public abstract class SQSConnector<R extends Serializable> {
     protected enum MessageType {
-        ESTABLISH_CONNECTION,
-        ALGORITHM,
-        RESULT,
-        FETCH_WORKER_STATS,
-        WORKER_STATS,
-        TERMINATE_ALL,
-        TERMINATE_ALL_BLOCKING,
-        TERMINATE_ALL_DONE,
-        TERMINATE_ONE,
-        TERMINATE_ONE_DONE,
-        ERROR
+        ESTABLISH_CONNECTION, ALGORITHM, RESULT, FETCH_WORKER_STATS, WORKER_STATS, TERMINATE_ALL,
+        TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR
     }
+
     protected AmazonSQS sqs;
 
     protected String inputQueueUrl = null;
@@ -61,7 +54,9 @@ public abstract class SQSConnector<R extends Serializable> {
     public SQSConnector(AlgorithmManager<R> algorithmManager) {
         this.algorithmManager = algorithmManager;
 
-        this.queueCreationEnabled = System.getProperty("queue-creation-enabled") != null ? Boolean.valueOf(System.getProperty("queue-creation-enabled")) : true;
+        this.queueCreationEnabled = System.getProperty("queue-creation-enabled") != null
+                ? Boolean.valueOf(System.getProperty("queue-creation-enabled"))
+                : true;
 
         String region = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
         String endpointUrl = System.getProperty("endpoint-url");
@@ -90,38 +85,36 @@ public abstract class SQSConnector<R extends Serializable> {
         so.flush();
         String serializedObject = Base64.getEncoder().encodeToString(bo.toByteArray());
         Map<String, MessageAttributeValue> attributes = new HashMap<>();
-        attributes.put("Id", new MessageAttributeValue()
-            .withDataType("String")
-            .withStringValue(this.id));
-        attributes.put("Type", new MessageAttributeValue()
-            .withDataType("String")
-            .withStringValue(messageType.toString()));
-        SendMessageRequest send_msg_request = new SendMessageRequest()
-            .withQueueUrl(queue)
-            .withMessageGroupId(this.id)
-            .withMessageBody(serializedObject)
-            .withMessageAttributes(attributes);
+        attributes.put("Id", new MessageAttributeValue().withDataType("String").withStringValue(this.id));
+        attributes.put("Type",
+                new MessageAttributeValue().withDataType("String").withStringValue(messageType.toString()));
+        SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
+                .withMessageBody(serializedObject).withMessageAttributes(attributes);
         SendMessageResult sentMessage = sqs.sendMessage(send_msg_request);
         log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
         return sentMessage;
     }
 
-    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue) throws IOException {
+    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue)
+            throws IOException {
         return this.messageListenerAux(queue, true);
     }
 
-    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue, boolean deleteMsg) throws IOException {
+    protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue,
+            boolean deleteMsg) throws IOException {
         return this.messageListenerAux(queue, deleteMsg);
     }
 
-    private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue, boolean deleteMsg)
-            throws IOException {
-        ReceiveMessageResult messages = sqs.receiveMessage(queue);
+    private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue,
+            boolean deleteMsg) throws IOException {
+        ReceiveMessageRequest request = new ReceiveMessageRequest(queue);
+        request.setMaxNumberOfMessages(1);
+        ReceiveMessageResult messages = sqs.receiveMessage(request);
         Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();
-        for(Message message: messages.getMessages()) {
+        for (Message message : messages.getMessages()) {
             String receiptHandle = message.getReceiptHandle();
             String messageBody = message.getBody();
-            byte b[] = Base64.getDecoder().decode(messageBody.getBytes()); 
+            byte b[] = Base64.getDecoder().decode(messageBody.getBytes());
             ByteArrayInputStream bi = new ByteArrayInputStream(b);
             ObjectInputStream si = new ObjectInputStream(bi);
             log.info("Received object from SQS queue {} with size (bytes): {}", queue, b.length);
@@ -169,7 +162,8 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForInputQueue() throws QueueDoesNotExistException {
-        this.inputQueueName = System.getProperty("input-queue") != null ? System.getProperty("input-queue") : DEFAULT_INPUT_QUEUE;
+        this.inputQueueName = System.getProperty("input-queue") != null ? System.getProperty("input-queue")
+                : DEFAULT_INPUT_QUEUE;
         if (!this.inputQueueName.substring(this.inputQueueName.length() - 5).equals(".fifo")) {
             log.info("Input queue name does not end in .fifo, appending");
             this.inputQueueName = this.inputQueueName + ".fifo";
@@ -177,9 +171,10 @@ public abstract class SQSConnector<R extends Serializable> {
         this.inputQueueUrl = this.sqs.getQueueUrl(inputQueueName).getQueueUrl();
         return this.inputQueueUrl;
     }
-    
+
     protected String lookForOutputQueue() throws QueueDoesNotExistException {
-        this.outputQueueName = System.getProperty("output-queue") != null ? System.getProperty("output-queue") : DEFAULT_OUTPUT_QUEUE;
+        this.outputQueueName = System.getProperty("output-queue") != null ? System.getProperty("output-queue")
+                : DEFAULT_OUTPUT_QUEUE;
         if (!this.outputQueueName.substring(this.outputQueueName.length() - 5).equals(".fifo")) {
             log.info("Output queue name does not end in .fifo, appending");
             this.outputQueueName = this.outputQueueName + ".fifo";

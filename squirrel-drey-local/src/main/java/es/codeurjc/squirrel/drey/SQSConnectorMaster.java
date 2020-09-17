@@ -54,9 +54,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             }
             try {
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.outputQueueUrl);
-                log.debug("Received: {}", siMap);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
-                    log.debug("Message: {}", si);
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
                         case RESULT: {
                             runCallback(si.getKey());

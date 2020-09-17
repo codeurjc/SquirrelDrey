@@ -260,7 +260,7 @@ But one **worker** will be launched if done like this:
 | `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the structures related to this algorithm are not clean and properly stopped on all workers |
 | `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
 | `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
-| `getWorkers` |  | `Map<String, WorkerStats>` | Get the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved |
+| `getWorkers` | *`int:maxSecondsToWait`* | `Map<String, WorkerStats>` | Fetches the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown. |
 
 #### Algorithm< T > 
 

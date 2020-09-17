@@ -405,6 +405,7 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public void runCallback(Algorithm<R> algorithm) throws Exception {
+		this.algorithms.put(algorithm.getId(), algorithm);
 		Consumer<R> callback = this.algorithmCallbacksConsumers.get(algorithm.getId());
 		if (callback != null) {
 			algorithm.setCallback(callback);
@@ -416,14 +417,17 @@ public class AlgorithmManager<R extends Serializable> {
 			}
 			algorithm.runCallbackSuccess();
 		}
+		this.cleanAlgorithmStructuresMaster(algorithm.getId());
 	}
 
 	public void runCallbackError(Algorithm<R> algorithm, Status errorStatus) throws Exception {
+		this.algorithms.put(algorithm.getId(), algorithm);
 		AlgorithmCallback<R> algorithmCallback = this.algorithmCallbacks.get(algorithm.getId());
 		if (algorithmCallback != null) {
 			algorithm.setAlgorithmCallback(algorithmCallback);
 		}
 		algorithm.runCallbackError(errorStatus);
+		this.cleanAlgorithmStructuresMaster(algorithm.getId());
 	}
 
 	public Algorithm<R> getAlgorithm(String algorithmId) {
@@ -434,7 +438,13 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.algorithms.values();
 	}
 
-	public Map<String, WorkerStats> getWorkers() {
+	public Map<String, WorkerStats> getWorkers() throws TimeoutException, IOException {
+		this.fetchWorkers(60);
+		return this.workers;
+	}
+
+	public Map<String, WorkerStats> getWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+		this.fetchWorkers(maxSecondsToWait);
 		return this.workers;
 	}
 
