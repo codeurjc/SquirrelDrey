@@ -8,7 +8,6 @@ SquirrelDrey
 * [Running sample applications](#running-sample-applications)
 * [Building your own app](#building-your-own-app)
 * [API](#api)
-* [Some thoughts about Hazelcast approach compared to other alternatives](#some-thoughts-about-hazelcast-approach-compared-to-other-alternatives)
 * [Running on Amazon ECS](#running-on-amazon-ecs)
 
 ----------
@@ -153,30 +152,32 @@ java -Dworker=false -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
 
 
-### squirrel-drey-sample-app
-
-TODO: remake the sample app for the local version. Documentation below is for the Hazelcast version.
+### squirrel-drey-sample-app-local
 
 **Clone and build the project**
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
-cd SquirrelDrey/squirrel-drey-sampleapp
+cd SquirrelDrey/squirrel-drey-sampleapp-local
 mvn -DskipTests=true package
 ```
 
 **Launch a worker**
 ```
-java -Dworker=true -Dhazelcast-config=src/main/resources/hazelcast-config.xml -Dmode=PRIORITY -jar target/squirrel-drey-sampleapp-*.jar
+java -Dworker=true \
+    -Daws-region=us-east-1 \
+    -Dendpoint-url=http://localhost:4566 \
+    -Dsqs-listener-timer=1 \ -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 ```
-java -Dworker=false -Dhazelcast-client-config=src/main/resources/hazelcast-client-config.xml -Daws=false -jar target/squirrel-drey-sampleapp-*.jar
+java -Dworker=false \
+    -Daws-region=us-east-1 \
+    -Dendpoint-url=http://localhost:4566 \
+    -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
-
-> We provide a development mode for ***squirrel-drey-sample-app***. To quickly  launch both a worker and the application at the same time on the same process, just run `java -Ddevmode=true -jar target/squirrel-drey-sampleapp-*.jar`.
 
 ----------
 
@@ -212,16 +213,15 @@ Your project must have the following dependency:
 
 Your application will have to be responsible of launching the workers. An easy way of managing this situation is by using command line options to choose whether to launch you application or a worker (using the -Dworker system property).
 
-TODO: remake the sample app for the local version. Documentation below is for the Hazelcast version.
-
 *squirrel-drey-sampleapp* does it just like this. Summarizing its `main` method:
 
 ```java
 public static void main(String[] args) {
 
-	boolean isWorker = Boolean.valueOf(System.getProperty("worker"));
-
-	if (!isWorker) {
+	boolean isWorker = System.getProperty("worker") != null ? Boolean.valueOf(System.getProperty("worker")) : true;
+	boolean isDevMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode")) : false;
+	
+	if (!isWorker || isDevMode) {
 		SpringApplication.run(Web.class);
 	} else {
 		Worker.launch();
@@ -232,11 +232,21 @@ public static void main(String[] args) {
 
 So, our **application** will start up if we launch the JAR the following way:
 
-`java -Dworker=false -jar sampleapp.jar`
+```
+java -Dworker=false \
+    -Daws-region=us-east-1 \
+    -Dendpoint-url=http://localhost:4566 \
+    -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
+```
 
 But one **worker** will be launched if done like this:
 
-`java -Dworker=true -jar sampleapp.jar`
+```
+java -Dworker=true \
+    -Daws-region=us-east-1 \
+    -Dendpoint-url=http://localhost:4566 \
+    -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
+```
 
 ----------
 
@@ -261,6 +271,7 @@ But one **worker** will be launched if done like this:
 | `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
 | `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
 | `getWorkers` | *`int:maxSecondsToWait`* | `Map<String, WorkerStats>` | Fetches the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown. |
+| `getAlgorithmInfo` | `int:maxSecondsToWait` | `Map<String, AlgorithmInfo>` | Fetches the information of all running algorithms of all workers under a master. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown. |
 
 #### Algorithm< T > 
 
