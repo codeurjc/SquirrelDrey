@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 public abstract class SQSConnector<R extends Serializable> {
     protected enum MessageType {
         ESTABLISH_CONNECTION, ALGORITHM, RESULT, FETCH_WORKER_STATS, WORKER_STATS, TERMINATE_ALL,
-        TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR
+        TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR, FETCH_ALG_INFO, ALG_INFO
     }
 
     protected AmazonSQS sqs;
@@ -43,7 +43,7 @@ public abstract class SQSConnector<R extends Serializable> {
     protected String inputQueueName = DEFAULT_INPUT_QUEUE;
     protected String outputQueueName = DEFAULT_OUTPUT_QUEUE;
 
-    protected String id = UUID.randomUUID().toString();
+    protected String id;
 
     protected AlgorithmManager<R> algorithmManager;
 
@@ -51,8 +51,9 @@ public abstract class SQSConnector<R extends Serializable> {
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnector.class);
 
-    public SQSConnector(AlgorithmManager<R> algorithmManager) {
+    public SQSConnector(String id, AlgorithmManager<R> algorithmManager) {
         this.algorithmManager = algorithmManager;
+        this.id = id;
 
         this.queueCreationEnabled = System.getProperty("queue-creation-enabled") != null
                 ? Boolean.valueOf(System.getProperty("queue-creation-enabled"))

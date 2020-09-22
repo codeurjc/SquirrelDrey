@@ -16,6 +16,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,8 @@ public class AlgorithmManager<R extends Serializable> {
 	Map<String, AlgorithmCallback<R>> algorithmCallbacks;
 
 	Map<String, WorkerStats> workers;
+	Map<String, AlgorithmInfo> algorithmInfo;
+
 	String workerId;
 
 	QueuesManager<R> queuesManager;
@@ -63,6 +66,7 @@ public class AlgorithmManager<R extends Serializable> {
 	long timeForTerminate;
 
 	CountDownLatch workerStatsFetched;
+	CountDownLatch algInfoFetched;
 
 	public AlgorithmManager(Object... args) {
 		this.devmode = System.getProperty("devmode") != null && Boolean.valueOf(System.getProperty("devmode"));
@@ -73,7 +77,8 @@ public class AlgorithmManager<R extends Serializable> {
 			if (this.mastermode) {
 				this.initializeMaster();
 			} else {
-				this.sqsWorker = new SQSConnectorWorker<>(this);
+				this.workerId = UUID.randomUUID().toString();
+				this.sqsWorker = new SQSConnectorWorker<>(this.workerId, this);
 				this.initializeWorker();
 			}
 		}
@@ -85,13 +90,13 @@ public class AlgorithmManager<R extends Serializable> {
 		this.algorithmCallbacks = new ConcurrentHashMap<>();
 		this.workers = new ConcurrentHashMap<>();
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
+		this.algorithmInfo = new ConcurrentHashMap<>();
 		this.sqsMaster = new SQSConnectorMaster<>(this);
 	}
 
 	private void initializeWorker() {
 		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
 
-		this.workerId = UUID.randomUUID().toString();
 		this.algorithms = new ConcurrentHashMap<>();
 		this.taskCompletedEventsCount = new ConcurrentHashMap<>();
 		this.taskCompletedLocks = new ConcurrentHashMap<>();
@@ -384,6 +389,7 @@ public class AlgorithmManager<R extends Serializable> {
 		Algorithm<R> alg = this.algorithms.remove(algorithmId);
 		this.algorithmCallbacksConsumers.remove(algorithmId);
 		this.algorithmCallbacks.remove(algorithmId);
+		this.algorithmInfo.remove(algorithmId);
 		return alg;
 	}
 
@@ -472,11 +478,25 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	synchronized WorkerStats getWorkerStats() {
+	WorkerStats getWorkerStats() {
 		return this.queuesManager.fetchWorkerStats();
 	}
 
-	synchronized void workerStatsReceived(String id, WorkerStats workerStats) {
+	List<AlgorithmInfo> getAlgorithmInfoWorker() {
+		return this.algorithms
+			.values()
+			.stream()
+			.map(algorithm -> new AlgorithmInfo(algorithm.getId(),
+				algorithm.getTasksAdded(),
+				algorithm.getTasksCompleted(),
+				algorithm.getTasksQueued(),
+				algorithm.getTasksTimeout(),
+				algorithm.getTimeOfProcessing()
+			))
+			.collect(Collectors.toList());
+	}
+
+	void workerStatsReceived(String id, WorkerStats workerStats) {
 		this.workers.put(id, workerStats);
 		this.workerStatsFetched.countDown();
 	}
@@ -567,5 +587,34 @@ public class AlgorithmManager<R extends Serializable> {
 		this.deleteDirectQueues();
 		this.deleteInputQueue();
 		this.deleteOutputQueue();
+	}
+
+	public Map<String, AlgorithmInfo> getAlgorithmInfo(int maxSecondsToWait) throws IOException, TimeoutException {
+		// We get the current number of workers as countdown measure
+		// Other workers could join during the process
+		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
+		this.algInfoFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+
+		this.sqsMaster.fetchAlgorithmInfo();
+
+		try {
+			if (this.algInfoFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+				return this.algorithmInfo;
+			} else {
+				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+						NUMBER_OF_WORKERS);
+				throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+			}
+		} catch (InterruptedException e) {
+			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
+			return null;
+		}
+	}
+
+	void algorithmInfoReceived(List<AlgorithmInfo> algorithmInfo) {
+		for (AlgorithmInfo info : algorithmInfo ) {
+			this.algorithmInfo.put(info.getAlgorithmId(), info);
+		}
+		this.algInfoFetched.countDown();
 	}
 }

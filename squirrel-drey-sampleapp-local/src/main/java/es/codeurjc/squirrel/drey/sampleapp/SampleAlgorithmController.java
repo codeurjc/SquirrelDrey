@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import es.codeurjc.squirrel.drey.Algorithm;
+import es.codeurjc.squirrel.drey.AlgorithmInfo;
 import es.codeurjc.squirrel.drey.AlgorithmManager;
 import es.codeurjc.squirrel.drey.Task;
 import es.codeurjc.squirrel.drey.WorkerStats;
@@ -26,12 +28,12 @@ import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
 @Controller
 public class SampleAlgorithmController {
-	
+
 	private static final Logger log = LoggerFactory.getLogger(SampleAlgorithmController.class);
 
 	@Autowired
 	AlgorithmManager<String> algorithmManager;
-	
+
 	Map<String, Algorithm<String>> solvedAlgorithms = new ConcurrentHashMap<>();
 
 	@RequestMapping(value = "/")
@@ -40,7 +42,8 @@ public class SampleAlgorithmController {
 	}
 
 	@RequestMapping(value = "/solve", method = RequestMethod.POST)
-	public String solveAlgorithm(@RequestBody List<SampleAlgorithmParameters> algorithms, Model model) throws InterruptedException {
+	public String solveAlgorithm(@RequestBody List<SampleAlgorithmParameters> algorithms, Model model)
+			throws InterruptedException {
 		List<SampleAlgorithmParameters> algorithmFields = new ArrayList<>();
 		for (SampleAlgorithmParameters algorithm : algorithms) {
 			try {
@@ -50,18 +53,21 @@ public class SampleAlgorithmController {
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-					Task initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(), algorithm.getTaskDuration());
+					Task initialTask = new PreparationTask(algorithm.getInputData(), algorithm.getNumberOfTasks(),
+							algorithm.getTaskDuration());
 					try {
-						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(), (result) -> {
-							log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(), result == null ? "NULL" : result.toString());
-							Algorithm<String> resultAlg = algorithmManager.getAlgorithm(algorithm.getId());
-							log.info("TASKS ADDED: {}", resultAlg.getTasksAdded());
-							log.info("TASKS COMPLETED: {}", resultAlg.getTasksCompleted());
-							log.info("TASKS IN THE QUEUE: {}", resultAlg.getTasksQueued());
-							log.info("TIME OF PROCESSING: {}", resultAlg.getTimeOfProcessing());
-							// Store the algorithm to send one final response to front
-							solvedAlgorithms.put(algorithm.getId(), resultAlg);
-						});
+						algorithmManager.solveAlgorithm(algorithm.getId(), initialTask, algorithm.getPriority(),
+								(result) -> {
+									log.info("RESULT FOR ALGORITHM {}: {}", algorithm.getId(),
+											result == null ? "NULL" : result.toString());
+									Algorithm<String> resultAlg = algorithmManager.getAlgorithm(algorithm.getId());
+									log.info("TASKS ADDED: {}", resultAlg.getTasksAdded());
+									log.info("TASKS COMPLETED: {}", resultAlg.getTasksCompleted());
+									log.info("TASKS IN THE QUEUE: {}", resultAlg.getTasksQueued());
+									log.info("TIME OF PROCESSING: {}", resultAlg.getTimeOfProcessing());
+									// Store the algorithm to send one final response to front
+									solvedAlgorithms.put(algorithm.getId(), resultAlg);
+								});
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -69,16 +75,16 @@ public class SampleAlgorithmController {
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			
+
 			SampleAlgorithmParameters algParams = new SampleAlgorithmParameters();
-			
+
 			algParams.setId(algorithm.getId());
 			algParams.setInputData(algorithm.getInputData());
 			algParams.setPriority(algorithm.getPriority());
 			algParams.setNumberOfTasks(algorithm.getNumberOfTasks());
 			algParams.setTaskDuration(algorithm.getTaskDuration());
 			algParams.setTimeout(algorithm.getTimeout());
-			
+
 			algorithmFields.add(algParams);
 		}
 
@@ -87,21 +93,24 @@ public class SampleAlgorithmController {
 	}
 
 	@RequestMapping(value = "/statistics", method = RequestMethod.GET)
-	public ResponseEntity<Response> getResult(@RequestParam(value = "algorithmIds[]") String[] algorithmIds) {
+	public ResponseEntity<Response> getResult(@RequestParam(value = "algorithmIds[]") String[] algorithmIds)
+			throws IOException, TimeoutException {
 		
 		// Algorithms statistics
 		List<AlgorithmStats> l1 = new ArrayList<>();
+		Map<String, AlgorithmInfo> algInfo = this.algorithmManager.getAlgorithmInfo(60);
+
 		for (String id : algorithmIds) {
 			
 			// Running algorithm. Retrieve from SquirrelDrey's map of running algorithms
 			Algorithm<String> alg = this.algorithmManager.getAlgorithm(id);
 			if (alg != null) {
 				String result = alg.getResult();
-				//TODO: Add correct values
-				Integer tasksAdded = 0;
-				Integer tasksCompleted = 0;
-				Integer tasksQueued = 0;
-				Long time = alg.getTimeOfProcessing();
+				AlgorithmInfo info = algInfo.get(id);
+				Integer tasksAdded = info.getTasksAdded();
+				Integer tasksCompleted = info.getTasksCompleted();
+				Integer tasksQueued = info.getTasksQueued();
+				Long time = info.getTimeOfProcessing();
 				
 				l1.add(new AlgorithmStats(alg.getId(), (result == null) ? "" : result, tasksAdded, tasksCompleted, tasksQueued, time));
 				

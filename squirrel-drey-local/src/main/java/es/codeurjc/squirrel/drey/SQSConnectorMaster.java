@@ -4,7 +4,9 @@ import java.io.Serializable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,7 +33,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     private long listenerPeriod;
 
     public SQSConnectorMaster(AlgorithmManager<R> algorithmManager) {
-        super(algorithmManager);
+        super(UUID.randomUUID().toString(), algorithmManager);
 
         // Set up thread to listen to queue
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
@@ -79,6 +81,10 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                         case ERROR: {
                             runCallbackError(si.getKey());
                         }
+                        case ALG_INFO: {
+                            receivedAlgorithmInfo(si.getKey());
+                            break;
+                        }
                         default:
                             throw new Exception("Incorrect message type received in master: "
                                     + si.getValue().get("Type").getStringValue());
@@ -89,6 +95,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 e.printStackTrace();
             }
         }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    private void receivedAlgorithmInfo(ObjectInputStream si) throws ClassNotFoundException, IOException {
+        List<AlgorithmInfo> algInfo = (List<AlgorithmInfo>) si.readObject();
+        this.algorithmManager.algorithmInfoReceived(algInfo);
     }
 
     private void runCallbackError(ObjectInputStream si) throws Exception {
@@ -143,6 +154,13 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         log.info("Fetching worker stats");
         for (String directQueue : this.directQueuesUrls.values()) {
             this.send(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
+        }
+    }
+
+    public void fetchAlgorithmInfo() throws IOException {
+        log.info("Fetching current information of all algorithms");
+        for (String directQueue : this.directQueuesUrls.values()) {
+            this.send(directQueue, MessageType.FETCH_ALG_INFO, MessageType.FETCH_ALG_INFO);
         }
     }
 

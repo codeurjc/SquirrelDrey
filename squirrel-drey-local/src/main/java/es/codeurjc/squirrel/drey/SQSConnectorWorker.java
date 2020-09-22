@@ -34,8 +34,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
     private long listenerPeriod;
 
-    public SQSConnectorWorker(AlgorithmManager<R> algorithmManager) {
-        super(algorithmManager);
+    public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
+        super(id, algorithmManager);
 
         try {
             this.lookForDirectQueue();
@@ -148,6 +148,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                             break;
                         case TERMINATE_ONE:
                             terminateOneAlgorithmBlocking(si.getKey());
+                            break;
+                        case FETCH_ALG_INFO:
+                            retrieveAlgInfo();
                             break;
                         default:
                             throw new Exception("Incorrent message type received in worker: "
@@ -276,5 +279,22 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         log.info("Sending error in algorithm to SQS: , with reason: {}", alg, reason);
         SendMessageResult message = this.send(this.outputQueueUrl, algReasonMap, MessageType.ERROR);
         return message;
-	}
+    }
+    
+    private SendMessageResult retrieveAlgInfo() throws InterruptedException, IOException {
+        if (this.outputQueueUrl == null) {
+            try {
+                this.lookForOutputQueue();
+            } catch (QueueDoesNotExistException e) {
+                int retryTime = 1000;
+                log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
+                Thread.sleep(retryTime);
+                return retrieveAlgInfo();
+            }
+        }
+        List<AlgorithmInfo> result = this.algorithmManager.getAlgorithmInfoWorker();
+        log.info("Sending algorithm information: {}", result);
+        SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.ALG_INFO);
+        return message;
+    }
 }
