@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey.sampleapp.test;
+package es.codeurjc.squirrel.drey.sampleapp;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.junit.platform.runner.JUnitPlatform;
 
-import es.codeurjc.squirrel.drey.AlgorithmManager;
-import es.codeurjc.squirrel.drey.Mode;
+import es.codeurjc.squirrel.drey.local.AlgorithmManager;
+import es.codeurjc.squirrel.drey.local.Mode;
 import es.codeurjc.squirrel.drey.sampleapp.App;
 import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 

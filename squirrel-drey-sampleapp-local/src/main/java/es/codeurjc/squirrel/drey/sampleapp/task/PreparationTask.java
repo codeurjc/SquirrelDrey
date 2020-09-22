@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.local.Task;
 
 public class PreparationTask extends Task {
 

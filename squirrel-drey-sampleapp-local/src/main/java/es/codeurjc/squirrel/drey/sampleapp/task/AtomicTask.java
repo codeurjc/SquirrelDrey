@@ -3,7 +3,7 @@ package es.codeurjc.squirrel.drey.sampleapp.task;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.local.Task;
 import es.codeurjc.squirrel.drey.sampleapp.App;
 
 public class AtomicTask extends Task {

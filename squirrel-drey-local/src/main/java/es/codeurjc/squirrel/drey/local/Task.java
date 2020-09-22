@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey;
+package es.codeurjc.squirrel.drey.local;
 
 import java.io.IOException;
 import java.io.Serializable;

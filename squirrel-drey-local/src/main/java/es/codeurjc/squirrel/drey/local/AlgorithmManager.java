@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey;
+package es.codeurjc.squirrel.drey.local;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import es.codeurjc.squirrel.drey.Algorithm.Status;
+import es.codeurjc.squirrel.drey.local.Algorithm.Status;
 
 /**
  * 

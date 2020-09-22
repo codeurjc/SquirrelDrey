@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 
-import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.local.Task;
 
 public class FileTask extends Task {
 

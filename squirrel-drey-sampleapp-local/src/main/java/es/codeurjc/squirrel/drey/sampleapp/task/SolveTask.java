@@ -1,6 +1,6 @@
 package es.codeurjc.squirrel.drey.sampleapp.task;
 
-import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.local.Task;
 
 public class SolveTask extends Task {
 

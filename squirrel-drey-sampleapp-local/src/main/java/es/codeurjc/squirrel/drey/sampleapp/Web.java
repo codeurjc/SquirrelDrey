@@ -4,7 +4,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
-import es.codeurjc.squirrel.drey.AlgorithmManager;
+import es.codeurjc.squirrel.drey.local.AlgorithmManager;
 
 @SpringBootApplication
 public class Web {

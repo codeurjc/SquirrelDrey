@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 
-import es.codeurjc.squirrel.drey.Worker;
+import es.codeurjc.squirrel.drey.local.Worker;
 
 /**
  * @author Pablo Fuente (pablo.fuente@urjc.es)

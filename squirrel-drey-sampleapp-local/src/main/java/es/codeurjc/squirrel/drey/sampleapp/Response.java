@@ -2,7 +2,7 @@ package es.codeurjc.squirrel.drey.sampleapp;
 
 import java.util.List;
 
-import es.codeurjc.squirrel.drey.WorkerStats;
+import es.codeurjc.squirrel.drey.local.WorkerStats;
 
 public class Response {
 	

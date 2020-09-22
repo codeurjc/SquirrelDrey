@@ -1,8 +1,9 @@
 package es.codeurjc.squirrel.drey.hello.world;
 
-import es.codeurjc.squirrel.drey.AlgorithmManager;
-import es.codeurjc.squirrel.drey.Task;
-import es.codeurjc.squirrel.drey.Worker;
+import es.codeurjc.squirrel.drey.local.Algorithm;
+import es.codeurjc.squirrel.drey.local.AlgorithmManager;
+import es.codeurjc.squirrel.drey.local.Task;
+import es.codeurjc.squirrel.drey.local.Worker;
 
 /**
  * @author Iván Chicano (ivchicano.urjc@gmail.com)

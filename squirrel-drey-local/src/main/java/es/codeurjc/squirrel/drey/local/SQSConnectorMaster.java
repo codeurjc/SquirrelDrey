@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey;
+package es.codeurjc.squirrel.drey.local;
 
 import java.io.Serializable;
 import java.io.IOException;
@@ -19,7 +19,7 @@ import com.amazonaws.services.sqs.model.SendMessageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import es.codeurjc.squirrel.drey.Algorithm.Status;
+import es.codeurjc.squirrel.drey.local.Algorithm.Status;
 
 /**
  * Master class, listens to the output queue for results and sends tasks to the

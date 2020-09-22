@@ -3,7 +3,7 @@ package es.codeurjc.squirrel.drey.hello.world;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import es.codeurjc.squirrel.drey.Task;
+import es.codeurjc.squirrel.drey.local.Task;
 
 public class SolveTask extends Task {
 

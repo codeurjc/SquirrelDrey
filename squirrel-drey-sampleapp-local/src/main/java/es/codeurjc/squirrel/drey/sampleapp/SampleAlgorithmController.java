@@ -19,11 +19,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import es.codeurjc.squirrel.drey.Algorithm;
-import es.codeurjc.squirrel.drey.AlgorithmInfo;
-import es.codeurjc.squirrel.drey.AlgorithmManager;
-import es.codeurjc.squirrel.drey.Task;
-import es.codeurjc.squirrel.drey.WorkerStats;
+import es.codeurjc.squirrel.drey.local.Algorithm;
+import es.codeurjc.squirrel.drey.local.AlgorithmInfo;
+import es.codeurjc.squirrel.drey.local.AlgorithmManager;
+import es.codeurjc.squirrel.drey.local.Task;
+import es.codeurjc.squirrel.drey.local.WorkerStats;
 import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
 @Controller
