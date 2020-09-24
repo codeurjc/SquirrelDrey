@@ -25,7 +25,7 @@ import es.codeurjc.squirrel.drey.local.Mode;
 import es.codeurjc.squirrel.drey.sampleapp.App;
 import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
-//TODO: Reimplement these tests
+// Asumes localstack with region us-east-1
 @RunWith(JUnitPlatform.class)
 public class AppTest {
 	
@@ -126,12 +126,18 @@ public class AppTest {
 	
 	private void launchWorker(Mode mode) {
 		System.setProperty("mode", mode.toString());
-		System.setProperty("isWorker", "true");
+		System.setProperty("worker", "true");
+		System.setProperty("aws-region", "us-east-1");
+		System.setProperty("endpoint-url", "http://localhost:4566");
+		System.setProperty("sqs-listener-timer", "1");
 		App.main(new String[0]);
 	}
 	
 	private void launchApp() {
-		System.setProperty("isWorker", "false");
+		System.setProperty("worker", "false");
+		System.setProperty("aws-region", "us-east-1");
+		System.setProperty("endpoint-url", "http://localhost:4566");
+		System.setProperty("sqs-listener-timer", "1");
 		App.main(new String[0]);
 	}
 	
