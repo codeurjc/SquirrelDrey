@@ -35,6 +35,16 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     public SQSConnectorMaster(AlgorithmManager<R> algorithmManager) {
         super(UUID.randomUUID().toString(), algorithmManager);
 
+        if (this.inputQueueUrl == null) {
+            try {
+                this.lookForInputQueue();
+            } catch (QueueDoesNotExistException e) {
+                log.info("Input queue does not exist. Attempting to create input queue with name: {}",
+                        this.inputQueueName);
+                this.createInputQueue();
+            }
+        }
+
         // Set up thread to listen to queue
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
                 ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
