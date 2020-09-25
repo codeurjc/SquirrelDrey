@@ -225,7 +225,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void stopListen() {
-        this.scheduleExecutor.shutdown();
+        this.scheduleExecutorInput.shutdown();
+        this.scheduleExecutorDirect.shutdown();
     }
 
     private void solveAlgorithm(ObjectInputStream si) throws Exception {
