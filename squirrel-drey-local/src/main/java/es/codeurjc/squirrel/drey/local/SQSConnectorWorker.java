@@ -31,7 +31,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
-    private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
+    private ScheduledExecutorService scheduleExecutorInput; // Local scheduled executor for running input listener thread
+    private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running direct listener thread
     private long listenerPeriod;
 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
@@ -56,9 +57,10 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
                 ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
                 : 10;
-        this.scheduleExecutor = Executors.newScheduledThreadPool(2);
-        this.startListenDirect();
+        this.scheduleExecutorInput = Executors.newScheduledThreadPool(1);
         this.startListenInput();
+        this.scheduleExecutorDirect = Executors.newScheduledThreadPool(1);
+        this.startListenDirect();
     }
 
     private void createDirectQueue() {
@@ -95,7 +97,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void startListenInput() {
-        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+        this.scheduleExecutorInput.scheduleAtFixedRate(() -> {
             boolean runningAlg = false;
             for (Map.Entry<String, Algorithm<R>> algEntry: this.algorithmManager.algorithms.entrySet()) {
                 if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
@@ -131,7 +133,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void startListenDirect() {
-        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+        this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
             try {
                 if (this.directQueueUrl == null) {
                     this.lookForDirectQueue();
