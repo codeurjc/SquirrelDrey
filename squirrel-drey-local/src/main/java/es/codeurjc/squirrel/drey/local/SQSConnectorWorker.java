@@ -120,6 +120,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                                         + si.getValue().get("Type").getStringValue());
                         }
                     }
+                } catch (QueueDoesNotExistException ex) {
+                    log.error(ex.getMessage());
                 } catch (Exception e) {
                     log.error(e.getMessage());
                     e.printStackTrace();
