@@ -91,8 +91,16 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             }
         }
         log.info("Establishing direct connection with master via SQS: {}", this.directQueueUrl);
-        SendMessageResult message = this.send(this.outputQueueUrl, this.directQueueUrl,
+        SendMessageResult message = null;
+        try {
+            message = this.send(this.outputQueueUrl, this.directQueueUrl,
                 MessageType.ESTABLISH_CONNECTION);
+        } catch (QueueDoesNotExistException e) {
+            int retryTime = 1000;
+            log.error("Direct queue does not exist. Retrying in: {} ms", retryTime);
+            Thread.sleep(retryTime);
+            return establishDirectConnection();
+        }
         return message;
     }
 
@@ -169,7 +177,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 log.error(e.getMessage());
                 e.printStackTrace();
             }
-        }, 0, listenerPeriod, TimeUnit.SECONDS);
+        }, 10, listenerPeriod, TimeUnit.SECONDS);
     }
 
     private List<Algorithm<R>> terminateAllAlgorithmsBlocking() throws IOException, InterruptedException {
