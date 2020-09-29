@@ -31,8 +31,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
-    private ScheduledExecutorService scheduleExecutorInput; // Local scheduled executor for running input listener thread
-    private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running direct listener thread
+    private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
     private long listenerPeriod;
 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
@@ -57,10 +56,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
                 ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
                 : 10;
-        this.scheduleExecutorInput = Executors.newScheduledThreadPool(1);
-        this.startListenInput();
-        this.scheduleExecutorDirect = Executors.newScheduledThreadPool(1);
-        this.startListenDirect();
+        this.scheduleExecutor = Executors.newScheduledThreadPool(1);
+        this.startListen();
     }
 
     private void createDirectQueue() {
@@ -97,87 +94,97 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 MessageType.ESTABLISH_CONNECTION);
         } catch (QueueDoesNotExistException e) {
             int retryTime = 1000;
-            log.error("Direct queue does not exist. Retrying in: {} ms", retryTime);
+            log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
             Thread.sleep(retryTime);
             return establishDirectConnection();
         }
         return message;
     }
 
-    public void startListenInput() {
-        this.scheduleExecutorInput.scheduleAtFixedRate(() -> {
-            boolean runningAlg = false;
+    public void startListen() {
+        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+            listenInput();
+            listenDirect();
+        }, 0, listenerPeriod, TimeUnit.SECONDS);
+    }
+
+    public void listenInput() {
+        boolean runningAlg = false;
+        // If algorithms is null it hasn't finished initializing algorithm manager
+        if (this.algorithmManager.algorithms != null) {
             for (Map.Entry<String, Algorithm<R>> algEntry: this.algorithmManager.algorithms.entrySet()) {
                 if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
+                    log.info("Algorithm Running, input messages will not be checked.");
                     runningAlg = true;
                     break;
                 }
             }
-            if (!runningAlg) {
-                try {
-                    if (this.inputQueueUrl == null) {
-                        this.lookForInputQueue();
-                    }
-                    Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
-                    for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
-                        switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                            case ALGORITHM: {
-                                solveAlgorithm(si.getKey());
-                                break;
-                            }
-                            default:
-                                throw new Exception("Incorrect message type received in worker: "
-                                        + si.getValue().get("Type").getStringValue());
-                        }
-                    }
-                } catch (QueueDoesNotExistException ex) {
-                    log.error(ex.getMessage());
-                } catch (Exception e) {
-                    log.error(e.getMessage());
-                    e.printStackTrace();
-                }
-            }
-        }, 0, listenerPeriod, TimeUnit.SECONDS);
-    }
-
-    public void startListenDirect() {
-        this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
+        } else {
+            // Wait until algorithm manager is initialized
+            runningAlg = true;
+        }
+        if (!runningAlg) {
             try {
-                if (this.directQueueUrl == null) {
-                    this.lookForDirectQueue();
+                if (this.inputQueueUrl == null) {
+                    this.lookForInputQueue();
                 }
-                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.directQueueUrl);
+                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
                 for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                     switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case FETCH_WORKER_STATS:
-                            retrieveWorkerStats();
+                        case ALGORITHM: {
+                            solveAlgorithm(si.getKey());
                             break;
-                        case TERMINATE_ALL:
-                            terminateAllAlgorithms();
-                            break;
-                        case TERMINATE_ALL_BLOCKING:
-                            terminateAllAlgorithmsBlocking();
-                            break;
-                        case TERMINATE_ONE:
-                            terminateOneAlgorithmBlocking(si.getKey());
-                            break;
-                        case FETCH_ALG_INFO:
-                            retrieveAlgInfo();
-                            break;
+                        }
                         default:
-                            throw new Exception("Incorrent message type received in worker: "
+                            throw new Exception("Incorrect message type received in worker: "
                                     + si.getValue().get("Type").getStringValue());
                     }
                 }
-            } catch (QueueDoesNotExistException e) {
-                log.info("Direct queue does not exist. Attempting to create direct queue with name: {}",
-                        this.directQueueName);
-                this.createDirectQueue();
+            } catch (QueueDoesNotExistException ex) {
+                log.error(ex.getMessage());
             } catch (Exception e) {
                 log.error(e.getMessage());
                 e.printStackTrace();
             }
-        }, 10, listenerPeriod, TimeUnit.SECONDS);
+        }
+    }
+
+    public void listenDirect() {
+        try {
+            if (this.directQueueUrl == null) {
+                this.lookForDirectQueue();
+            }
+            Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.directQueueUrl);
+            for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
+                switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                    case FETCH_WORKER_STATS:
+                        retrieveWorkerStats();
+                        break;
+                    case TERMINATE_ALL:
+                        terminateAllAlgorithms();
+                        break;
+                    case TERMINATE_ALL_BLOCKING:
+                        terminateAllAlgorithmsBlocking();
+                        break;
+                    case TERMINATE_ONE:
+                        terminateOneAlgorithmBlocking(si.getKey());
+                        break;
+                    case FETCH_ALG_INFO:
+                        retrieveAlgInfo();
+                        break;
+                    default:
+                        throw new Exception("Incorrent message type received in worker: "
+                                + si.getValue().get("Type").getStringValue());
+                }
+            }
+        } catch (QueueDoesNotExistException e) {
+            log.info("Direct queue does not exist. Attempting to create direct queue with name: {}",
+                    this.directQueueName);
+            this.createDirectQueue();
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private List<Algorithm<R>> terminateAllAlgorithmsBlocking() throws IOException, InterruptedException {
@@ -233,8 +240,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void stopListen() {
-        this.scheduleExecutorInput.shutdown();
-        this.scheduleExecutorDirect.shutdown();
+        this.scheduleExecutor.shutdown();
     }
 
     private void solveAlgorithm(ObjectInputStream si) throws Exception {
