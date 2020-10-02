@@ -69,7 +69,7 @@ public class AlgorithmManager<R extends Serializable> {
 	CountDownLatch algInfoFetched;
 
 	public AlgorithmManager(Object... args) {
-		this.devmode = System.getProperty("devmode") != null && Boolean.valueOf(System.getProperty("devmode"));
+		this.devmode = System.getProperty("devmode") == null || Boolean.valueOf(System.getProperty("devmode"));
 		if (this.devmode) {
 			this.initializeWorker();
 		} else {

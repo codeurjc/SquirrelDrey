@@ -21,20 +21,24 @@ The initial Task will generate as much other tasks as needed. In the same manner
 Whenever SquirrelDrey founds that the number of tasks sent to be executed matches the number of completed tasks for one algorithm, it will be terminated. If any task has called method `Task.algorithmSolved(result)`, that will be the final result of the algorithm (`null` if not).
 
 SquirrelDrey distinguishes between 2 types of work:  
+
 - Master: Sends the algorithms to run to the workers using an input SQS FIFO queue, then waits for the results polling an output SQS FIFO queue and running the algorithm callback.
 - Worker: Runs algorithms sent by the master (received by polling the input SQS FIFO queue). When finished, returns the results to the master (sending them to the output SQS FIFO queue) to run the callback.
 
 As described above, the framework makes use of SQS FIFO queues with Content Based Deduplication enabled: an input queue and an output queue:
+
 - The input queue is used for communications from the master to the workers.
 - The output queue is used for communications from the workers to the master.
 - For each worker there is a direct queue between the master and that worker.
 They can be created by the user or by the framework. The queues will be created by the master when needed if they don't exist (the names can be configured by passing arguments to the console).
 
+Note: At the moment devmode is enabled by default (this mode does not require SQS and runs the algorithms in the master).
+
 ----------
 
 ## Code example (*squirrel-drey-hello-world-local*)
 
-We will explain our _hello-world_ sample app (***squirrel-drey-hello-world-local***). This app runs an algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**. 
+We will explain our _hello-world_ sample app (***squirrel-drey-hello-world-local***). This app runs an algorithm with 3 types of tasks: **PreparationTask**, **AtomicTask** and **SolveTask**.
 
 Our **PreparationTask** will act as the initial task for the algorithm. It generates 10 **AtomicTask**, that simply wait for 5 seconds and set their result as '1'. The last executed **AtomicTask** will generate one **SolveTask**, which sums all the results from all **AtomicTask** and ends the algorithm (the final result will be the number of AtomicTasks executed).
 
@@ -45,82 +49,82 @@ This flow means that both **PreparationTask** and **SolveTask** block the execut
 ```java
 public class App {
 
-	public static void main(String[] args) throws Exception {
-		if (!Boolean.valueOf(System.getProperty("worker"))) {
-			AlgorithmManager<String> manager = new AlgorithmManager<>();
-			Task initialTask = new PreparationTask(10);
+ public static void main(String[] args) throws Exception {
+  if (!Boolean.valueOf(System.getProperty("worker"))) {
+   AlgorithmManager<String> manager = new AlgorithmManager<>();
+   Task initialTask = new PreparationTask(10);
 
-			manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
-				System.out.println("MY RESULT: " + result);
-				System.exit(0);
-			});
-		} else {
-			Worker.launch();
-		}
-	}
+   manager.solveAlgorithm("sample_algorithm", initialTask, 1, (result) -> {
+    System.out.println("MY RESULT: " + result);
+    System.exit(0);
+   });
+  } else {
+   Worker.launch();
+  }
+ }
 }
 ```
 
 ```java
 public class PreparationTask extends Task {
 
-	private Integer numberOfAtomicTasks;
+ private Integer numberOfAtomicTasks;
 
-	public PreparationTask(Integer numberOfAtomicTasks) {
-		this.numberOfAtomicTasks = numberOfAtomicTasks;
-	}
+ public PreparationTask(Integer numberOfAtomicTasks) {
+  this.numberOfAtomicTasks = numberOfAtomicTasks;
+ }
 
-	@Override
-	public void process() throws Exception {
-		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
-		atomicLong.set(this.numberOfAtomicTasks);
+ @Override
+ public void process() throws Exception {
+  AtomicLong atomicLong = this.getAtomicLong("my_countdown");
+  atomicLong.set(this.numberOfAtomicTasks);
 
-		for (int i = 0; i < this.numberOfAtomicTasks; i++) {
-			try {
-				addNewTask(new AtomicTask());
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-	}
+  for (int i = 0; i < this.numberOfAtomicTasks; i++) {
+   try {
+    addNewTask(new AtomicTask());
+   } catch (Exception e) {
+    e.printStackTrace();
+   }
+  }
+ }
 }
 ```
 
 ```java
 public class AtomicTask extends Task {
 
-	public AtomicTask() {
-	}
+ public AtomicTask() {
+ }
 
-	@Override
-	public void process() throws Exception {
-		Thread.sleep(5000);
+ @Override
+ public void process() throws Exception {
+  Thread.sleep(5000);
 
-		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
-		AtomicLong atomicLong = this.getAtomicLong("my_countdown");
-		results.put(this.getId(), 1);
-		if (atomicLong.decrementAndGet() == 0L) {
-			System.out.println("ADDING SOLVE TASK FOR ALGORITHM " + this.algorithmId);
-			addNewTask(new SolveTask());
-		}
-	}
+  Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
+  AtomicLong atomicLong = this.getAtomicLong("my_countdown");
+  results.put(this.getId(), 1);
+  if (atomicLong.decrementAndGet() == 0L) {
+   System.out.println("ADDING SOLVE TASK FOR ALGORITHM " + this.algorithmId);
+   addNewTask(new SolveTask());
+  }
+ }
 }
 ```
 
 ```java
 public class SolveTask extends Task {
 
-	@Override
-	public void process() throws Exception {
-		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
+ @Override
+ public void process() throws Exception {
+  Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("my_results");
 
-		Integer finalResult = 0;
-		for (Entry<Integer, Integer> e : results.entrySet()) {
-			finalResult += e.getValue();
-		}
+  Integer finalResult = 0;
+  for (Entry<Integer, Integer> e : results.entrySet()) {
+   finalResult += e.getValue();
+  }
 
-		this.algorithmSolved(Integer.toString(finalResult));
-	}
+  this.algorithmSolved(Integer.toString(finalResult));
+ }
 }
 ```
 
@@ -128,11 +132,12 @@ public class SolveTask extends Task {
 
 ## Running sample applications
 
-Note: development has been done using (Localstack)[https://github.com/localstack/localstack] to simulate AWS SQS queues.
+Note: development has been done using [Localstack](https://github.com/localstack/localstack) to simulate AWS SQS queues.
 
 ### squirrel-drey-hello-world-local
 
 **Clone and build the project**
+
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
 cd SquirrelDrey/squirrel-drey-hello-world-local
@@ -140,21 +145,23 @@ mvn -DskipTests=true clean package
 ```
 
 **Launch a worker**
+
 ```
-java -Dworker=true -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
+java -Ddevmode=false -Dworker=true -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 **Launch app** *(different console window)*
+
 ```
-java -Dworker=false -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
+java -Ddevmode=false -Dworker=false -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
 
-
 ### squirrel-drey-sample-app-local
 
 **Clone and build the project**
+
 ```
 git clone https://github.com/codeurjc/SquirrelDrey.git
 cd SquirrelDrey/squirrel-drey-sampleapp-local
@@ -162,16 +169,18 @@ mvn -DskipTests=true package
 ```
 
 **Launch a worker**
+
 ```
-java -Dworker=true \
+java -Ddevmode=false -Dworker=true \
     -Daws-region=us-east-1 \
     -Dendpoint-url=http://localhost:4566 \
     -Dsqs-listener-timer=1 \ -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 **Launch sampleapp** *(different console window)*
+
 ```
-java -Dworker=false \
+java -Ddevmode=false -Dworker=false \
     -Daws-region=us-east-1 \
     -Dendpoint-url=http://localhost:4566 \
     -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
@@ -205,9 +214,9 @@ Your project must have the following dependency:
 
 ```xml
 <dependency>
-	<groupId>es.codeurjc</groupId>
-	<artifactId>squirrel-drey-local</artifactId>
-	<version>...</version>
+ <groupId>es.codeurjc</groupId>
+ <artifactId>squirrel-drey-local</artifactId>
+ <version>...</version>
 </dependency>
 ```
 
@@ -218,22 +227,22 @@ Your application will have to be responsible of launching the workers. An easy w
 ```java
 public static void main(String[] args) {
 
-	boolean isWorker = System.getProperty("worker") != null ? Boolean.valueOf(System.getProperty("worker")) : true;
-	boolean isDevMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode")) : false;
-	
-	if (!isWorker || isDevMode) {
-		SpringApplication.run(Web.class);
-	} else {
-		Worker.launch();
-	}
-	
+ boolean isWorker = System.getProperty("worker") != null ? Boolean.valueOf(System.getProperty("worker")) : true;
+ boolean isDevMode = System.getProperty("devmode") != null ? Boolean.valueOf(System.getProperty("devmode")) : false;
+
+ if (!isWorker || isDevMode) {
+  SpringApplication.run(Web.class);
+ } else {
+  Worker.launch();
+ }
+
 }
 ```
 
 So, our **application** will start up if we launch the JAR the following way:
 
 ```
-java -Dworker=false \
+java -Ddevmode=false -Dworker=false \
     -Daws-region=us-east-1 \
     -Dendpoint-url=http://localhost:4566 \
     -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
@@ -242,7 +251,7 @@ java -Dworker=false \
 But one **worker** will be launched if done like this:
 
 ```
-java -Dworker=true \
+java -Ddevmode=false -Dworker=true \
     -Daws-region=us-east-1 \
     -Dendpoint-url=http://localhost:4566 \
     -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
@@ -252,40 +261,38 @@ java -Dworker=true \
 
 ## API
 
-| Class  | Description  |
-|---|---|
-| `AlgorithmManager<T>`  | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object |
-| `Algorithm<T>` | Represents a project with one initial Task as entry point for its execution. Stores valuable information about the Tasks added, completed and queued. Algorithms will be run by the workers (one or more algorithms by worker) |
-| `Task` | Callable objects that will be executed asynchronously in a worker. All classes extending it must have serializable attributes |
+| Class                 | Description                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AlgorithmManager<T>` | Centralized manager object for launching algorithms and getting their result. `T` is the class of the algorithm's final result. Must be a Serializable object                                                                  |
+| `Algorithm<T>`        | Represents a project with one initial Task as entry point for its execution. Stores valuable information about the Tasks added, completed and queued. Algorithms will be run by the workers (one or more algorithms by worker) |
+| `Task`                | Callable objects that will be executed asynchronously in a worker. All classes extending it must have serializable attributes                                                                                                  |
 
+#### AlgorithmManager< T >
 
-#### AlgorithmManager< T > 
+| Method                          | Params (*italics* are optional)                                                                       | Returns                      | Description                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `solveAlgorithm`                | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*          | `String`                     | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned                 |
+| `solveAlgorithm`                | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`* | `String`                     | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
+| `terminateAlgorithms`           |                                                                                                       | void                         | Stops the execution of all running algorithms, forcing their termination                                                                                                                                                                                                                                                                        |
+| `blockingTerminateAlgorithms`   |                                                                                                       | void                         | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the  structures are not clean and properly stopped on all workers                                                                                                                                                                |
+| `blockingTerminateOneAlgorithm` | `String:algorithmId`                                                                                  | void                         | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the structures related to this algorithm are not clean and properly stopped on all workers                                                                                                                                |
+| `getAlgorithm`                  | `String:algorithmId`                                                                                  | `Algorithm`                  | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm                                                                                                                                                                                                                                              |
+| `getAllAlgorithms`              |                                                                                                       | `Collection<Algorithm>`      | Get all running algorithms                                                                                                                                                                                                                                                                                                                      |
+| `getWorkers`                    | *`int:maxSecondsToWait`*                                                                              | `Map<String, WorkerStats>`   | Fetches the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown.                                                                                                     |
+| `getAlgorithmInfo`              | `int:maxSecondsToWait`                                                                                | `Map<String, AlgorithmInfo>` | Fetches the information of all running algorithms of all workers under a master. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown.                                                                                                                                             |
 
-| Method  | Params (*italics* are optional) | Returns  | Description |
-|---|---|---|---|
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`Consumer<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and running `callback` function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
-| `solveAlgorithm`  | `String:algorithmId`<br>`Task:initialTask`<br>`Integer:priority`<br>*`AlgorithmCallback<T>:callback`*  | `String` | Master sends the algorithm  to be solved by a worker, identified by `algorithmId`, with `initialTask` as the first Task to be executed, with certain `priority` (1 > 2 > 3...) and executing `callback` success/error function when the final result is available. If the algorithm id is not valid (was previously used) a new one is returned |
-| `terminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination |
-| `blockingTerminateAlgorithms`  |  | void | Stops the execution of all running algorithms, forcing their termination. The method will not return until all the  structures are not clean and properly stopped on all workers |
-| `blockingTerminateOneAlgorithm`  | `String:algorithmId` | void | Stops the execution of algorithm with id `algorithmId`, forcing its termination. The method will not return until all the structures related to this algorithm are not clean and properly stopped on all workers |
-| `getAlgorithm` | `String:algorithmId` | `Algorithm` | Get running algorithm with id `algorithmId`. This method will return null for a finished algorithm |
-| `getAllAlgorithms` |  | `Collection<Algorithm>` | Get all running algorithms |
-| `getWorkers` | *`int:maxSecondsToWait`* | `Map<String, WorkerStats>` | Fetches the stats of all workers under a master. For a key, the value can be `null` if the stats could not be retrieved. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown. |
-| `getAlgorithmInfo` | `int:maxSecondsToWait` | `Map<String, AlgorithmInfo>` | Fetches the information of all running algorithms of all workers under a master. If *maxSecondsToWait* (60 default) seconds pass without a response from the workers, a TimeoutException is thrown. |
+#### Algorithm< T >
 
-#### Algorithm< T > 
-
-| Method  | Params (*italics* are optional) | Returns  | Description |
-|---|---|---|---|
-| `getResult` |  | `T` | Get the final result of the algorithm. Only available when the algorithm is done (same value is received by callback parameter `Consumer<T>:callback` on method `AlgorithmManager.solveAlgorithm`) |
-| `getStatus`  |  | `Algorithm.Status` | Returns the status of the algorithm |
-| `getTasksAdded` |  | `int` | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task) |
-| `getTasksCompleted` |  | `int` | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task) |
-| `getTasksQueued` |  | `int` | Get the total number of tasks waiting in the algorithm's queue |
-| `getTimeOfProcessing` |  | `int` | Seconds that the algorithm has been executing |
-| `getInitialTask` |  | `Task` | Entrypoint task of the algorithm (task passed to method `AlgorithmManager.solveAlgorithm`) |
-| `getErrorTasks` |  | `List<Task>` | Every task of the algorithm that has triggered an error. In the current version, only possible errors that tasks can throw are timeouts. So this method returns all tasks that have triggered a timeout |
-
+| Method                | Params (*italics* are optional) | Returns            | Description                                                                                                                                                                                             |
+| --------------------- | ------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getResult`           |                                 | `T`                | Get the final result of the algorithm. Only available when the algorithm is done (same value is received by callback parameter `Consumer<T>:callback` on method `AlgorithmManager.solveAlgorithm`)      |
+| `getStatus`           |                                 | `Algorithm.Status` | Returns the status of the algorithm                                                                                                                                                                     |
+| `getTasksAdded`       |                                 | `int`              | Get the total number of tasks that have been added to the algorithm by the time this method is called (including the initial Task)                                                                      |
+| `getTasksCompleted`   |                                 | `int`              | Get the total number of tasks that have succefully finished its execution by the time this method is called (including the initial Task)                                                                |
+| `getTasksQueued`      |                                 | `int`              | Get the total number of tasks waiting in the algorithm's queue                                                                                                                                          |
+| `getTimeOfProcessing` |                                 | `int`              | Seconds that the algorithm has been executing                                                                                                                                                           |
+| `getInitialTask`      |                                 | `Task`             | Entrypoint task of the algorithm (task passed to method `AlgorithmManager.solveAlgorithm`)                                                                                                              |
+| `getErrorTasks`       |                                 | `List<Task>`       | Every task of the algorithm that has triggered an error. In the current version, only possible errors that tasks can throw are timeouts. So this method returns all tasks that have triggered a timeout |
 
 ##### Algorithm.Status (enum)
 
@@ -296,16 +303,16 @@ java -Dworker=true \
 
 #### Task
 
-| Method  | Params (*italics* are optional) | Returns  | Description |
-|---|---|---|---|
-| `setMaxDuration` | `long:milliseconds` | void | Set the timeout of the Task. If this time elapses, the algorithm will be stopped with status `TIMEOUT`. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so. |
-| `addNewTask`  | `Task:task` | void | Add a new Task to the algorithm |
-| `process`  |  | void | Main code of the distributed task |
-| `algorithmSolved`  | `R:finalResult` | void | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm |
-| `getId`  |  | `int` | Returns the unique identifier for this task |
-| `getStatus`  |  | `Task.Status` | Returns the status of the task |
-| `getMap`  | String:id | `Map` | Returns a Map associated to the Algorithm of this Task |
-| `getAtomicLong`  | String:id | `AtomicLong` | Returns an AtomicLong associated to the Algorithm of this Task |
+| Method            | Params (*italics* are optional) | Returns       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | ------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `setMaxDuration`  | `long:milliseconds`             | void          | Set the timeout of the Task. If this time elapses, the algorithm will be stopped with status `TIMEOUT`. Any Task that throws a timeout will be stopped, or at least will try. The responsibility of stopping the thread belongs to the designer of the Task, specifically `Task#process` method. It should be designed following Java best practices for running concurrent threads: allow your Task to throw `InterruptedException` when possible and explicitly check if the current Thread is interrupted regularly during the process method, returning if so. |
+| `addNewTask`      | `Task:task`                     | void          | Add a new Task to the algorithm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `process`         |                                 | void          | Main code of the distributed task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `algorithmSolved` | `R:finalResult`                 | void          | This method will finish the Algorithm< R >, setting `finalResult` as the global final result for the algorithm                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `getId`           |                                 | `int`         | Returns the unique identifier for this task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `getStatus`       |                                 | `Task.Status` | Returns the status of the task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `getMap`          | String:id                       | `Map`         | Returns a Map associated to the Algorithm of this Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `getAtomicLong`   | String:id                       | `AtomicLong`  | Returns an AtomicLong associated to the Algorithm of this Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 > All `get[DATA_STRUCTURE]` methods above are a simple encapsulation that allows SquirrelDrey to properly dispose all the data structures associated to one algorithm when it is over. Users can always use their own data structures instead of `Task.get[DATA_STRUCTURE]`, but **they are responsible of cleaning them up at some time during the execution**.
 
@@ -325,7 +332,7 @@ java -Dworker=true \
 - **output-queue**: Name of the output queue. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary.
 - **direct-queue**: Only used by workers. Name of the direct queue between this worker and the master. If the queue does not exist a queue with this name will be created. As the queue must be a FIFO queue, SquirrelDrey will append `.fifo` to the name if necessary. Warning: remember to use unique names for the queues.
 - **idle-cores-app**: number of cores that will remain idle. Default is 1 (0 for devmode), so ideally worker communications will never get blocked, but this property can be increased to ensure it.
-- **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`.
+- **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`. Enabled by default.
 
 ## Running on Amazon ECS
 
@@ -335,7 +342,7 @@ If you want to run this software on Amazon ECS follow this steps.
 
 Keep in mind that there are two apps inside the jar, one is the worker and the other one is the sample app. So, you have to create basically the same infraestructure twice.
 
-#### Build the Docker container.
+#### Build the Docker container
 
 This step is common for the sample app and the worker app.
 
@@ -434,42 +441,42 @@ You must create a **Security Group** with the port 5701 open for the worker and 
 
 Basically you need to set up **Task name**, the **Role** you created previously and the **Network mode** this one to **host**. Then add the container and set the **Name**, **Image** which is the one you created previously, **Memory Limits** is a Java app so be generous and then the environment variable, it should look like:
 
-| KEY | VALUE | COMMENTS |
-|---|---|---|
-| HZ_PORT |	5701 | This port is used by hazelcast to talk to the workers |
-| IAM_ROLE |	hazelcastrole | This role grant the policies |
-| INTERFACE |	10.0.0.* | Depends on your VPC CIDR |
-| MODE |	RANDOM | Optios are *random* or *priority* |
-| REGION |	eu-west-1 | Your AWS Region |
-| SECURITY_GROUP_NAME |	hazelcast-sg | |
-| TAG_KEY |	aws-test-cluster | Hazelcast uses this pair to identify other cluster members |
-| TAG_VALUE | 	cluster1 | |
-| TYPE	| worker | Options are *worker* or *web* |
+| KEY                 | VALUE            | COMMENTS                                                   |
+| ------------------- | ---------------- | ---------------------------------------------------------- |
+| HZ_PORT             | 5701             | This port is used by hazelcast to talk to the workers      |
+| IAM_ROLE            | hazelcastrole    | This role grant the policies                               |
+| INTERFACE           | 10.0.0.*         | Depends on your VPC CIDR                                   |
+| MODE                | RANDOM           | Optios are *random* or *priority*                          |
+| REGION              | eu-west-1        | Your AWS Region                                            |
+| SECURITY_GROUP_NAME | hazelcast-sg     |                                                            |
+| TAG_KEY             | aws-test-cluster | Hazelcast uses this pair to identify other cluster members |
+| TAG_VALUE           | cluster1         |                                                            |
+| TYPE                | worker           | Options are *worker* or *web*                              |
 
 ### Cluster
 
 Now you have to create the cluster which is a group of **EC2 instances**. On the console you can fill up the information for the new instances ECS will create. You will create a cluster for the sample app and other for the workers. The values are basically the same.
 
-| KEY | VALUE | COMMENTS |
-|---|---|---|
-|Name | hazelcast-CLUSTER | Name of the cluster, replace CLUSTER by workers or web to identify in the future |
-|EC2 instance type| m4.xlarge | We recommend m4.xlarge. The sample app can use a smaller instance type |
-|Number of instances | 1 | 1 instance at the begining |
-|Key pair | | Depends on if you want to ssh your instances |
-|Networking | | Complete upon your needs |
-|Container instance IAM role| | The role you created before |
+| KEY                         | VALUE             | COMMENTS                                                                         |
+| --------------------------- | ----------------- | -------------------------------------------------------------------------------- |
+| Name                        | hazelcast-CLUSTER | Name of the cluster, replace CLUSTER by workers or web to identify in the future |
+| EC2 instance type           | m4.xlarge         | We recommend m4.xlarge. The sample app can use a smaller instance type           |
+| Number of instances         | 1                 | 1 instance at the begining                                                       |
+| Key pair                    |                   | Depends on if you want to ssh your instances                                     |
+| Networking                  |                   | Complete upon your needs                                                         |
+| Container instance IAM role |                   | The role you created before                                                      |
 
-When you press **Create** an EC2 instance will be created, now you have to edit that instance to add the key/value tag. 
+When you press **Create** an EC2 instance will be created, now you have to edit that instance to add the key/value tag.
 
-**This only apply for workers cluster**. After that, go back to ECS -> Clusters and click on **ECS Instances** and **Scale ECS Instances** then you will see a window with a link to **AWS Auto Scaling Group** you have to click there. 
+**This only apply for workers cluster**. After that, go back to ECS -> Clusters and click on **ECS Instances** and **Scale ECS Instances** then you will see a window with a link to **AWS Auto Scaling Group** you have to click there.
 
-Now you should see **AWS Auto Scaing Pane**, if not, go throught **EC2 main pane** on the left you shoud see **Auto Scaling** and **Auto Scaling Groups**. Here, you select the new one and in **Details** you set the following information: 
+Now you should see **AWS Auto Scaing Pane**, if not, go throught **EC2 main pane** on the left you shoud see **Auto Scaling** and **Auto Scaling Groups**. Here, you select the new one and in **Details** you set the following information:
 
 Min: 1
 Max: 5
 Termination Policy: NewestInstance
 
-Under **Tags** add the key and value you set on the Hazelcast configuration. 
+Under **Tags** add the key and value you set on the Hazelcast configuration.
 
 #### Service
 
@@ -495,21 +502,21 @@ With those configuration, you can go back to the **EC2 pane** in **Auto Scaling*
 
 * Scale In
 
-| Key | Value |
-| --- | --- |
-| Policy type | Simple scaling|
-| Execute policy when | Alarm Scale Down |
-| Take action | Remove 1 instance |
-| And wait | 60 seconds |
+| Key                 | Value             |
+| ------------------- | ----------------- |
+| Policy type         | Simple scaling    |
+| Execute policy when | Alarm Scale Down  |
+| Take action         | Remove 1 instance |
+| And wait            | 60 seconds        |
 
 * Scale Out
 
-| Key | Value |
-| --- | --- |
-| Policy type | Simple scaling|
-| Execute policy when | Alarm Scale Down |
-| Take action | Remove 1 instance |
-| And wait | 60 seconds |
+| Key                 | Value             |
+| ------------------- | ----------------- |
+| Policy type         | Simple scaling    |
+| Execute policy when | Alarm Scale Down  |
+| Take action         | Remove 1 instance |
+| And wait            | 60 seconds        |
 
 #### Summing up
 
