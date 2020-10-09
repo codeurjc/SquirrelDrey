@@ -3,6 +3,7 @@ package es.codeurjc.squirrel.drey.local;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -449,23 +450,19 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public Map<String, WorkerStats> getWorkers() throws TimeoutException, IOException {
-		this.fetchWorkers(60);
-		return this.workers;
+		return this.fetchWorkers(60);
 	}
 
 	public Map<String, WorkerStats> getWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
-		this.fetchWorkers(maxSecondsToWait);
-		return this.workers;
+		return this.fetchWorkers(maxSecondsToWait);
 	}
 
 	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
 		if (this.devmode) {
-			log.info("Fetching worker stats devmode");
 			WorkerStats stats = this.getWorkerStats();
-			log.info("stats: {}", stats);
-			Map<String, WorkerStats> statsMap = new ConcurrentHashMap<>();
+			Map<String, WorkerStats> statsMap = new HashMap<>();
 			statsMap.put(this.workerId, stats);
-			log.info("statsMap: {}", statsMap);
+			log.info("Sending worker stats map (devmode): {}", statsMap);
 			return statsMap;
 		} else {
 			// We get the current number of workers as countdown measure
