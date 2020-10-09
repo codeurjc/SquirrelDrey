@@ -71,12 +71,16 @@ public class AlgorithmManager<R extends Serializable> {
 	public AlgorithmManager(Object... args) {
 		this.devmode = System.getProperty("devmode") == null || Boolean.valueOf(System.getProperty("devmode"));
 		if (this.devmode) {
+			log.info("Devmode enabled");
+			this.workerId = UUID.randomUUID().toString();
 			this.initializeWorker();
 		} else {
 			this.mastermode = System.getProperty("worker") != null && !Boolean.valueOf(System.getProperty("worker"));
 			if (this.mastermode) {
+				log.info("Starting as master");
 				this.initializeMaster();
 			} else {
+				log.info("Starting as worker");
 				this.workerId = UUID.randomUUID().toString();
 				this.sqsWorker = new SQSConnectorWorker<>(this.workerId, this);
 				this.initializeWorker();
@@ -454,27 +458,35 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.workers;
 	}
 
-	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait)
-			throws TimeoutException, IOException {
+	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+		if (this.devmode) {
+			log.info("Fetching worker stats devmode");
+			WorkerStats stats = this.getWorkerStats();
+			log.info("stats: {}", stats);
+			Map<String, WorkerStats> statsMap = new ConcurrentHashMap<>();
+			statsMap.put(this.workerId, stats);
+			log.info("statsMap: {}", statsMap);
+			return statsMap;
+		} else {
+			// We get the current number of workers as countdown measure
+			// Other workers could join during the process
+			final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
+			this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
 
-		// We get the current number of workers as countdown measure
-		// Other workers could join during the process
-		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-		this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+			this.sqsMaster.fetchWorkerStats();
 
-		this.sqsMaster.fetchWorkerStats();
-
-		try {
-			if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
-				return this.workers;
-			} else {
-				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
-						NUMBER_OF_WORKERS);
-				throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+			try {
+				if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+					return this.workers;
+				} else {
+					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+							NUMBER_OF_WORKERS);
+					throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+				}
+			} catch (InterruptedException e) {
+				log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
+				return null;
 			}
-		} catch (InterruptedException e) {
-			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
-			return null;
 		}
 	}
 
@@ -483,17 +495,11 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	List<AlgorithmInfo> getAlgorithmInfoWorker() {
-		return this.algorithms
-			.values()
-			.stream()
-			.map(algorithm -> new AlgorithmInfo(algorithm.getId(),
-				algorithm.getTasksAdded(),
-				algorithm.getTasksCompleted(),
-				algorithm.getTasksQueued(),
-				algorithm.getTasksTimeout(),
-				algorithm.getTimeOfProcessing()
-			))
-			.collect(Collectors.toList());
+		return this.algorithms.values().stream()
+				.map(algorithm -> new AlgorithmInfo(algorithm.getId(), algorithm.getTasksAdded(),
+						algorithm.getTasksCompleted(), algorithm.getTasksQueued(), algorithm.getTasksTimeout(),
+						algorithm.getTimeOfProcessing()))
+				.collect(Collectors.toList());
 	}
 
 	void workerStatsReceived(String id, WorkerStats workerStats) {
@@ -517,7 +523,7 @@ public class AlgorithmManager<R extends Serializable> {
 		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
 		this.terminateBlockingLatch = new CountDownLatch(NUMBER_OF_WORKERS);
 		timeForTerminate = System.currentTimeMillis();
-		
+
 		this.sqsMaster.terminateAlgorithmsBlocking();
 
 		this.terminateBlockingLatch.await(20, TimeUnit.SECONDS);
@@ -590,29 +596,38 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public Map<String, AlgorithmInfo> getAlgorithmInfo(int maxSecondsToWait) throws IOException, TimeoutException {
-		// We get the current number of workers as countdown measure
-		// Other workers could join during the process
-		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-		this.algInfoFetched = new CountDownLatch(NUMBER_OF_WORKERS);
-
-		this.sqsMaster.fetchAlgorithmInfo();
-
-		try {
-			if (this.algInfoFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
-				return this.algorithmInfo;
-			} else {
-				log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
-						NUMBER_OF_WORKERS);
-				throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+		if (this.devmode) {
+			List<AlgorithmInfo> algorithmInfo = this.getAlgorithmInfoWorker();
+			Map<String, AlgorithmInfo> algInfoMap = new ConcurrentHashMap<>();
+			for (AlgorithmInfo info : algorithmInfo) {
+				algInfoMap.put(info.getAlgorithmId(), info);
 			}
-		} catch (InterruptedException e) {
-			log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
-			return null;
+			return algInfoMap;
+		} else {
+			// We get the current number of workers as countdown measure
+			// Other workers could join during the process
+			final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
+			this.algInfoFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+			this.sqsMaster.fetchAlgorithmInfo();
+
+			try {
+				if (this.algInfoFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+					return this.algorithmInfo;
+				} else {
+					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+							NUMBER_OF_WORKERS);
+					throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+				}
+			} catch (InterruptedException e) {
+				log.error("Error while waiting for workers to update their stats: {}", e.getMessage());
+				return null;
+			}
 		}
+
 	}
 
 	void algorithmInfoReceived(List<AlgorithmInfo> algorithmInfo) {
-		for (AlgorithmInfo info : algorithmInfo ) {
+		for (AlgorithmInfo info : algorithmInfo) {
 			this.algorithmInfo.put(info.getAlgorithmId(), info);
 		}
 		this.algInfoFetched.countDown();
