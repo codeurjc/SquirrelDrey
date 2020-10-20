@@ -89,7 +89,7 @@ public abstract class SQSConnector<R extends Serializable> {
         attributes.put("Type",
                 new MessageAttributeValue().withDataType("String").withStringValue(messageType.toString()));
         String messageDeduplicationId = Long.toString(System.currentTimeMillis()) + ".";
-        messageDeduplicationId.concat(serializedObject).substring(0, 127 - messageDeduplicationId.length());
+        messageDeduplicationId.concat(serializedObject).substring(0, 127);
         SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
                 .withMessageBody(serializedObject).withMessageAttributes(attributes)
                 .withMessageDeduplicationId(messageDeduplicationId);
