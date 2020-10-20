@@ -88,8 +88,11 @@ public abstract class SQSConnector<R extends Serializable> {
         attributes.put("Id", new MessageAttributeValue().withDataType("String").withStringValue(this.id));
         attributes.put("Type",
                 new MessageAttributeValue().withDataType("String").withStringValue(messageType.toString()));
+        String messageDeduplicationId = Long.toString(System.currentTimeMillis()) + ".";
+        messageDeduplicationId.concat(serializedObject).substring(0, 127 - messageDeduplicationId.length());
         SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
-                .withMessageBody(serializedObject).withMessageAttributes(attributes);
+                .withMessageBody(serializedObject).withMessageAttributes(attributes)
+                .withMessageDeduplicationId(messageDeduplicationId);
         SendMessageResult sentMessage = sqs.sendMessage(send_msg_request);
         log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
         return sentMessage;
@@ -143,13 +146,11 @@ public abstract class SQSConnector<R extends Serializable> {
     protected CreateQueueResult createQueue(String queueName) {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("FifoQueue", "true");
-        attributes.put("ContentBasedDeduplication", "true");
         return this.createQueueAux(queueName, attributes);
     }
 
     protected CreateQueueResult createQueue(String queueName, Map<String, String> attributes) {
         attributes.put("FifoQueue", "true");
-        attributes.put("ContentBasedDeduplication", "true");
         return this.createQueueAux(queueName, attributes);
     }
 
