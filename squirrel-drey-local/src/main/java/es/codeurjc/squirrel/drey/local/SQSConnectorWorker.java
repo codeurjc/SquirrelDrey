@@ -27,7 +27,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     private String directQueueUrl;
 
-    private final String DEFAULT_DIRECT_QUEUE = this.id + ".fifo";
+    private final String DEFAULT_DIRECT_QUEUE = "direct_" + this.id + ".fifo";
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
