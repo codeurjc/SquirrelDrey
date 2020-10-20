@@ -107,8 +107,9 @@ public abstract class SQSConnector<R extends Serializable> {
 
     private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue,
             boolean deleteMsg) throws IOException {
-        ReceiveMessageRequest request = new ReceiveMessageRequest(queue);
-        request.setMaxNumberOfMessages(1);
+        ReceiveMessageRequest request = new ReceiveMessageRequest(queue)
+        .withMaxNumberOfMessages(1)
+        .withMessageAttributeNames("All");
         ReceiveMessageResult messages = sqs.receiveMessage(request);
         Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();
         for (Message message : messages.getMessages()) {
