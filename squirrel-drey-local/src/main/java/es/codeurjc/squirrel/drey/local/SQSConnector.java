@@ -7,7 +7,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Map;
-import java.util.UUID;
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.sqs.AmazonSQS;
@@ -143,21 +142,19 @@ public abstract class SQSConnector<R extends Serializable> {
     protected CreateQueueResult createQueue(String queueName) {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("FifoQueue", "true");
-        attributes.put("ContentBasedDeduplication ", "true");
+        attributes.put("ContentBasedDeduplication", "true");
         return this.createQueueAux(queueName, attributes);
     }
 
     protected CreateQueueResult createQueue(String queueName, Map<String, String> attributes) {
         attributes.put("FifoQueue", "true");
-        attributes.put("ContentBasedDeduplication ", "true");
+        attributes.put("ContentBasedDeduplication", "true");
         return this.createQueueAux(queueName, attributes);
     }
 
     private CreateQueueResult createQueueAux(String queueName, Map<String, String> attributes) {
         CreateQueueRequest request = new CreateQueueRequest(queueName);
-        for (Map.Entry<String, String> attribute : attributes.entrySet()) {
-            request.addAttributesEntry(attribute.getKey(), attribute.getValue());
-        }
+        request.setAttributes(attributes);
         CreateQueueResult result = this.sqs.createQueue(request);
         return result;
     }
