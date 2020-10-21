@@ -23,6 +23,7 @@ import com.amazonaws.services.sqs.model.SendMessageResult;
 import java.util.Base64;
 import java.util.HashMap;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,9 +89,14 @@ public abstract class SQSConnector<R extends Serializable> {
         attributes.put("Id", new MessageAttributeValue().withDataType("String").withStringValue(this.id));
         attributes.put("Type",
                 new MessageAttributeValue().withDataType("String").withStringValue(messageType.toString()));
-        String messageDeduplicationId = Long.toString(System.currentTimeMillis()) + ".";
-        messageDeduplicationId = messageDeduplicationId.concat(serializedObject)
-            .substring(0, messageDeduplicationId.length() >= 127 ? 127 : messageDeduplicationId.length());
+
+        //Generate SHA-256 Hash from body and attributes to use in message deduplication id
+        String messageDeduplicationIdString = Long.toString(System.currentTimeMillis())
+            .concat(serializedObject)
+            .concat(attributes.get("Id").toString())
+            .concat(attributes.get("Type").toString());
+        String messageDeduplicationId = DigestUtils.sha256Hex(messageDeduplicationIdString);
+
         SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
                 .withMessageBody(serializedObject).withMessageAttributes(attributes)
                 .withMessageDeduplicationId(messageDeduplicationId);
