@@ -29,6 +29,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     private final String DEFAULT_DIRECT_QUEUE = "direct_" + this.id + ".fifo";
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
+    
+    private final int DEFAULT_PARALLELIZATION_GRADE = 1;
+    private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
@@ -36,6 +39,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
         super(id, algorithmManager);
+
+        this.parallelizationGrade = 
+            System.getProperty("parallelization-grade") != null ? Integer.valueOf(System.getProperty("parallelization-grade")) : DEFAULT_PARALLELIZATION_GRADE;
 
         try {
             this.lookForDirectQueue();
@@ -112,11 +118,15 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         boolean runningAlg = false;
         // If algorithms is null it hasn't finished initializing algorithm manager
         if (this.algorithmManager.algorithms != null) {
+            int runningAlgs = 0;
             for (Map.Entry<String, Algorithm<R>> algEntry: this.algorithmManager.algorithms.entrySet()) {
                 if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
-                    log.info("Algorithm Running, input messages will not be checked.");
-                    runningAlg = true;
-                    break;
+                    runningAlgs++;
+                    if (runningAlgs >= this.parallelizationGrade) {
+                        log.info("Max Number of Algorithms Running, input messages will not be checked.");
+                        runningAlg = true;
+                        break;
+                    } 
                 }
             }
         } else {

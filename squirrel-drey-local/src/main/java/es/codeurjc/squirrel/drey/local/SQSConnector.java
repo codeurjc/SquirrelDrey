@@ -47,17 +47,11 @@ public abstract class SQSConnector<R extends Serializable> {
 
     protected AlgorithmManager<R> algorithmManager;
 
-    protected boolean queueCreationEnabled;
-
     private static final Logger log = LoggerFactory.getLogger(SQSConnector.class);
 
     public SQSConnector(String id, AlgorithmManager<R> algorithmManager) {
         this.algorithmManager = algorithmManager;
         this.id = id;
-
-        this.queueCreationEnabled = System.getProperty("queue-creation-enabled") != null
-                ? Boolean.valueOf(System.getProperty("queue-creation-enabled"))
-                : true;
 
         String region = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
         String endpointUrl = System.getProperty("endpoint-url");
