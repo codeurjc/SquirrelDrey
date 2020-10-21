@@ -71,4 +71,11 @@ public class AlgorithmInfo implements Serializable {
         this.algorithmId = algorithmId;
     }
 
+    @Override
+    public String toString() {
+        return "AlgorithmInfo [algorithmId=" + algorithmId + ", tasksAdded=" + tasksAdded + ", tasksCompleted="
+                + tasksCompleted + ", tasksQueued=" + tasksQueued + ", tasksTimeout=" + tasksTimeout
+                + ", timeOfProcessing=" + timeOfProcessing + "]";
+    }
+
 }
