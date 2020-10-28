@@ -334,3 +334,4 @@ java -Ddevmode=false -Dworker=true \
 - **idle-cores-app**: number of cores that will remain idle. Default is 1 (0 for devmode), so ideally worker communications will never get blocked, but this property can be increased to ensure it.
 - **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`. Enabled by default.
 - **parallelization-grade**: Only used by workers. Maximum number of algorithms to be run at the same time by a single worker. Defaults to 1. Note that, when polling the SQS queue looking for algorithms, the worker will try to pick up as many as it can up to this maximum (there is not an even distribution).
+- **mode**: Only used by workers. PRIORITY (default) or RANDOM. Defines the strategy followed by SquirrelDrey to select the next task to solve.
