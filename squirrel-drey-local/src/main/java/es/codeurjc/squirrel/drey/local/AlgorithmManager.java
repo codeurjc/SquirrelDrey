@@ -495,7 +495,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.algorithms.values().stream()
 				.map(algorithm -> new AlgorithmInfo(algorithm.getId(), algorithm.getTasksAdded(),
 						algorithm.getTasksCompleted(), algorithm.getTasksQueued(), algorithm.getTasksTimeout(),
-						algorithm.getTimeOfProcessing()))
+						algorithm.getTimeOfProcessing(), algorithm.getPriority()))
 				.collect(Collectors.toList());
 	}
 

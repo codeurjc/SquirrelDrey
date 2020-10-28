@@ -12,15 +12,17 @@ public class AlgorithmInfo implements Serializable {
     private int tasksQueued;
     private int tasksTimeout;
     private Long timeOfProcessing;
+    private int priority;
 
     public AlgorithmInfo(String algorithmId, int tasksAdded, int tasksCompleted, int tasksQueued, int tasksTimeout,
-            Long timeOfProcessing) {
+            Long timeOfProcessing, int priority) {
         this.algorithmId = algorithmId;
         this.tasksAdded = tasksAdded;
         this.tasksCompleted = tasksCompleted;
         this.tasksQueued = tasksQueued;
         this.tasksTimeout = tasksTimeout;
         this.timeOfProcessing = timeOfProcessing;
+        this.priority = priority;
     }
 
     public int getTasksAdded() {
@@ -71,11 +73,20 @@ public class AlgorithmInfo implements Serializable {
         this.algorithmId = algorithmId;
     }
 
-    @Override
-    public String toString() {
-        return "AlgorithmInfo [algorithmId=" + algorithmId + ", tasksAdded=" + tasksAdded + ", tasksCompleted="
-                + tasksCompleted + ", tasksQueued=" + tasksQueued + ", tasksTimeout=" + tasksTimeout
-                + ", timeOfProcessing=" + timeOfProcessing + "]";
+    public int getPriority() {
+        return priority;
     }
 
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    @Override
+    public String toString() {
+        return "AlgorithmInfo [algorithmId=" + algorithmId + ", priority=" + priority + ", tasksAdded=" + tasksAdded
+                + ", tasksCompleted=" + tasksCompleted + ", tasksQueued=" + tasksQueued + ", tasksTimeout="
+                + tasksTimeout + ", timeOfProcessing=" + timeOfProcessing + "]";
+    }
+
+    
 }
