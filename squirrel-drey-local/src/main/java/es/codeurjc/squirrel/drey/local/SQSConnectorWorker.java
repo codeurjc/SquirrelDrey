@@ -29,7 +29,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     private final String DEFAULT_DIRECT_QUEUE = "direct_" + this.id + ".fifo";
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
-    
+
     private final int DEFAULT_PARALLELIZATION_GRADE = 1;
     private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
 
@@ -40,8 +40,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
         super(id, algorithmManager);
 
-        this.parallelizationGrade = 
-            System.getProperty("parallelization-grade") != null ? Integer.valueOf(System.getProperty("parallelization-grade")) : DEFAULT_PARALLELIZATION_GRADE;
+        this.parallelizationGrade = System.getProperty("parallelization-grade") != null
+                ? Integer.valueOf(System.getProperty("parallelization-grade"))
+                : DEFAULT_PARALLELIZATION_GRADE;
 
         try {
             this.lookForDirectQueue();
@@ -78,7 +79,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             log.info("Direct queue name does not end in .fifo, appending");
             this.directQueueUrl = this.directQueueUrl + ".fifo";
         }
-        this.directQueueUrl = this.sqs.getQueueUrl(directQueueUrl).getQueueUrl();
+        this.directQueueUrl = this.sqs.getQueueUrl(this.directQueueUrl).getQueueUrl();
         return this.directQueueUrl;
     }
 
@@ -96,8 +97,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         log.info("Establishing direct connection with master via SQS: {}", this.directQueueUrl);
         SendMessageResult message = null;
         try {
-            message = this.send(this.outputQueueUrl, this.directQueueUrl,
-                MessageType.ESTABLISH_CONNECTION);
+            message = this.send(this.outputQueueUrl, this.directQueueUrl, MessageType.ESTABLISH_CONNECTION);
         } catch (QueueDoesNotExistException e) {
             int retryTime = 1000;
             log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
@@ -116,17 +116,17 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     public void listenInput() {
         boolean runningAlg = false;
+        int runningAlgs = 0;
         // If algorithms is null it hasn't finished initializing algorithm manager
         if (this.algorithmManager.algorithms != null) {
-            int runningAlgs = 0;
-            for (Map.Entry<String, Algorithm<R>> algEntry: this.algorithmManager.algorithms.entrySet()) {
+            for (Map.Entry<String, Algorithm<R>> algEntry : this.algorithmManager.algorithms.entrySet()) {
                 if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
                     runningAlgs++;
                     if (runningAlgs >= this.parallelizationGrade) {
                         log.info("Max Number of Algorithms Running, input messages will not be checked.");
                         runningAlg = true;
                         break;
-                    } 
+                    }
                 }
             }
         } else {
@@ -139,22 +139,35 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                     this.lookForInputQueue();
                 }
                 Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
-                for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
-                    switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
-                        case ALGORITHM: {
-                            solveAlgorithm(si.getKey());
-                            break;
-                        }
-                        default:
-                            throw new Exception("Incorrect message type received in worker: "
-                                    + si.getValue().get("Type").getStringValue());
+                if (siMap.size() > 0) {
+                    processMessage(siMap);
+                } else if (runningAlgs <= 0) {
+                    if (this.lowPriorityInputQueueUrl == null) {
+                        this.lookForLowPriorityInputQueue();
                     }
+                    Map<ObjectInputStream, Map<String, MessageAttributeValue>> lowPrioSiMap = messageListener(this.lowPriorityInputQueueUrl);
+                    processMessage(lowPrioSiMap);
                 }
             } catch (QueueDoesNotExistException ex) {
                 log.error(ex.getMessage());
             } catch (Exception e) {
                 log.error(e.getMessage());
                 e.printStackTrace();
+            }
+        }
+    }
+
+    private void processMessage(Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageMap)
+            throws Exception {
+        for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : messageMap.entrySet()) {
+            switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                case ALGORITHM: {
+                    solveAlgorithm(si.getKey());
+                    break;
+                }
+                default:
+                    throw new Exception(
+                            "Incorrect message type received in worker: " + si.getValue().get("Type").getStringValue());
             }
         }
     }
@@ -292,7 +305,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return message;
     }
 
-	public SendMessageResult sendError(Algorithm<R> alg, Status reason) throws InterruptedException, IOException {
+    public SendMessageResult sendError(Algorithm<R> alg, Status reason) throws InterruptedException, IOException {
         if (this.outputQueueUrl == null) {
             try {
                 this.lookForOutputQueue();
@@ -309,7 +322,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         SendMessageResult message = this.send(this.outputQueueUrl, algReasonMap, MessageType.ERROR);
         return message;
     }
-    
+
     private SendMessageResult retrieveAlgInfo() throws InterruptedException, IOException {
         if (this.outputQueueUrl == null) {
             try {

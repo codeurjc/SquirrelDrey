@@ -36,11 +36,15 @@ public abstract class SQSConnector<R extends Serializable> {
     protected AmazonSQS sqs;
 
     protected String inputQueueUrl = null;
+    protected String lowPriorityInputQueueUrl = null;
     protected String outputQueueUrl = null;
 
     protected final String DEFAULT_INPUT_QUEUE = "input_queue.fifo";
+    protected final String DEFAULT_LOW_PRIORITY_INPUT_QUEUE = "low_priority_input_queue.fifo";
     protected final String DEFAULT_OUTPUT_QUEUE = "output_queue.fifo";
+
     protected String inputQueueName = DEFAULT_INPUT_QUEUE;
+    protected String lowPriorityInputQueueName = DEFAULT_LOW_PRIORITY_INPUT_QUEUE;
     protected String outputQueueName = DEFAULT_OUTPUT_QUEUE;
 
     protected String id;
@@ -67,6 +71,11 @@ public abstract class SQSConnector<R extends Serializable> {
             log.error("Input queue does not exist: {}", this.inputQueueName);
         }
         try {
+            this.lookForLowPriorityInputQueue();
+        } catch (QueueDoesNotExistException e) {
+            log.error("Low priority input queue does not exist: {}", this.lowPriorityInputQueueName);
+        }
+        try {
             this.lookForOutputQueue();
         } catch (QueueDoesNotExistException e) {
             log.error("Output queue does not exist: {}", this.outputQueueName);
@@ -84,11 +93,10 @@ public abstract class SQSConnector<R extends Serializable> {
         attributes.put("Type",
                 new MessageAttributeValue().withDataType("String").withStringValue(messageType.toString()));
 
-        //Generate SHA-256 Hash from body and attributes to use in message deduplication id
-        String messageDeduplicationIdString = Long.toString(System.currentTimeMillis())
-            .concat(serializedObject)
-            .concat(attributes.get("Id").toString())
-            .concat(attributes.get("Type").toString());
+        // Generate SHA-256 Hash from body and attributes to use in message
+        // deduplication id
+        String messageDeduplicationIdString = Long.toString(System.currentTimeMillis()).concat(serializedObject)
+                .concat(attributes.get("Id").toString()).concat(attributes.get("Type").toString());
         String messageDeduplicationId = DigestUtils.sha256Hex(messageDeduplicationIdString);
 
         SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
@@ -111,9 +119,8 @@ public abstract class SQSConnector<R extends Serializable> {
 
     private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue,
             boolean deleteMsg) throws IOException {
-        ReceiveMessageRequest request = new ReceiveMessageRequest(queue)
-        .withMaxNumberOfMessages(1)
-        .withMessageAttributeNames("All");
+        ReceiveMessageRequest request = new ReceiveMessageRequest(queue).withMaxNumberOfMessages(1)
+                .withMessageAttributeNames("All");
         ReceiveMessageResult messages = sqs.receiveMessage(request);
         Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();
         for (Message message : messages.getMessages()) {
@@ -131,12 +138,18 @@ public abstract class SQSConnector<R extends Serializable> {
 
     public void createQueues() {
         createInputQueue();
+        createLowPriorityInputQueue();
         createOutputQueue();
     }
 
     public void createInputQueue() {
         CreateQueueResult result = this.createQueue(this.inputQueueName);
         this.inputQueueUrl = result.getQueueUrl();
+    }
+
+    public void createLowPriorityInputQueue() {
+        CreateQueueResult result = this.createQueue(this.lowPriorityInputQueueName);
+        this.lowPriorityInputQueueUrl = result.getQueueUrl();
     }
 
     public void createOutputQueue() {
@@ -169,8 +182,20 @@ public abstract class SQSConnector<R extends Serializable> {
             log.info("Input queue name does not end in .fifo, appending");
             this.inputQueueName = this.inputQueueName + ".fifo";
         }
-        this.inputQueueUrl = this.sqs.getQueueUrl(inputQueueName).getQueueUrl();
+        this.inputQueueUrl = this.sqs.getQueueUrl(this.inputQueueName).getQueueUrl();
         return this.inputQueueUrl;
+    }
+
+    protected String lookForLowPriorityInputQueue() throws QueueDoesNotExistException {
+        this.lowPriorityInputQueueName = System.getProperty("low-priority-input-queue") != null
+                ? System.getProperty("low-priority-input-queue")
+                : DEFAULT_LOW_PRIORITY_INPUT_QUEUE;
+        if (!this.lowPriorityInputQueueName.substring(this.lowPriorityInputQueueName.length() - 5).equals(".fifo")) {
+            log.info("Low priority input queue name does not end in .fifo, appending");
+            this.lowPriorityInputQueueName = this.lowPriorityInputQueueName + ".fifo";
+        }
+        this.lowPriorityInputQueueUrl = this.sqs.getQueueUrl(this.lowPriorityInputQueueName).getQueueUrl();
+        return this.lowPriorityInputQueueUrl;
     }
 
     protected String lookForOutputQueue() throws QueueDoesNotExistException {
@@ -180,7 +205,7 @@ public abstract class SQSConnector<R extends Serializable> {
             log.info("Output queue name does not end in .fifo, appending");
             this.outputQueueName = this.outputQueueName + ".fifo";
         }
-        this.outputQueueUrl = this.sqs.getQueueUrl(outputQueueName).getQueueUrl();
+        this.outputQueueUrl = this.sqs.getQueueUrl(this.outputQueueName).getQueueUrl();
         return this.outputQueueUrl;
     }
 }

@@ -8,6 +8,7 @@ public class SampleAlgorithmParameters {
 	private Integer numberOfTasks;
 	private Integer taskDuration;
 	private Integer timeout;
+	private Boolean isLowPriority;
 	
 	public String getId() {
 		return id;
@@ -56,6 +57,14 @@ public class SampleAlgorithmParameters {
 	public void setTimeout(Integer timeout) {
 		this.timeout = timeout;
 	}
-	
 
+	public Boolean getIsLowPriority() {
+		return isLowPriority;
+	}
+
+	public void setIsLowPriority(Boolean isLowPriority) {
+		this.isLowPriority = isLowPriority;
+	}
+	
+	
 }

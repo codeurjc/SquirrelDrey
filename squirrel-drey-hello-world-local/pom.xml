@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>es.codeurjc</groupId>
 	<artifactId>squirrel-drey-hello-world-local</artifactId>
-	<version>1.0</version>
+	<version>1.1</version>
 	<name>squirrel-drey-hello-world-local</name>
 	<properties>
 			<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -14,7 +14,7 @@
 		<dependency>
 			<groupId>es.codeurjc</groupId>
 			<artifactId>squirrel-drey-local</artifactId>
-			<version>1.0</version>
+			<version>1.1</version>
 		</dependency>
 	</dependencies>
 	<build>

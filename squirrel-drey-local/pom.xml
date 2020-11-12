@@ -6,7 +6,7 @@
 
 	<groupId>es.codeurjc</groupId>
 	<artifactId>squirrel-drey-local</artifactId>
-	<version>1.0</version>
+	<version>1.1</version>
 	<packaging>jar</packaging>
 
 	<name>squirrel-drey</name>
@@ -79,7 +79,7 @@
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk-sqs</artifactId>
-			<version>1.11.848</version>
+			<version>1.11.897</version>
 		</dependency>
   	</dependencies>
 

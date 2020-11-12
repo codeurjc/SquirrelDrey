@@ -45,6 +45,16 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             }
         }
 
+        if (this.lowPriorityInputQueueUrl == null) {
+            try {
+                this.lookForLowPriorityInputQueue();
+            } catch (QueueDoesNotExistException e) {
+                log.info("Low priority input queue does not exist. Attempting to create input queue with name: {}",
+                        this.lowPriorityInputQueueName);
+                this.createLowPriorityInputQueue();
+            }
+        }
+
         // Set up thread to listen to queue
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
                 ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
@@ -141,7 +151,38 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     }
 
     public SendMessageResult sendAlgorithm(Algorithm<R> alg) throws IOException {
-        log.info("Sending algorithm to SQS: {}", alg);
+        return this.sendAlgorithmHighPriority(alg);
+    }
+
+    public SendMessageResult sendAlgorithm(Algorithm<R> alg, boolean isLowPriority) throws IOException {
+        if (isLowPriority) {
+            return this.sendAlgorithmLowPriority(alg);
+        }
+        return this.sendAlgorithmHighPriority(alg);
+    }
+
+    private SendMessageResult sendAlgorithmLowPriority(Algorithm<R> alg) throws IOException {
+        log.info("Sending algorithm to SQS (low priority): {}", alg);
+        try {
+            if (this.lowPriorityInputQueueUrl == null) {
+                try {
+                    this.lookForLowPriorityInputQueue();
+                } catch (QueueDoesNotExistException e) {
+                    log.info("Low priority input queue does not exist. Attempting to create input queue with name: {}",
+                            this.lowPriorityInputQueueName);
+                    this.createLowPriorityInputQueue();
+                }
+            }
+            SendMessageResult message = this.send(this.lowPriorityInputQueueUrl, alg, MessageType.ALGORITHM);
+            return message;
+        } catch (QueueDoesNotExistException e) {
+            this.createInputQueue();
+            return sendAlgorithm(alg);
+        }
+    }
+
+    private SendMessageResult sendAlgorithmHighPriority(Algorithm<R> alg) throws IOException {
+            log.info("Sending algorithm to SQS: {}", alg);
         try {
             if (this.inputQueueUrl == null) {
                 try {
@@ -205,6 +246,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     public void deleteInputQueues() {
         log.info("Deleting input SQS queues: {}", this.inputQueueUrl);
         this.sqs.deleteQueue(this.inputQueueUrl);
+        this.sqs.deleteQueue(this.lowPriorityInputQueueUrl);
     }
 
     public void deleteOutputQueues() {

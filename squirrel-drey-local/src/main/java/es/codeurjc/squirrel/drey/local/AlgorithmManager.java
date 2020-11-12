@@ -138,19 +138,29 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority) throws Exception {
+		this.solveAlgorithm(id, initialTask, priority, false);
+	}
+
+	public void solveAlgorithm(String id, Task initialTask, Integer priority, boolean isLowPriority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask);
 		if (this.mastermode) {
 			if (this.algorithms.containsKey(id)) {
 				throw new Exception("Algorithm with id [" + id + "] already exists");
 			}
 			this.algorithms.putIfAbsent(id, alg);
-			this.sqsMaster.sendAlgorithm(alg);
+			log.info("Is low priority: {}", isLowPriority);
+			this.sqsMaster.sendAlgorithm(alg, isLowPriority);
 		} else {
 			this.solveAlgorithmAux(id, alg);
 		}
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback) throws Exception {
+		this.solveAlgorithm(id, initialTask, priority, callback, false);
+	}
+
+	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback,
+			boolean isLowPriority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
 			if (this.algorithms.containsKey(id)) {
@@ -158,7 +168,8 @@ public class AlgorithmManager<R extends Serializable> {
 			}
 			this.algorithms.putIfAbsent(id, alg);
 			this.algorithmCallbacksConsumers.put(id, callback);
-			this.sqsMaster.sendAlgorithm(alg);
+			log.info("Is low priority: {}", isLowPriority);
+			this.sqsMaster.sendAlgorithm(alg, isLowPriority);
 		} else {
 			this.solveAlgorithmAux(id, alg);
 		}
@@ -166,6 +177,11 @@ public class AlgorithmManager<R extends Serializable> {
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, AlgorithmCallback<R> callback)
 			throws Exception {
+		this.solveAlgorithm(id, initialTask, priority, callback, false);
+	}
+
+	public void solveAlgorithm(String id, Task initialTask, Integer priority, AlgorithmCallback<R> callback,
+			boolean isLowPriority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
 			if (this.algorithms.containsKey(id)) {
@@ -173,7 +189,8 @@ public class AlgorithmManager<R extends Serializable> {
 			}
 			this.algorithms.putIfAbsent(id, alg);
 			this.algorithmCallbacks.put(id, callback);
-			this.sqsMaster.sendAlgorithm(alg);
+			log.info("Is low priority: {}", isLowPriority);
+			this.sqsMaster.sendAlgorithm(alg, isLowPriority);
 		} else {
 			this.solveAlgorithmAux(id, alg);
 		}

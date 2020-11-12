@@ -39,6 +39,7 @@
 			algorithms[i].id +
 			'</td><td></td></tr><tr><th>Input Data</th><td>' + algorithms[i].inputData +
 			'</td><td></td></tr><tr><th>Priority</th><td>' + algorithms[i].priority +
+			'</td><td></td></tr><tr><th>Is in low priority queue?</th><td>' + algorithms[i].isLowPriority +
 			'</td><td></td></tr><tr><th>Number of tasks</th><td>' + algorithms[i].numberOfTasks +
 			'</td><td></td></tr><tr><th>Task duration</th><td>' + algorithms[i].taskDuration + ' s' +
 			'</td><td></td></tr><tr><th>Timeout before start</th><td>' + algorithms[i].timeout + ' s' +
@@ -112,16 +113,18 @@
 
 				for (var i = 0; i < algorithmStats.length; i++) {
 					var r = algorithmStats[i];
-					$('#tasks-added-' + r.algorithmId).text(r.tasksAdded);
-					$('#tasks-completed-' + r.algorithmId).text(r.tasksCompleted);
-					$('#tasks-queued-' + r.algorithmId).text(r.tasksQueued);
-					if ((r.tasksAdded === r.tasksCompleted) && (r.tasksQueued === 0)) {
-						$('#time-processing-' + r.algorithmId).text(r.timeOfProcessing + ' s');
-						$('#final-result-' + r.algorithmId).text(r.result);
-						$('#result-row-' + r.algorithmId).show();
-						$('#time-row-' + r.algorithmId).show();
-						$('#loader-' + r.algorithmId).hide();
-						$('#stop-btn-' + r.algorithmId).prop("disabled", true);
+					if (r !== null) {
+						$('#tasks-added-' + r.algorithmId).text(r.tasksAdded);
+						$('#tasks-completed-' + r.algorithmId).text(r.tasksCompleted);
+						$('#tasks-queued-' + r.algorithmId).text(r.tasksQueued);
+						if ((r.tasksAdded === r.tasksCompleted) && (r.tasksQueued === 0)) {
+							$('#time-processing-' + r.algorithmId).text(r.timeOfProcessing + ' s');
+							$('#final-result-' + r.algorithmId).text(r.result);
+							$('#result-row-' + r.algorithmId).show();
+							$('#time-row-' + r.algorithmId).show();
+							$('#loader-' + r.algorithmId).hide();
+							$('#stop-btn-' + r.algorithmId).prop("disabled", true);
+						}
 					}
 				}
 				if (algorithmStats.length === 0) {
