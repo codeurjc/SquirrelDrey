@@ -337,3 +337,12 @@ java -Ddevmode=false -Dworker=true \
 - **devmode**: if true the instance is at the same time master and worker, not needing queues to run the algorithm called by using `algorithmManager.solveAlgorithm()`. Enabled by default.
 - **parallelization-grade**: Only used by workers. Maximum number of algorithms to be run at the same time by a single worker. Defaults to 1. Note that, when polling the SQS queue looking for algorithms, the worker will try to pick up as many as it can up to this maximum (there is not an even distribution).
 - **mode**: Only used by workers. PRIORITY (default) or RANDOM. Defines the strategy followed by SquirrelDrey to select the next task to solve.
+
+#### AutoScaling TODO
+
+- [x] Wait for messages instead of polling SQS.
+- [x] Prepare clases for Autoscaling.
+- [ ]  **(In Progress)** Implement autoscaling algorithm.
+- [ ] Create simulations to test algorithm.
+- [ ] Implement InfrastructureManager and update ECS.
+- [ ] Update CF and test in real environment

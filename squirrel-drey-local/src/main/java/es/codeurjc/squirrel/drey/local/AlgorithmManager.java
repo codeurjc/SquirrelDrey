@@ -2,13 +2,8 @@ package es.codeurjc.squirrel.drey.local;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.UUID;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -19,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import es.codeurjc.squirrel.drey.local.utils.EC2Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,8 +30,9 @@ public class AlgorithmManager<R extends Serializable> {
 
 	private boolean mastermode = false;
 	private boolean devmode = false;
-	private SQSConnectorMaster<R> sqsMaster;
-	private SQSConnectorWorker<R> sqsWorker;
+	private boolean autoscaling = false;
+	SQSConnectorMaster<R> sqsMaster;
+	SQSConnectorWorker<R> sqsWorker;
 
 	// Algorithm callbacks for master
 	Map<String, Consumer<R>> algorithmCallbacksConsumers;
@@ -45,6 +42,9 @@ public class AlgorithmManager<R extends Serializable> {
 	Map<String, AlgorithmInfo> algorithmInfo;
 
 	String workerId;
+	String ec2InstanceId;
+	long launchingTime;
+	WorkerStatus workerStatus;
 
 	QueuesManager<R> queuesManager;
 
@@ -70,23 +70,40 @@ public class AlgorithmManager<R extends Serializable> {
 	CountDownLatch algInfoFetched;
 
 	public AlgorithmManager(Object... args) {
-		this.devmode = System.getProperty("devmode") == null || Boolean.valueOf(System.getProperty("devmode"));
+		this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
+		this.autoscaling = System.getProperty("enable-autoscaling") != null || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
+		this.launchingTime = System.currentTimeMillis();
 		if (this.devmode) {
 			log.info("Devmode enabled");
 			this.workerId = UUID.randomUUID().toString();
+			this.launchingTime = System.currentTimeMillis();
+			this.workerStatus = WorkerStatus.running;
 			this.initializeWorker();
 		} else {
-			this.mastermode = System.getProperty("worker") != null && !Boolean.valueOf(System.getProperty("worker"));
+			this.mastermode = System.getProperty("worker") != null && !Boolean.parseBoolean(System.getProperty("worker"));
 			if (this.mastermode) {
-				log.info("Starting as master");
+				log.info("Starting as MASTER");
+				log.info("Initializing...");
 				this.initializeMaster();
 			} else {
-				log.info("Starting as worker");
+				log.info("Starting as WORKER");
+				log.info("Initializing...");
 				this.workerId = UUID.randomUUID().toString();
+				this.workerStatus = WorkerStatus.running;
+
+				// If autoscaling is enabled, the instance is in AWS
+				if (autoscaling) {
+					try {
+						this.ec2InstanceId = EC2Utils.retrieveInstanceId();
+					} catch (Exception e) {
+						log.error("Error getting ec2 instance id: {}", e.getMessage());
+					}
+				}
 				this.sqsWorker = new SQSConnectorWorker<>(this.workerId, this);
 				this.initializeWorker();
 			}
 		}
+		printStartingInfo();
 	}
 
 	private void initializeMaster() {
@@ -645,5 +662,25 @@ public class AlgorithmManager<R extends Serializable> {
 			this.algorithmInfo.put(info.getAlgorithmId(), info);
 		}
 		this.algInfoFetched.countDown();
+	}
+
+	private void printStartingInfo() {
+		SimpleDateFormat sdf = new SimpleDateFormat();
+		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+		String message = "\n";
+		message += "===========================\n";
+		message += "STARTING AS: " + (this.mastermode ? "MASTER" : "WORKER") + "\n";
+		message += "DEPLOYING AS: " + ((this.devmode) ? "DEV" : "PROD") + "\n";
+		message += "AUTOSCALING ENABLED: " + this.autoscaling + "\n";
+		message += "EC2 Instance Id: " + ((this.ec2InstanceId != null ? this.ec2InstanceId : "none")) + "\n";
+		message += "CREATION TIME TIMESTAMP: " + ((this.launchingTime != 0L ? this.launchingTime : "none")) + "\n";
+		message += "CREATION TIME UTC: " + ((this.launchingTime != 0L ? sdf.format(new Date(this.launchingTime)) : "none")) + "\n";
+		if (!this.mastermode) {
+			message += "DIRECT QUEUE URL: " + this.sqsWorker.directQueueUrl + "\n";
+			message += "WORKER ID: " + ((this.workerId != null ? this.workerId : "none")) + "\n";
+			message += "WORKER STATUS: " + ((this.workerStatus != null ? this.workerStatus.name() : "none")) + "\n";
+		}
+		message += "===========================\n";
+		log.info(message);
 	}
 }

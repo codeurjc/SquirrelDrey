@@ -25,7 +25,7 @@ import es.codeurjc.squirrel.drey.local.Algorithm.Status;
  */
 public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> {
 
-    private String directQueueUrl;
+    String directQueueUrl;
 
     private final String DEFAULT_DIRECT_QUEUE = "direct_" + this.id + ".fifo";
     private String directQueueName = DEFAULT_DIRECT_QUEUE;
@@ -34,8 +34,10 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
-    private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
-    private long listenerPeriod;
+    private ScheduledExecutorService scheduleExecutorOuput; // Local scheduled executor for running listener thread
+    private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running listener thread
+
+    private int listenerPeriod;
 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
         super(id, algorithmManager);
@@ -43,6 +45,10 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         this.parallelizationGrade = System.getProperty("parallelization-grade") != null
                 ? Integer.valueOf(System.getProperty("parallelization-grade"))
                 : DEFAULT_PARALLELIZATION_GRADE;
+
+        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
+                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
+                : 1;
 
         try {
             this.lookForDirectQueue();
@@ -59,11 +65,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             e.printStackTrace();
         }
 
-        // Set up thread to listen to queue
-        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
-                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
-                : 10;
-        this.scheduleExecutor = Executors.newScheduledThreadPool(1);
+        this.scheduleExecutorOuput = Executors.newScheduledThreadPool(1);
+        this.scheduleExecutorDirect = Executors.newScheduledThreadPool(1);
         this.startListen();
     }
 
@@ -108,10 +111,13 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void startListen() {
-        this.scheduleExecutor.scheduleAtFixedRate(() -> {
+        this.scheduleExecutorOuput.scheduleAtFixedRate(() -> {
             listenInput();
+        }, 0, 1, TimeUnit.MILLISECONDS);
+
+        this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
             listenDirect();
-        }, 0, listenerPeriod, TimeUnit.SECONDS);
+        }, 0, 1, TimeUnit.MILLISECONDS);
     }
 
     public void listenInput() {
@@ -263,7 +269,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void stopListen() {
-        this.scheduleExecutor.shutdown();
+        this.scheduleExecutorOuput.shutdown();
+        this.scheduleExecutorDirect.shutdown();
     }
 
     private void solveAlgorithm(ObjectInputStream si) throws Exception {

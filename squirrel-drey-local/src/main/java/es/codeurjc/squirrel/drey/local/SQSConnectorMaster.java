@@ -30,36 +30,16 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     private Map<String, String> directQueuesUrls = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorMaster.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
-    private long listenerPeriod;
+    private int listenerPeriod;
 
     public SQSConnectorMaster(AlgorithmManager<R> algorithmManager) {
         super(UUID.randomUUID().toString(), algorithmManager);
+        this.scheduleExecutor = Executors.newScheduledThreadPool(1);
 
-        if (this.inputQueueUrl == null) {
-            try {
-                this.lookForInputQueue();
-            } catch (QueueDoesNotExistException e) {
-                log.info("Input queue does not exist. Attempting to create input queue with name: {}",
-                        this.inputQueueName);
-                this.createInputQueue();
-            }
-        }
-
-        if (this.lowPriorityInputQueueUrl == null) {
-            try {
-                this.lookForLowPriorityInputQueue();
-            } catch (QueueDoesNotExistException e) {
-                log.info("Low priority input queue does not exist. Attempting to create input queue with name: {}",
-                        this.lowPriorityInputQueueName);
-                this.createLowPriorityInputQueue();
-            }
-        }
-
-        // Set up thread to listen to queue
         this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
                 ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
-                : 10;
-        this.scheduleExecutor = Executors.newScheduledThreadPool(1);
+                : 1;
+
         this.startListen();
     }
 
@@ -114,7 +94,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 log.error(e.getMessage());
                 e.printStackTrace();
             }
-        }, 0, listenerPeriod, TimeUnit.SECONDS);
+        }, 0, 1, TimeUnit.MILLISECONDS);
     }
 
     private void receivedAlgorithmInfo(ObjectInputStream si) throws ClassNotFoundException, IOException {

@@ -80,6 +80,34 @@ public abstract class SQSConnector<R extends Serializable> {
         } catch (QueueDoesNotExistException e) {
             log.error("Output queue does not exist: {}", this.outputQueueName);
         }
+
+        if (this.inputQueueUrl == null) {
+            try {
+                this.lookForInputQueue();
+            } catch (QueueDoesNotExistException e) {
+                log.info("Input queue does not exist. Attempting to create input queue with name: {}",
+                        this.inputQueueName);
+                this.createInputQueue();
+            }
+        }
+
+        if (this.lowPriorityInputQueueUrl == null) {
+            try {
+                this.lookForLowPriorityInputQueue();
+            } catch (QueueDoesNotExistException e) {
+                log.info("Low priority input queue does not exist. Attempting to create input queue with name: {}",
+                        this.lowPriorityInputQueueName);
+                this.createLowPriorityInputQueue();
+            }
+        }
+
+        try {
+            this.lookForOutputQueue();
+        } catch (QueueDoesNotExistException e) {
+            log.info("Output queue does not exist. Attempting to create output queue with name: {}",
+                    this.outputQueueName);
+            this.createOutputQueue();
+        }
     }
 
     protected SendMessageResult send(String queue, Object object, MessageType messageType) throws IOException {
@@ -120,6 +148,7 @@ public abstract class SQSConnector<R extends Serializable> {
     private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue,
             boolean deleteMsg) throws IOException {
         ReceiveMessageRequest request = new ReceiveMessageRequest(queue).withMaxNumberOfMessages(1)
+                .withWaitTimeSeconds(5)
                 .withMessageAttributeNames("All");
         ReceiveMessageResult messages = sqs.receiveMessage(request);
         Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();

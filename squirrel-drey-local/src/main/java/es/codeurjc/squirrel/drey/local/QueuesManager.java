@@ -415,9 +415,8 @@ public class QueuesManager<R extends Serializable> {
 	public WorkerStats fetchWorkerStats() {
 		if (this.executor != null) {
 			return this.algManager.workerStats(new WorkerEvent(this.algManager.workerId, "worker-stats",
-				new WorkerStats(this.algManager.workerId, this.nThreads,
-					executor.getActiveCount(), executor.getTaskCount(),
-					executor.getCompletedTaskCount())));
+				new WorkerStats(this.algManager.launchingTime, this.algManager.workerId, this.algManager.sqsWorker.directQueueUrl, this.nThreads,
+					executor.getActiveCount(), executor.getTaskCount(), executor.getCompletedTaskCount(), this.runningTasks.size(), this.algManager.workerStatus)));
 		} else {
 			return null;
 		}
