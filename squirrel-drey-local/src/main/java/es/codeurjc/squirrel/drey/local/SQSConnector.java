@@ -56,7 +56,6 @@ public abstract class SQSConnector<R extends Serializable> {
     public SQSConnector(String id, AlgorithmManager<R> algorithmManager) {
         this.algorithmManager = algorithmManager;
         this.id = id;
-
         String region = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
         String endpointUrl = System.getProperty("endpoint-url");
         if (endpointUrl != null) {

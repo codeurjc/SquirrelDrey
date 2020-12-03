@@ -14,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import es.codeurjc.squirrel.drey.local.autoscaling.InfrastructureManager;
 import es.codeurjc.squirrel.drey.local.utils.EC2Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +39,7 @@ public class AlgorithmManager<R extends Serializable> {
 	Map<String, Consumer<R>> algorithmCallbacksConsumers;
 	Map<String, AlgorithmCallback<R>> algorithmCallbacks;
 
-	Map<String, WorkerStats> workers;
+	InfrastructureManager<R> infrastructureManager;
 	Map<String, AlgorithmInfo> algorithmInfo;
 
 	String workerId;
@@ -110,10 +111,10 @@ public class AlgorithmManager<R extends Serializable> {
 		this.algorithms = new ConcurrentHashMap<>();
 		this.algorithmCallbacksConsumers = new ConcurrentHashMap<>();
 		this.algorithmCallbacks = new ConcurrentHashMap<>();
-		this.workers = new ConcurrentHashMap<>();
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		this.algorithmInfo = new ConcurrentHashMap<>();
 		this.sqsMaster = new SQSConnectorMaster<>(this);
+		this.infrastructureManager = new InfrastructureManager<R>(sqsMaster);
 	}
 
 	private void initializeWorker() {
@@ -508,7 +509,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 			try {
 				if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
-					return this.workers;
+					return this.infrastructureManager.getWorkers();
 				} else {
 					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
 							NUMBER_OF_WORKERS);
@@ -534,7 +535,7 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	void workerStatsReceived(String id, WorkerStats workerStats) {
-		this.workers.put(id, workerStats);
+		this.infrastructureManager.getWorkers().put(id, workerStats);
 		this.workerStatsFetched.countDown();
 	}
 
