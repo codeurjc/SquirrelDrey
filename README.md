@@ -342,7 +342,7 @@ java -Ddevmode=false -Dworker=true \
 
 - [x] Wait for messages instead of polling SQS.
 - [x] Prepare clases for Autoscaling.
-- [ ]  **(In Progress)** Implement autoscaling algorithm.
-- [ ] Create simulations to test algorithm.
+- [x] Implement autoscaling algorithm.
+- [ ] **(In Progress)** Create simulations to test algorithm.
 - [ ] Implement InfrastructureManager and update ECS.
 - [ ] Update CF and test in real environment

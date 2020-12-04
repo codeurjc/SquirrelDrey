@@ -9,13 +9,18 @@ public class AutoscalingConfig {
     private final int minIdleWorkers;
     private final int maxParallelization;
     private final int workersByMaxParallelization;
+    private final int maxSecondsIdle;
+    private final int maxSecondsNonRespondingWorker;
 
-    private AutoscalingConfig(int minWorkers, int maxWorkers, int minIdleWorkers, int maxParallelization, int workersByMaxParallelization) {
+    private AutoscalingConfig(int minWorkers, int maxWorkers, int minIdleWorkers, int maxParallelization, int workersByMaxParallelization,
+                              int maxSecondsIdle, int maxSecondsNoRespondingWorker) {
         this.minWorkers = minWorkers;
         this.maxWorkers = maxWorkers;
         this.minIdleWorkers = minIdleWorkers;
         this.maxParallelization = maxParallelization;
         this.workersByMaxParallelization = workersByMaxParallelization;
+        this.maxSecondsIdle = maxSecondsIdle;
+        this.maxSecondsNonRespondingWorker = maxSecondsNoRespondingWorker;
     }
 
     public static class Builder {
@@ -24,9 +29,12 @@ public class AutoscalingConfig {
         private int minIdleWorkers = 2;
         private int maxParallelization = 4;
         private int workersByMaxParallelization = 2;
+        private int maxSecondsIdle = 60;
+        private int maxSecondsNonRespondingWorker = 60;
 
         public AutoscalingConfig build() {
-            return new AutoscalingConfig(this.minWorkers, this.maxWorkers, this.minIdleWorkers, this.maxParallelization, this.workersByMaxParallelization);
+            return new AutoscalingConfig(this.minWorkers, this.maxWorkers, this.minIdleWorkers, this.maxParallelization,
+                    this.workersByMaxParallelization, this.maxSecondsIdle, this.maxSecondsNonRespondingWorker);
         }
 
         public Builder minWorkers(int minWorkers) {
@@ -53,6 +61,16 @@ public class AutoscalingConfig {
             this.workersByMaxParallelization = workersByMaxParallelization;
             return this;
         }
+
+        public Builder maxSecondsIdle(int maxSecondsIdle) {
+            this.maxSecondsIdle = maxSecondsIdle;
+            return this;
+        }
+
+        public Builder maxSecondsNonRespondingWorker(int maxSecondsNonRespondingWorker) {
+            this.maxSecondsNonRespondingWorker = maxSecondsNonRespondingWorker;
+            return this;
+        }
     }
 
     public int getMinWorkers() {
@@ -75,6 +93,14 @@ public class AutoscalingConfig {
         return workersByMaxParallelization;
     }
 
+    public int getMaxSecondsIdle() {
+        return maxSecondsIdle;
+    }
+
+    public int getMaxSecondsNonRespondingWorker() {
+        return maxSecondsNonRespondingWorker;
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("minWorkers", minWorkers);
@@ -82,6 +108,7 @@ public class AutoscalingConfig {
         json.addProperty("minIdleWorkers", minIdleWorkers);
         json.addProperty("maxParallelization", maxParallelization);
         json.addProperty("workersByMaxParallelization", workersByMaxParallelization);
+        json.addProperty("maxSecondsIdle", maxSecondsIdle);
         return json;
     }
 
@@ -92,6 +119,7 @@ public class AutoscalingConfig {
                 ", maxWorkers=" + maxWorkers +
                 ", minIdleWorkers=" + minIdleWorkers +
                 ", maxParallelization=" + maxParallelization +
-                ", workersByMaxParallelization=" + workersByMaxParallelization + "]";
+                ", workersByMaxParallelization=" + workersByMaxParallelization +
+                ", maxSecondsIdle" + maxSecondsIdle + "]";
     }
 }

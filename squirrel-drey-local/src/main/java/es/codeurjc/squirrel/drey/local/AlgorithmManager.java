@@ -45,6 +45,7 @@ public class AlgorithmManager<R extends Serializable> {
 	String workerId;
 	String ec2InstanceId;
 	long launchingTime;
+	long lastTimeWorking;
 	WorkerStatus workerStatus;
 
 	QueuesManager<R> queuesManager;

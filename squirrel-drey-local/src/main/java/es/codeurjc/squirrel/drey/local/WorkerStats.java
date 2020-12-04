@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 public class WorkerStats implements Serializable {
 
@@ -20,7 +21,12 @@ public class WorkerStats implements Serializable {
 	/**
 	 * Moment where the stat was taken
 	 */
-	long timeDataFetch;
+	long lastTimeFetched;
+
+	/**
+	 * Reprensents the seconds worker is idle since taskRunning=0
+	 */
+	long lastTimeWorking;
 
 	/**
 	 * EC2 Instance Id
@@ -60,39 +66,41 @@ public class WorkerStats implements Serializable {
 	/**
 	 * Total tasks actually running
 	 */
-	long taskRunning;
+	long tasksRunning;
 
 	/**
 	 * Worker status
 	 */
 	WorkerStatus status;
 
-	public WorkerStats(long launchingTime, String ec2InstanceId, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
-					   long totalCompletedTasks, long taskRunning, WorkerStatus status) {
+	public WorkerStats(long launchingTime, String ec2InstanceId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
+					   long totalCompletedTasks, long tasksRunning, WorkerStatus status) {
 		this.launchingTime = launchingTime;
 		this.ec2InstanceId = ec2InstanceId;
-		this.timeDataFetch = System.currentTimeMillis();
+		this.lastTimeWorking = lastTimeWorking;
+		this.lastTimeFetched = System.currentTimeMillis();
 		this.workerId = workerId;
 		this.directQueueUrl = directQueueUrl;
 		this.totalCores = totalCores;
 		this.workingCores = workingCores;
 		this.tasksAdded = tasksAdded;
 		this.totalCompletedTasks = totalCompletedTasks;
-		this.taskRunning = taskRunning;
+		this.tasksRunning = tasksRunning;
 		this.status = status;
 	}
 
-	public WorkerStats(long launchingTime, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded, long totalCompletedTasks,
-					   long taskRunning, WorkerStatus status) {
+	public WorkerStats(long launchingTime, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded, long totalCompletedTasks,
+					   long tasksRunning, WorkerStatus status) {
 		this.launchingTime = launchingTime;
-		this.timeDataFetch = System.currentTimeMillis();
+		this.lastTimeFetched = System.currentTimeMillis();
+		this.lastTimeWorking = lastTimeWorking;
 		this.workerId = workerId;
 		this.directQueueUrl = directQueueUrl;
 		this.totalCores = totalCores;
 		this.workingCores = workingCores;
 		this.tasksAdded = tasksAdded;
 		this.totalCompletedTasks = totalCompletedTasks;
-		this.taskRunning = taskRunning;
+		this.tasksRunning = tasksRunning;
 		this.status = status;
 	}
 
@@ -104,12 +112,20 @@ public class WorkerStats implements Serializable {
 		this.launchingTime = launchingTime;
 	}
 
-	public long getTimeDataFetch() {
-		return timeDataFetch;
+	public long getLastTimeFetched() {
+		return lastTimeFetched;
 	}
 
-	public void setTimeDataFetch(long timeDataFetch) {
-		this.timeDataFetch = timeDataFetch;
+	public void setLastTimeFetched(long lastTimeFetched) {
+		this.lastTimeFetched = lastTimeFetched;
+	}
+
+	public long getLastTimeWorking() {
+		return lastTimeWorking;
+	}
+
+	public void setLastTimeWorking(long lastTimeWorking) {
+		this.lastTimeWorking = lastTimeWorking;
 	}
 
 	public String getEc2InstanceId() {
@@ -164,12 +180,12 @@ public class WorkerStats implements Serializable {
 		this.totalCompletedTasks = totalCompletedTasks;
 	}
 
-	public long getTaskRunning() {
-		return taskRunning;
+	public long getTasksRunning() {
+		return tasksRunning;
 	}
 
-	public void setTaskRunning(long taskRunning) {
-		this.taskRunning = taskRunning;
+	public void setTasksRunning(long tasksRunning) {
+		this.tasksRunning = tasksRunning;
 	}
 
 	public WorkerStatus getStatus() {
@@ -201,8 +217,11 @@ public class WorkerStats implements Serializable {
 		if (launchingTime != 0L) {
 			json.addProperty("creationTime", launchingTime);
 		}
-		if (timeDataFetch != 0L) {
-			json.addProperty("timeDataFetch", timeDataFetch);
+		if (lastTimeFetched != 0L) {
+			json.addProperty("timeDataFetch", lastTimeFetched);
+		}
+		if (lastTimeWorking != 0L) {
+			json.addProperty("secondsIdle", lastTimeWorking);
 		}
 		if (ec2InstanceId != null) {
 			json.addProperty("ec2InstanceId", ec2InstanceId);
@@ -215,16 +234,36 @@ public class WorkerStats implements Serializable {
 		json.addProperty("workingCores", totalCores);
 		json.addProperty("tasksAdded", totalCores);
 		json.addProperty("totalCompletedTasks", totalCores);
-		json.addProperty("taskRunning", taskRunning);
+		json.addProperty("taskRunning", tasksRunning);
 		json.addProperty("status", status.name());
 		return json;
 	}
 
 	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		WorkerStats that = (WorkerStats) o;
+		return launchingTime == that.launchingTime
+				&& lastTimeFetched == that.lastTimeFetched && lastTimeWorking == that.lastTimeWorking
+				&& totalCores == that.totalCores && workingCores == that.workingCores && tasksAdded == that.tasksAdded
+				&& totalCompletedTasks == that.totalCompletedTasks && tasksRunning == that.tasksRunning
+				&& Objects.equals(ec2InstanceId, that.ec2InstanceId) && Objects.equals(workerId, that.workerId)
+				&& Objects.equals(directQueueUrl, that.directQueueUrl) && status == that.status;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(launchingTime, lastTimeFetched, lastTimeWorking, ec2InstanceId, workerId, directQueueUrl,
+				totalCores, workingCores, tasksAdded, totalCompletedTasks, tasksRunning, status);
+	}
+
+	@Override
 	public String toString() {
 		return "WorkerStats [" +
-				"creationTime=" + launchingTime +
-				", timeDataFetch=" + timeDataFetch +
+				"launchingTime=" + launchingTime +
+				", lastTimeFetched=" + lastTimeFetched +
+				", secondsIdle=" + lastTimeWorking +
 				", ec2InstanceId='" + ec2InstanceId + '\'' +
 				", workerId='" + workerId + '\'' +
 				", directQueueUrl='" + directQueueUrl + '\'' +
@@ -232,7 +271,7 @@ public class WorkerStats implements Serializable {
 				", workingCores=" + workingCores +
 				", tasksAdded=" + tasksAdded +
 				", totalCompletedTasks=" + totalCompletedTasks +
-				", taskRunning=" + taskRunning +
-				", status=" + status + "]";
+				", tasksRunning=" + tasksRunning +
+				", status=" + status  + "]";
 	}
 }
