@@ -1,15 +1,14 @@
 package es.codeurjc.squirrel.drey.local.autoscaling;
 
-import es.codeurjc.squirrel.drey.local.SQSConnectorMaster;
+import es.codeurjc.squirrel.drey.local.AlgorithmManager;
 import es.codeurjc.squirrel.drey.local.WorkerStats;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This class monitor state of workers. The functions of this scheduled class are:
@@ -18,17 +17,23 @@ import java.util.concurrent.TimeUnit;
  */
 public class InfrastructureManager<R extends Serializable> {
 
+    private static final Logger log = LoggerFactory.getLogger(InfrastructureManager.class);
+
     private int DEFAULT_MONITORING_PERIOD = 10;
+    private int MAX_TIME_FETCH_WORKERS = 5;
+
+    private AlgorithmManager<R> algorithmManager;
+    private ReentrantLock sharedInfrastructureManagerLock;
 
     private boolean autoscaling;
     private int monitoringPeriod;
 
-    private SQSConnectorMaster<R> sqsMaster;
     private Map<String, WorkerStats> workers;
-
     private ScheduledExecutorService monitoringClusterSchedule;
 
-    public InfrastructureManager(SQSConnectorMaster<R> sqsMaster) {
+    public InfrastructureManager(AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
+        this.sharedInfrastructureManagerLock = sharedInfrastructureManagerLock;
+        this.algorithmManager = algorithmManager;
         this.monitoringPeriod = System.getProperty("monitoring-period") != null
                 ? Integer.parseInt(System.getProperty("monitoring-period"))
                 : DEFAULT_MONITORING_PERIOD;
@@ -37,30 +42,41 @@ public class InfrastructureManager<R extends Serializable> {
                 || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
 
         this.workers = new ConcurrentHashMap<>();
-        this.sqsMaster = sqsMaster;
         this.monitoringClusterSchedule = Executors.newScheduledThreadPool(1);
+        this.startMonitoring();
     }
 
-    public void launchWorker(boolean async) {
+    public void launchWorker(boolean async) throws Exception {
         // TODO Implement
-        throw new NotImplementedException();
+        throw new Exception("Not implemented");
     }
 
-    public void removeWorker(WorkerStats workerStats, boolean async) {
+    public void removeWorker(WorkerStats workerStats, boolean async) throws Exception {
         // TODO implement
-        throw new NotImplementedException();
+        throw new Exception("Not implemented");
     }
 
-    public void startMonitoring() {
+    private void startMonitoring() {
         this.monitoringClusterSchedule.scheduleAtFixedRate(() -> {
-            // TODO
+            try {
+                if (this.algorithmManager.getSqsMaster() != null) {
+                    this.algorithmManager.fetchInfrastructureWorkers(MAX_TIME_FETCH_WORKERS);
+                    this.workers.values().forEach(workerStats -> log.info(workerStats.toString()));
+                }
+            } catch (Exception e) {
+                log.warn("Some workers are not responding: {}", e.getMessage());
+                this.workers.values().forEach(workerStats -> log.warn(workerStats.toString()));
+                e.printStackTrace();
+            }
         }, 0, monitoringPeriod, TimeUnit.SECONDS);
     }
 
+    /**
+     * Every access to this method is protected with {@link InfrastructureManager#sharedInfrastructureManagerLock}
+     */
     public Map<String, WorkerStats> getWorkers() {
         return this.workers;
     }
-
 
 
 }

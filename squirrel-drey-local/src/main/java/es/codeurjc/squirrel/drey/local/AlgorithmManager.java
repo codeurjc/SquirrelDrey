@@ -39,9 +39,11 @@ public class AlgorithmManager<R extends Serializable> {
 	Map<String, Consumer<R>> algorithmCallbacksConsumers;
 	Map<String, AlgorithmCallback<R>> algorithmCallbacks;
 
-	InfrastructureManager<R> infrastructureManager;
 	Map<String, AlgorithmInfo> algorithmInfo;
 
+	// Infrastructure attributes
+	ReentrantLock sharedInfrastructureManagerLock;
+	InfrastructureManager<R> infrastructureManager;
 	String workerId;
 	String ec2InstanceId;
 	long launchingTime;
@@ -75,6 +77,7 @@ public class AlgorithmManager<R extends Serializable> {
 		this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
 		this.autoscaling = System.getProperty("enable-autoscaling") != null || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
 		this.launchingTime = System.currentTimeMillis();
+		this.workerStatsFetched = new CountDownLatch(0);
 		if (this.devmode) {
 			log.info("Devmode enabled");
 			this.workerId = UUID.randomUUID().toString();
@@ -103,6 +106,12 @@ public class AlgorithmManager<R extends Serializable> {
 				}
 				this.sqsWorker = new SQSConnectorWorker<>(this.workerId, this);
 				this.initializeWorker();
+				try {
+					this.sqsWorker.establishDirectConnection(false);
+				} catch (Exception e) {
+					log.error(e.getMessage());
+					e.printStackTrace();
+				}
 			}
 		}
 		printStartingInfo();
@@ -114,8 +123,9 @@ public class AlgorithmManager<R extends Serializable> {
 		this.algorithmCallbacks = new ConcurrentHashMap<>();
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		this.algorithmInfo = new ConcurrentHashMap<>();
-		this.sqsMaster = new SQSConnectorMaster<>(this);
-		this.infrastructureManager = new InfrastructureManager<R>(sqsMaster);
+		this.sharedInfrastructureManagerLock = new ReentrantLock();
+		this.infrastructureManager = new InfrastructureManager<R>(this, sharedInfrastructureManagerLock);
+		this.sqsMaster = new SQSConnectorMaster<R>(this, sharedInfrastructureManagerLock);
 	}
 
 	private void initializeWorker() {
@@ -485,15 +495,11 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.algorithms.values();
 	}
 
-	public Map<String, WorkerStats> getWorkers() throws TimeoutException, IOException {
-		return this.fetchWorkers(60);
-	}
-
-	public Map<String, WorkerStats> getWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
-		return this.fetchWorkers(maxSecondsToWait);
-	}
-
 	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+		return this.infrastructureManager.getWorkers();
+	}
+
+	public Map<String, WorkerStats> fetchInfrastructureWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
 		if (this.devmode) {
 			WorkerStats stats = this.getWorkerStats();
 			Map<String, WorkerStats> statsMap = new HashMap<>();
@@ -511,6 +517,7 @@ public class AlgorithmManager<R extends Serializable> {
 			try {
 				if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
 					return this.infrastructureManager.getWorkers();
+
 				} else {
 					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
 							NUMBER_OF_WORKERS);
@@ -535,9 +542,23 @@ public class AlgorithmManager<R extends Serializable> {
 				.collect(Collectors.toList());
 	}
 
+	WorkerStats workerStatsReceivedFromAutodiscovery(String id, WorkerStats workerStats) {
+		try {
+			this.sharedInfrastructureManagerLock.lock();
+			return this.infrastructureManager.getWorkers().put(id, workerStats);
+		} finally {
+			this.sharedInfrastructureManagerLock.unlock();
+		}
+	}
+
 	void workerStatsReceived(String id, WorkerStats workerStats) {
-		this.infrastructureManager.getWorkers().put(id, workerStats);
-		this.workerStatsFetched.countDown();
+		try {
+			this.sharedInfrastructureManagerLock.lock();
+			this.infrastructureManager.getWorkers().put(id, workerStats);
+			this.workerStatsFetched.countDown();
+		} finally {
+			this.sharedInfrastructureManagerLock.unlock();
+		}
 	}
 
 	WorkerStats workerStats(WorkerEvent ev) {
@@ -608,6 +629,10 @@ public class AlgorithmManager<R extends Serializable> {
 		} else {
 			return null;
 		}
+	}
+
+	public SQSConnectorMaster<R> getSqsMaster() {
+		return sqsMaster;
 	}
 
 	public void deleteDirectQueues() {

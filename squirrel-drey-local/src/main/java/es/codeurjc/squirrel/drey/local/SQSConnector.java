@@ -29,8 +29,9 @@ import org.slf4j.LoggerFactory;
 
 public abstract class SQSConnector<R extends Serializable> {
     protected enum MessageType {
-        ESTABLISH_CONNECTION, ALGORITHM, RESULT, FETCH_WORKER_STATS, WORKER_STATS, TERMINATE_ALL,
-        TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR, FETCH_ALG_INFO, ALG_INFO
+        ESTABLISH_CONNECTION, ALGORITHM, RESULT, FETCH_WORKER_STATS, WORKER_STATS, WORKER_STATS_AUTODISCOVERY, TERMINATE_ALL,
+        TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR, FETCH_ALG_INFO, ALG_INFO,
+        AUTODISCOVER_FROM_MASTER
     }
 
     protected AmazonSQS sqs;
@@ -39,22 +40,21 @@ public abstract class SQSConnector<R extends Serializable> {
     protected String lowPriorityInputQueueUrl = null;
     protected String outputQueueUrl = null;
 
-    protected final String DEFAULT_INPUT_QUEUE = "input_queue.fifo";
-    protected final String DEFAULT_LOW_PRIORITY_INPUT_QUEUE = "low_priority_input_queue.fifo";
-    protected final String DEFAULT_OUTPUT_QUEUE = "output_queue.fifo";
+    protected final String DEFAULT_INPUT_QUEUE_PREFIX = "input_queue";
+    protected final String DEFAULT_LOW_PRIORITY_INPUT_QUEUE_PREFIX = "low_priority_input_queue";
+    protected final String DEFAULT_OUTPUT_QUEUE_PREFIX = "output_queue";
+    protected final String DEFAULT_DIRECT_QUEUE_PREFIX = "direct";
 
-    protected String inputQueueName = DEFAULT_INPUT_QUEUE;
-    protected String lowPriorityInputQueueName = DEFAULT_LOW_PRIORITY_INPUT_QUEUE;
-    protected String outputQueueName = DEFAULT_OUTPUT_QUEUE;
+    protected String inputQueueName;
+    protected String lowPriorityInputQueueName;
+    protected String outputQueueName;
+    protected String directQueuePrefix;
 
     protected String id;
 
-    protected AlgorithmManager<R> algorithmManager;
-
     private static final Logger log = LoggerFactory.getLogger(SQSConnector.class);
 
-    public SQSConnector(String id, AlgorithmManager<R> algorithmManager) {
-        this.algorithmManager = algorithmManager;
+    public SQSConnector(String id) {
         this.id = id;
         String region = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
         String endpointUrl = System.getProperty("endpoint-url");
@@ -107,6 +107,8 @@ public abstract class SQSConnector<R extends Serializable> {
                     this.outputQueueName);
             this.createOutputQueue();
         }
+
+        this.generateDirectQueuePrefix();
     }
 
     protected SendMessageResult send(String queue, Object object, MessageType messageType) throws IOException {
@@ -204,9 +206,13 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForInputQueue() throws QueueDoesNotExistException {
-        this.inputQueueName = System.getProperty("input-queue") != null ? System.getProperty("input-queue")
-                : DEFAULT_INPUT_QUEUE;
-        if (!this.inputQueueName.substring(this.inputQueueName.length() - 5).equals(".fifo")) {
+        String customSuffix = System.getProperty("input-queue");
+        if (customSuffix != null) {
+            this.inputQueueName = DEFAULT_INPUT_QUEUE_PREFIX + "_" + customSuffix;
+        } else {
+            this.inputQueueName = DEFAULT_INPUT_QUEUE_PREFIX;
+        }
+        if (!this.inputQueueName.endsWith(".fifo")) {
             log.info("Input queue name does not end in .fifo, appending");
             this.inputQueueName = this.inputQueueName + ".fifo";
         }
@@ -215,10 +221,13 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForLowPriorityInputQueue() throws QueueDoesNotExistException {
-        this.lowPriorityInputQueueName = System.getProperty("low-priority-input-queue") != null
-                ? System.getProperty("low-priority-input-queue")
-                : DEFAULT_LOW_PRIORITY_INPUT_QUEUE;
-        if (!this.lowPriorityInputQueueName.substring(this.lowPriorityInputQueueName.length() - 5).equals(".fifo")) {
+        String customSuffix = System.getProperty("low-priority-input-queue");
+        if (customSuffix != null) {
+            this.lowPriorityInputQueueName = DEFAULT_LOW_PRIORITY_INPUT_QUEUE_PREFIX + "_" +customSuffix;
+        } else {
+            this.lowPriorityInputQueueName = DEFAULT_LOW_PRIORITY_INPUT_QUEUE_PREFIX;
+        }
+        if (!this.lowPriorityInputQueueName.endsWith(".fifo")) {
             log.info("Low priority input queue name does not end in .fifo, appending");
             this.lowPriorityInputQueueName = this.lowPriorityInputQueueName + ".fifo";
         }
@@ -227,13 +236,26 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForOutputQueue() throws QueueDoesNotExistException {
-        this.outputQueueName = System.getProperty("output-queue") != null ? System.getProperty("output-queue")
-                : DEFAULT_OUTPUT_QUEUE;
-        if (!this.outputQueueName.substring(this.outputQueueName.length() - 5).equals(".fifo")) {
+        String customSuffix = System.getProperty("output-queue");
+        if (customSuffix != null) {
+            this.outputQueueName = DEFAULT_OUTPUT_QUEUE_PREFIX + "_" + customSuffix + ".fifo";
+        } else {
+            this.outputQueueName = DEFAULT_OUTPUT_QUEUE_PREFIX;
+        }
+        if (!this.outputQueueName.endsWith(".fifo")) {
             log.info("Output queue name does not end in .fifo, appending");
             this.outputQueueName = this.outputQueueName + ".fifo";
         }
         this.outputQueueUrl = this.sqs.getQueueUrl(this.outputQueueName).getQueueUrl();
         return this.outputQueueUrl;
+    }
+
+    protected void generateDirectQueuePrefix() {
+        String customDirectQueueName = System.getProperty("direct-queue");
+        if (customDirectQueueName != null) {
+            this.directQueuePrefix = DEFAULT_DIRECT_QUEUE_PREFIX + "_" + customDirectQueueName;
+        } else {
+            this.directQueuePrefix = DEFAULT_DIRECT_QUEUE_PREFIX;
+        }
     }
 }

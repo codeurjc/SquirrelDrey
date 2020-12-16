@@ -116,6 +116,12 @@ public class AutoscalingManager {
         return iddleWorkers.collect(Collectors.toList());
     }
 
+    private List<WorkerStats> getNonRespondingWorkers(SystemStatus status, AutoscalingConfig config) {
+        return status.getRunningWorkers().stream()
+                .filter((workerStats -> isWorkerExceedingMaxTimeNonResponding(workerStats, config)))
+                .collect(Collectors.toList());
+    }
+
     private boolean isWorkerExceedingMaxTimeNonResponding(WorkerStats workerStats, AutoscalingConfig config) {
         long currentTime = (long) ((double) System.currentTimeMillis() / 1000);
         long lastTimeFetched = (long) ((double) workerStats.getLastTimeFetched());
@@ -132,6 +138,12 @@ public class AutoscalingManager {
         long secondsIdle = currentTime - lastTimeWorking;
         return secondsIdle > config.getMaxSecondsIdle();
     }
+
+    /**
+    private List<WorkerStats> sortedByNumTasksAndNotResponding(List<WorkerStats> workers) {
+
+    }
+     **/
 
     private List<WorkerStats> sortedByNumTasksRunningAsc(List<WorkerStats> workers) {
         List<WorkerStats> result = new ArrayList<>(workers);

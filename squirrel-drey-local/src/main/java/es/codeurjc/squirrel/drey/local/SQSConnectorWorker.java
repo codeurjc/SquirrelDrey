@@ -27,8 +27,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     String directQueueUrl;
 
-    private final String DEFAULT_DIRECT_QUEUE = "direct_" + this.id + ".fifo";
-    private String directQueueName = DEFAULT_DIRECT_QUEUE;
+    private String directQueueName;
 
     private final int DEFAULT_PARALLELIZATION_GRADE = 1;
     private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
@@ -37,11 +36,13 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private ScheduledExecutorService scheduleExecutorOuput; // Local scheduled executor for running listener thread
     private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running listener thread
 
+    private AlgorithmManager<R> algorithmManager;
+
     private int listenerPeriod;
 
     public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
-        super(id, algorithmManager);
-
+        super(id);
+        this.algorithmManager = algorithmManager;
         this.parallelizationGrade = System.getProperty("parallelization-grade") != null
                 ? Integer.valueOf(System.getProperty("parallelization-grade"))
                 : DEFAULT_PARALLELIZATION_GRADE;
@@ -58,13 +59,6 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             this.createDirectQueue();
         }
 
-        try {
-            this.establishDirectConnection();
-        } catch (Exception e) {
-            log.error(e.getMessage());
-            e.printStackTrace();
-        }
-
         this.scheduleExecutorOuput = Executors.newScheduledThreadPool(1);
         this.scheduleExecutorDirect = Executors.newScheduledThreadPool(1);
         this.startListen();
@@ -76,17 +70,16 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     private String lookForDirectQueue() throws QueueDoesNotExistException {
-        this.directQueueUrl = System.getProperty("direct-queue") != null ? System.getProperty("direct-queue")
-                : DEFAULT_DIRECT_QUEUE;
-        if (!this.directQueueUrl.substring(this.directQueueUrl.length() - 5).equals(".fifo")) {
+        this.directQueueName = this.directQueuePrefix + "_" + this.id;
+        if (!this.directQueueName.endsWith(".fifo")) {
             log.info("Direct queue name does not end in .fifo, appending");
-            this.directQueueUrl = this.directQueueUrl + ".fifo";
+            this.directQueueName = this.directQueueName + ".fifo";
         }
-        this.directQueueUrl = this.sqs.getQueueUrl(this.directQueueUrl).getQueueUrl();
+        this.directQueueUrl = this.sqs.getQueueUrl(this.directQueueName).getQueueUrl();
         return this.directQueueUrl;
     }
 
-    private SendMessageResult establishDirectConnection() throws IOException, InterruptedException {
+    protected SendMessageResult establishDirectConnection(boolean fromAutodiscover) throws IOException, InterruptedException {
         if (this.directQueueUrl == null) {
             try {
                 this.lookForDirectQueue();
@@ -94,18 +87,27 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 int retryTime = 1000;
                 log.error("Direct queue does not exist. Retrying in: {} ms", retryTime);
                 Thread.sleep(retryTime);
-                return establishDirectConnection();
+                return establishDirectConnection(fromAutodiscover);
             }
         }
-        log.info("Establishing direct connection with master via SQS: {}", this.directQueueUrl);
+
+        WorkerStats workerStats = this.algorithmManager.getWorkerStats();
+
         SendMessageResult message = null;
         try {
-            message = this.send(this.outputQueueUrl, this.directQueueUrl, MessageType.ESTABLISH_CONNECTION);
+            if (fromAutodiscover) {
+                log.info("Master discovered this worker. Worker is establishing direct connection with master via SQS: {}", this.directQueueUrl);
+                message = this.send(this.outputQueueUrl, workerStats, MessageType.WORKER_STATS_AUTODISCOVERY);
+            } else {
+                log.info("Worker is establishing direct connection with master via SQS: {}", this.directQueueUrl);
+                message = this.send(this.outputQueueUrl, workerStats, MessageType.ESTABLISH_CONNECTION);
+            }
+
         } catch (QueueDoesNotExistException e) {
             int retryTime = 1000;
             log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
             Thread.sleep(retryTime);
-            return establishDirectConnection();
+            return establishDirectConnection(fromAutodiscover);
         }
         return message;
     }
@@ -113,11 +115,11 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public void startListen() {
         this.scheduleExecutorOuput.scheduleAtFixedRate(() -> {
             listenInput();
-        }, 0, 1, TimeUnit.MILLISECONDS);
+        }, 0, 250, TimeUnit.MILLISECONDS);
 
         this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
             listenDirect();
-        }, 0, 1, TimeUnit.MILLISECONDS);
+        }, 0, 250, TimeUnit.MILLISECONDS);
     }
 
     public void listenInput() {
@@ -186,6 +188,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.directQueueUrl);
             for (Map.Entry<ObjectInputStream, Map<String, MessageAttributeValue>> si : siMap.entrySet()) {
                 switch (Enum.valueOf(MessageType.class, si.getValue().get("Type").getStringValue())) {
+                    case AUTODISCOVER_FROM_MASTER:
+                        establishDirectConnection(true);
+                        break;
                     case FETCH_WORKER_STATS:
                         retrieveWorkerStats();
                         break;
