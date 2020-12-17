@@ -15,8 +15,7 @@ public class SystemStatus {
     private final int numWorkers;
     private final List<WorkerStats> runningWorkers;
     private final List<WorkerStats> launchingWorkers;
-    private final List<WorkerStats> waitingIdleToTerminateWorkers;
-    private final List<WorkerStats> canceledWorkers;
+    private final List<WorkerStats> terminatingWorkers;
 
     public SystemStatus(int numQueueMessages, int numLowPriorityMessages, List<WorkerStats> workers) {
         this.numHighPriorityMessages = numQueueMessages;
@@ -24,8 +23,7 @@ public class SystemStatus {
         this.numWorkers = getLaunchingWorkers().size() + getRunningWorkers().size();
         this.runningWorkers = filterWorkersWithStatus(workers, WorkerStatus.running);
         this.launchingWorkers = filterWorkersWithStatus(workers, WorkerStatus.launching);
-        this.waitingIdleToTerminateWorkers = filterWorkersWithStatus(workers, WorkerStatus.waitingIdleToTerminate);
-        this.canceledWorkers = filterWorkersWithStatus(workers, WorkerStatus.canceled);
+        this.terminatingWorkers = filterWorkersWithStatus(workers, WorkerStatus.terminating);
     }
 
     private List<WorkerStats> filterWorkersWithStatus(List<WorkerStats> workers, WorkerStatus status) {
@@ -48,28 +46,12 @@ public class SystemStatus {
         return runningWorkers;
     }
 
-    public boolean hasLaunchingWorkers() {
-        return launchingWorkers != null && !launchingWorkers.isEmpty();
-    }
-
     public List<WorkerStats> getLaunchingWorkers() {
         return launchingWorkers;
     }
 
-    public boolean hasWaitingIdleToTerminateWorkers() {
-        return waitingIdleToTerminateWorkers != null && !waitingIdleToTerminateWorkers.isEmpty();
-    }
-
-    public List<WorkerStats> getWaitingIdleToTerminateWorkers() {
-        return waitingIdleToTerminateWorkers;
-    }
-
-    public boolean hasCanceledWorkers() {
-        return canceledWorkers != null && !canceledWorkers.isEmpty();
-    }
-
-    public List<WorkerStats> getCanceledWorkers() {
-        return canceledWorkers;
+    public List<WorkerStats> getTerminatingWorkers() {
+        return terminatingWorkers;
     }
 
     public JsonObject toJson() {
@@ -80,18 +62,15 @@ public class SystemStatus {
 
         JsonArray jsonRunningWorkers = new JsonArray();
         JsonArray jsonLaunchingWorkers = new JsonArray();
-        JsonArray jsonWaitingIdleToTerminateWorkers = new JsonArray();
-        JsonArray jsonCanceledWorkers = new JsonArray();
+        JsonArray jsonTerminatingWorkers = new JsonArray();
 
         this.runningWorkers.forEach(n -> jsonRunningWorkers.add(n.toJson()));
         this.launchingWorkers.forEach(n -> jsonLaunchingWorkers.add(n.toJson()));
-        this.waitingIdleToTerminateWorkers.forEach(n -> jsonWaitingIdleToTerminateWorkers.add(n.toJson()));
-        this.canceledWorkers.forEach(n -> jsonCanceledWorkers.add(n.toJson()));
+        this.terminatingWorkers.forEach(n -> jsonTerminatingWorkers.add(n.toJson()));
 
         json.add("runningWorkers", jsonRunningWorkers);
         json.add("launchingWorkers", jsonLaunchingWorkers);
-        json.add("waitingIdleToTerminateWorkers", jsonWaitingIdleToTerminateWorkers);
-        json.add("canceledWorkers", jsonCanceledWorkers);
+        json.add("terminatingWorkers", jsonTerminatingWorkers);
 
         return json;
     }
@@ -103,8 +82,6 @@ public class SystemStatus {
                 ", numLowPriorityMessages=" + numLowPriorityMessages +
                 ", numWorkers=" + numWorkers +
                 ", runningWorkers=" + runningWorkers +
-                ", launchingWorkers=" + launchingWorkers +
-                ", waitingIdleToTerminateWorkers=" + waitingIdleToTerminateWorkers +
-                ", canceledWorkers=" + canceledWorkers + "]";
+                ", launchingWorkers=" + launchingWorkers;
     }
 }

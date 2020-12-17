@@ -14,7 +14,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import es.codeurjc.squirrel.drey.local.autoscaling.InfrastructureManager;
 import es.codeurjc.squirrel.drey.local.utils.EC2Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -499,7 +498,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.infrastructureManager.getWorkers();
 	}
 
-	public Map<String, WorkerStats> fetchInfrastructureWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+	protected Map<String, WorkerStats> fetchInfrastructureWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
 		if (this.devmode) {
 			WorkerStats stats = this.getWorkerStats();
 			Map<String, WorkerStats> statsMap = new HashMap<>();
@@ -530,11 +529,11 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	WorkerStats getWorkerStats() {
+	protected WorkerStats getWorkerStats() {
 		return this.queuesManager.fetchWorkerStats();
 	}
 
-	List<AlgorithmInfo> getAlgorithmInfoWorker() {
+	protected List<AlgorithmInfo> getAlgorithmInfoWorker() {
 		return this.algorithms.values().stream()
 				.map(algorithm -> new AlgorithmInfo(algorithm.getId(), algorithm.getTasksAdded(),
 						algorithm.getTasksCompleted(), algorithm.getTasksQueued(), algorithm.getTasksTimeout(),
@@ -542,7 +541,7 @@ public class AlgorithmManager<R extends Serializable> {
 				.collect(Collectors.toList());
 	}
 
-	WorkerStats workerStatsReceivedFromAutodiscovery(String id, WorkerStats workerStats) {
+	protected WorkerStats workerStatsReceivedFromAutodiscovery(String id, WorkerStats workerStats) {
 		try {
 			this.sharedInfrastructureManagerLock.lock();
 			return this.infrastructureManager.getWorkers().put(id, workerStats);
@@ -551,7 +550,7 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	void workerStatsReceived(String id, WorkerStats workerStats) {
+	protected void workerStatsReceived(String id, WorkerStats workerStats) {
 		try {
 			this.sharedInfrastructureManagerLock.lock();
 			this.infrastructureManager.getWorkers().put(id, workerStats);
@@ -561,7 +560,7 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	WorkerStats workerStats(WorkerEvent ev) {
+	protected WorkerStats workerStats(WorkerEvent ev) {
 		log.debug("WORKER EVENT for worker [{}]: {}", ev.getWorkerId(), ev.getContent());
 		return (WorkerStats) ev.getContent();
 	}
@@ -595,7 +594,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return alg;
 	}
 
-	List<Algorithm<R>> terminateAlgorithmsWorker() {
+	protected List<Algorithm<R>> terminateAlgorithmsWorker() {
 		this.queuesManager.terminateAlgorithmsNotBlocking();
 		return this.clearAllAlgorithmsFromTermination();
 	}
@@ -613,7 +612,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return algs;
 	}
 
-	List<Algorithm<R>> terminateAlgorithmsBlockingWorker() {
+	protected List<Algorithm<R>> terminateAlgorithmsBlockingWorker() {
 		this.queuesManager.terminateAlgorithmsBlocking();
 		return this.clearAllAlgorithmsFromTermination();
 	}
@@ -629,10 +628,6 @@ public class AlgorithmManager<R extends Serializable> {
 		} else {
 			return null;
 		}
-	}
-
-	public SQSConnectorMaster<R> getSqsMaster() {
-		return sqsMaster;
 	}
 
 	public void deleteDirectQueues() {
@@ -684,7 +679,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 	}
 
-	void algorithmInfoReceived(List<AlgorithmInfo> algorithmInfo) {
+	protected void algorithmInfoReceived(List<AlgorithmInfo> algorithmInfo) {
 		for (AlgorithmInfo info : algorithmInfo) {
 			this.algorithmInfo.put(info.getAlgorithmId(), info);
 		}

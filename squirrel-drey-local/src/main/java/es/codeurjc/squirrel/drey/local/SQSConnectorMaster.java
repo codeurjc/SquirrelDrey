@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 import com.amazonaws.services.sqs.model.*;
 
 
-import es.codeurjc.squirrel.drey.local.autoscaling.InfrastructureManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +34,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     private InfrastructureManager<R> infrastructureManager;
     private AlgorithmManager<R> algorithmManager;
 
-    public SQSConnectorMaster(AlgorithmManager<R> algorithmManager, ReentrantLock sharedinfrastructureManagerLock) {
+    protected SQSConnectorMaster(AlgorithmManager<R> algorithmManager, ReentrantLock sharedinfrastructureManagerLock) {
         super(UUID.randomUUID().toString());
         this.algorithmManager = algorithmManager;
         this.sharedinfrastructureManagerLock = sharedinfrastructureManagerLock;
@@ -52,7 +51,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         this.startListen();
     }
 
-    public void startListen() {
+    protected void startListen() {
         this.scheduleExecutor.scheduleAtFixedRate(() -> {
             try {
                 if (this.outputQueueUrl == null) {
@@ -217,8 +216,10 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     public void fetchWorkerStats() throws IOException {
         log.info("Fetching worker stats");
-        List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values()
-                .stream().filter(workerStats -> workerStats.getStatus() == WorkerStatus.running).collect(Collectors.toList());
+        List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
+                .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                .filter(workerStats -> !workerStats.isDisconnected())
+                .collect(Collectors.toList());
         for (WorkerStats workerStats : runningWorkers) {
             String directQueue = workerStats.directQueueUrl;
             this.send(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
@@ -229,7 +230,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         try {
             this.sharedinfrastructureManagerLock.lock();
             log.info("Fetching current information of all algorithms");
-            for (WorkerStats workerStats : infrastructureManager.getWorkers().values()) {
+            List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
+                    .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                    .filter(workerStats -> !workerStats.isDisconnected())
+                    .collect(Collectors.toList());
+            for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
                 this.send(directQueue, MessageType.FETCH_ALG_INFO, MessageType.FETCH_ALG_INFO);
             }
@@ -243,7 +248,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         try {
             this.sharedinfrastructureManagerLock.lock();
             log.info("Terminating all algorithms");
-            for (WorkerStats workerStats : infrastructureManager.getWorkers().values()) {
+            List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
+                    .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                    .filter(workerStats -> !workerStats.isDisconnected())
+                    .collect(Collectors.toList());
+            for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
                 this.send(directQueue, MessageType.TERMINATE_ALL, MessageType.TERMINATE_ALL);
             }
@@ -257,7 +266,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         try {
             this.sharedinfrastructureManagerLock.lock();
             log.info("Terminating all algorithms (blocking)");
-            for (WorkerStats workerStats : infrastructureManager.getWorkers().values()) {
+            List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
+                    .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                    .filter(workerStats -> !workerStats.isDisconnected())
+                    .collect(Collectors.toList());
+            for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
                 this.send(directQueue, MessageType.TERMINATE_ALL_BLOCKING, MessageType.TERMINATE_ALL_BLOCKING);
             }
@@ -270,7 +283,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     public void stopOneAlgorithmBlocking(String algorithmId) throws IOException {
         try {
             this.sharedinfrastructureManagerLock.lock();
-            for (WorkerStats workerStats : infrastructureManager.getWorkers().values()) {
+            List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
+                    .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                    .filter(workerStats -> !workerStats.isDisconnected())
+                    .collect(Collectors.toList());
+            for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
                 this.send(directQueue, algorithmId, MessageType.TERMINATE_ONE);
             }
@@ -311,6 +328,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             return Long.valueOf(this.infrastructureManager.getWorkers()
                     .values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
+                    .filter(workerStats -> !workerStats.isDisconnected)
                     .count()).intValue();
         } catch(Exception e) {
             e.printStackTrace();

@@ -73,6 +73,11 @@ public class WorkerStats implements Serializable {
 	 */
 	WorkerStatus status;
 
+	/**
+	 * Did not respond last fetch
+	 */
+	boolean isDisconnected;
+
 	public WorkerStats(long launchingTime, String ec2InstanceId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
 					   long totalCompletedTasks, long tasksRunning, WorkerStatus status) {
 		this.launchingTime = launchingTime;
@@ -87,6 +92,7 @@ public class WorkerStats implements Serializable {
 		this.totalCompletedTasks = totalCompletedTasks;
 		this.tasksRunning = tasksRunning;
 		this.status = status;
+		this.isDisconnected = false;
 	}
 
 	public WorkerStats(long launchingTime, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded, long totalCompletedTasks,
@@ -102,6 +108,7 @@ public class WorkerStats implements Serializable {
 		this.totalCompletedTasks = totalCompletedTasks;
 		this.tasksRunning = tasksRunning;
 		this.status = status;
+		this.isDisconnected = false;
 	}
 
 	public long getLaunchingTime() {
@@ -210,6 +217,14 @@ public class WorkerStats implements Serializable {
 
 	public void setWorkingCores(int workingCores) {
 		this.workingCores = workingCores;
+	}
+
+	public boolean isDisconnected() {
+		return isDisconnected;
+	}
+
+	public void setDisconnected(boolean disconnected) {
+		isDisconnected = disconnected;
 	}
 
 	public JsonObject toJson() {
