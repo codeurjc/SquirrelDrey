@@ -20,28 +20,27 @@ public class InfrastructureManager<R extends Serializable> {
 
     private static final Logger log = LoggerFactory.getLogger(InfrastructureManager.class);
 
-    private int DEFAULT_MONITORING_PERIOD = 10;
-    private int MAX_TIME_FETCH_WORKERS = 10;
-
+    private Config config;
     private AlgorithmManager<R> algorithmManager;
-    private AutoscalingManager autoscalingManager;
 
+    private AutoscalingManager autoscalingManager;
     private boolean autoscaling;
     private int monitoringPeriod;
+    private int maxTimeOutFetchWorkers;
 
     private Map<String, WorkerStats> workers;
     private ScheduledExecutorService monitoringClusterSchedule;
 
-    public InfrastructureManager(AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
+    public InfrastructureManager(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
+        // Load object dependencies
+        this.config = config;
         this.algorithmManager = algorithmManager;
-        this.monitoringPeriod = System.getProperty("monitoring-period") != null
-                ? Integer.parseInt(System.getProperty("monitoring-period"))
-                : DEFAULT_MONITORING_PERIOD;
-
-        this.autoscaling = System.getProperty("enable-autoscaling") != null
-                || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
-
         this.autoscalingManager = new AutoscalingManager();
+
+        // Load properties
+        this.monitoringPeriod = this.config.getMonitoringPeriod();
+        this.autoscaling = this.config.isAutoscalingEnabled();
+        this.maxTimeOutFetchWorkers = this.config.getMaxTimeOutFetchWorkers();
 
         this.workers = new ConcurrentHashMap<>();
         this.monitoringClusterSchedule = Executors.newScheduledThreadPool(1);
@@ -59,51 +58,53 @@ public class InfrastructureManager<R extends Serializable> {
     private void startMonitoring() {
         this.monitoringClusterSchedule.scheduleAtFixedRate(() -> {
             try {
-                Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
-                this.workers.values().forEach(w -> mapWorkerIdLastTimeFetched.put(w.getWorkerId(), w.getLastTimeFetched()));
-                try {
-                    if (this.algorithmManager.sqsMaster != null) {
-                        // Take account of updated workers
-                        long currentTime = System.currentTimeMillis();
-                        log.info("Monitoring workers");
+                if (this.config.isMonitoringEnabled()) {
+                    Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
+                    this.workers.values().forEach(w -> mapWorkerIdLastTimeFetched.put(w.getWorkerId(), w.getLastTimeFetched()));
+                    try {
+                        if (this.algorithmManager.sqsMaster != null) {
+                            // Take account of updated workers
+                            long currentTime = System.currentTimeMillis();
+                            log.info("Monitoring workers");
 
-                        this.algorithmManager.fetchInfrastructureWorkers(MAX_TIME_FETCH_WORKERS);
+                            this.algorithmManager.fetchInfrastructureWorkers(maxTimeOutFetchWorkers);
+
+                            this.workers.values().stream()
+                                    .filter(w -> !w.isDisconnected)
+                                    .forEach(workerStats -> log.warn(workerStats.toString()));
+
+                            if (this.autoscaling) {
+                                // AUTOSCALING
+                                // AutoscalingResult autoscalingResult = this.autoscalingManager.evalAutoscaling(config, status);
+                                // this.applyAutoscalingResult(autoscalingResult)
+                            }
+
+                            double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
+                            log.info("Execution time of monitoring: {} seconds", secondsExecuting);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Some workers are not responding: {}", e.getMessage());
+                        // Check not updated workers
+                        for(Map.Entry<String, Long> prevWorkerData: mapWorkerIdLastTimeFetched.entrySet()) {
+                            String workerId = prevWorkerData.getKey();
+                            long prevLastTimeFetched = prevWorkerData.getValue();
+                            WorkerStats actualWorkerStats = workers.get(workerId);
+                            long actualTimeFetched = workers.get(workerId).getLastTimeFetched();
+
+                            if (prevLastTimeFetched == actualTimeFetched) {
+                                // If Previous last time fetch and actual time fecth are equals
+                                // the worker did not answered
+                                log.warn("Worker not fetched {}:", actualWorkerStats);
+                                actualWorkerStats.setDisconnected(true);
+                            }
+                        }
 
                         this.workers.values().stream()
                                 .filter(w -> !w.isDisconnected)
                                 .forEach(workerStats -> log.warn(workerStats.toString()));
 
-                        if (this.autoscaling) {
-                            // AUTOSCALING
-                            // AutoscalingResult autoscalingResult = this.autoscalingManager.evalAutoscaling(config, status);
-                            // this.applyAutoscalingResult(autoscalingResult)
-                        }
-
-                        double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
-                        log.info("Execution time of monitoring: {} seconds", secondsExecuting);
+                        e.printStackTrace();
                     }
-                } catch (Exception e) {
-                    log.warn("Some workers are not responding: {}", e.getMessage());
-                    // Check not updated workers
-                    for(Map.Entry<String, Long> prevWorkerData: mapWorkerIdLastTimeFetched.entrySet()) {
-                        String workerId = prevWorkerData.getKey();
-                        long prevLastTimeFetched = prevWorkerData.getValue();
-                        WorkerStats actualWorkerStats = workers.get(workerId);
-                        long actualTimeFetched = workers.get(workerId).getLastTimeFetched();
-
-                        if (prevLastTimeFetched == actualTimeFetched) {
-                            // If Previous last time fetch and actual time fecth are equals
-                            // the worker did not answered
-                            log.warn("Worker not fetched {}:", actualWorkerStats);
-                            actualWorkerStats.setDisconnected(true);
-                        }
-                    }
-
-                    this.workers.values().stream()
-                            .filter(w -> !w.isDisconnected)
-                            .forEach(workerStats -> log.warn(workerStats.toString()));
-
-                    e.printStackTrace();
                 }
             } catch (Exception e) {
                 log.error("An exception ocurred during monitoring");
@@ -114,6 +115,7 @@ public class InfrastructureManager<R extends Serializable> {
     }
 
     private void applyAutoscalingResult(AutoscalingResult result) {
+
         if (!result.isDoNothing()) {
             // Terminate Workers
             result.getWorkersToTerminate().forEach(node -> {

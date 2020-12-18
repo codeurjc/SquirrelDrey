@@ -31,7 +31,7 @@ public class WorkerStats implements Serializable {
 	/**
 	 * EC2 Instance Id
 	 */
-	String ec2InstanceId;
+	String environmentId;
 
 	/**
 	 * Worker internal id
@@ -78,10 +78,10 @@ public class WorkerStats implements Serializable {
 	 */
 	boolean isDisconnected;
 
-	public WorkerStats(long launchingTime, String ec2InstanceId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
+	public WorkerStats(long launchingTime, String environmentId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
 					   long totalCompletedTasks, long tasksRunning, WorkerStatus status) {
 		this.launchingTime = launchingTime;
-		this.ec2InstanceId = ec2InstanceId;
+		this.environmentId = environmentId;
 		this.lastTimeWorking = lastTimeWorking;
 		this.lastTimeFetched = System.currentTimeMillis();
 		this.workerId = workerId;
@@ -135,12 +135,12 @@ public class WorkerStats implements Serializable {
 		this.lastTimeWorking = lastTimeWorking;
 	}
 
-	public String getEc2InstanceId() {
-		return ec2InstanceId;
+	public String getEnvironmentId() {
+		return environmentId;
 	}
 
-	public void setEc2InstanceId(String ec2InstanceId) {
-		this.ec2InstanceId = ec2InstanceId;
+	public void setEnvironmentId(String environmentId) {
+		this.environmentId = environmentId;
 	}
 
 	public String getInstanceId() {
@@ -238,8 +238,8 @@ public class WorkerStats implements Serializable {
 		if (lastTimeWorking != 0L) {
 			json.addProperty("secondsIdle", lastTimeWorking);
 		}
-		if (ec2InstanceId != null) {
-			json.addProperty("ec2InstanceId", ec2InstanceId);
+		if (environmentId != null) {
+			json.addProperty("ec2InstanceId", environmentId);
 		}
 		if (workerId != null) {
 			json.addProperty("workerId", workerId);
@@ -263,13 +263,13 @@ public class WorkerStats implements Serializable {
 				&& lastTimeFetched == that.lastTimeFetched && lastTimeWorking == that.lastTimeWorking
 				&& totalCores == that.totalCores && workingCores == that.workingCores && tasksAdded == that.tasksAdded
 				&& totalCompletedTasks == that.totalCompletedTasks && tasksRunning == that.tasksRunning
-				&& Objects.equals(ec2InstanceId, that.ec2InstanceId) && Objects.equals(workerId, that.workerId)
+				&& Objects.equals(environmentId, that.environmentId) && Objects.equals(workerId, that.workerId)
 				&& Objects.equals(directQueueUrl, that.directQueueUrl) && status == that.status;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(launchingTime, lastTimeFetched, lastTimeWorking, ec2InstanceId, workerId, directQueueUrl,
+		return Objects.hash(launchingTime, lastTimeFetched, lastTimeWorking, environmentId, workerId, directQueueUrl,
 				totalCores, workingCores, tasksAdded, totalCompletedTasks, tasksRunning, status);
 	}
 
@@ -279,7 +279,7 @@ public class WorkerStats implements Serializable {
 				"launchingTime=" + launchingTime +
 				", lastTimeFetched=" + lastTimeFetched +
 				", secondsIdle=" + lastTimeWorking +
-				", ec2InstanceId='" + ec2InstanceId + '\'' +
+				", ec2InstanceId='" + environmentId + '\'' +
 				", workerId='" + workerId + '\'' +
 				", directQueueUrl='" + directQueueUrl + '\'' +
 				", totalCores=" + totalCores +
@@ -287,6 +287,7 @@ public class WorkerStats implements Serializable {
 				", tasksAdded=" + tasksAdded +
 				", totalCompletedTasks=" + totalCompletedTasks +
 				", tasksRunning=" + tasksRunning +
+				", isDisconnected=" + isDisconnected +
 				", status=" + status  + "]";
 	}
 }

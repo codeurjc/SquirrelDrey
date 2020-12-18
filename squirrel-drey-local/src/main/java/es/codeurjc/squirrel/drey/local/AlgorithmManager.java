@@ -14,7 +14,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import es.codeurjc.squirrel.drey.local.utils.EC2Utils;
+import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGenerator;
+import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGeneratorAws;
+import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGeneratorDefault;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +29,8 @@ import es.codeurjc.squirrel.drey.local.Algorithm.Status;
 public class AlgorithmManager<R extends Serializable> {
 
 	private static final Logger log = LoggerFactory.getLogger(AlgorithmManager.class);
+
+	private Config config;
 
 	private boolean mastermode = false;
 	private boolean devmode = false;
@@ -44,7 +48,7 @@ public class AlgorithmManager<R extends Serializable> {
 	ReentrantLock sharedInfrastructureManagerLock;
 	InfrastructureManager<R> infrastructureManager;
 	String workerId;
-	String ec2InstanceId;
+	String environmentId;
 	long launchingTime;
 	long lastTimeWorking;
 	WorkerStatus workerStatus;
@@ -73,8 +77,9 @@ public class AlgorithmManager<R extends Serializable> {
 	CountDownLatch algInfoFetched;
 
 	public AlgorithmManager(Object... args) {
-		this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
-		this.autoscaling = System.getProperty("enable-autoscaling") != null || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
+		this.config = new Config();
+		this.devmode = this.config.isDevmode();
+		this.autoscaling = this.config.isAutoscalingEnabled();
 		this.launchingTime = System.currentTimeMillis();
 		this.workerStatsFetched = new CountDownLatch(0);
 		if (this.devmode) {
@@ -84,7 +89,7 @@ public class AlgorithmManager<R extends Serializable> {
 			this.workerStatus = WorkerStatus.running;
 			this.initializeWorker();
 		} else {
-			this.mastermode = System.getProperty("worker") != null && !Boolean.parseBoolean(System.getProperty("worker"));
+			this.mastermode = this.config.isMaster();
 			if (this.mastermode) {
 				log.info("Starting as MASTER");
 				log.info("Initializing...");
@@ -95,16 +100,13 @@ public class AlgorithmManager<R extends Serializable> {
 				this.workerId = UUID.randomUUID().toString();
 				this.workerStatus = WorkerStatus.running;
 
-				// If autoscaling is enabled, the instance is in AWS
-				if (autoscaling) {
-					try {
-						this.ec2InstanceId = EC2Utils.retrieveInstanceId();
-					} catch (Exception e) {
-						log.error("Error getting ec2 instance id: {}", e.getMessage());
-					}
-				}
-				this.sqsWorker = new SQSConnectorWorker<>(this.workerId, this);
+				// Get environment id
+				this.environmentId = config.getEnvironmentId();
+
+
+				this.sqsWorker = new SQSConnectorWorker<>(config, this.workerId, this);
 				this.initializeWorker();
+
 				try {
 					this.sqsWorker.establishDirectConnection(false);
 				} catch (Exception e) {
@@ -113,7 +115,6 @@ public class AlgorithmManager<R extends Serializable> {
 				}
 			}
 		}
-		printStartingInfo();
 	}
 
 	private void initializeMaster() {
@@ -123,12 +124,12 @@ public class AlgorithmManager<R extends Serializable> {
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		this.algorithmInfo = new ConcurrentHashMap<>();
 		this.sharedInfrastructureManagerLock = new ReentrantLock();
-		this.infrastructureManager = new InfrastructureManager<R>(this, sharedInfrastructureManagerLock);
-		this.sqsMaster = new SQSConnectorMaster<R>(this, sharedInfrastructureManagerLock);
+		this.infrastructureManager = new InfrastructureManager<R>(config,this, sharedInfrastructureManagerLock);
+		this.sqsMaster = new SQSConnectorMaster<R>(config,this, sharedInfrastructureManagerLock);
 	}
 
 	private void initializeWorker() {
-		Mode mode = System.getProperty("mode") != null ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
+		Mode mode = this.config.getMode();
 
 		this.algorithms = new ConcurrentHashMap<>();
 		this.taskCompletedEventsCount = new ConcurrentHashMap<>();
@@ -150,15 +151,7 @@ public class AlgorithmManager<R extends Serializable> {
 		final int totalNumberOfCores = Runtime.getRuntime().availableProcessors();
 		log.info("Total number of cores: {}", totalNumberOfCores);
 
-		int idleCores;
-		String idlesCoresApp = System.getProperty("idle-cores-app");
-		if (idlesCoresApp != null) {
-			idleCores = Integer.parseInt(idlesCoresApp);
-		} else if (this.devmode) {
-			idleCores = 0;
-		} else {
-			idleCores = 1; // 1 idle core for comunications with SQS
-		}
+		int idleCores = config.getIdleCores();
 
 		log.info("Application worker will have {} idle cores", idleCores);
 
@@ -684,25 +677,5 @@ public class AlgorithmManager<R extends Serializable> {
 			this.algorithmInfo.put(info.getAlgorithmId(), info);
 		}
 		this.algInfoFetched.countDown();
-	}
-
-	private void printStartingInfo() {
-		SimpleDateFormat sdf = new SimpleDateFormat();
-		sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-		String message = "\n";
-		message += "===========================\n";
-		message += "STARTING AS: " + (this.mastermode ? "MASTER" : "WORKER") + "\n";
-		message += "DEPLOYING AS: " + ((this.devmode) ? "DEV" : "PROD") + "\n";
-		message += "AUTOSCALING ENABLED: " + this.autoscaling + "\n";
-		message += "EC2 Instance Id: " + ((this.ec2InstanceId != null ? this.ec2InstanceId : "none")) + "\n";
-		message += "CREATION TIME TIMESTAMP: " + ((this.launchingTime != 0L ? this.launchingTime : "none")) + "\n";
-		message += "CREATION TIME UTC: " + ((this.launchingTime != 0L ? sdf.format(new Date(this.launchingTime)) : "none")) + "\n";
-		if (!this.mastermode) {
-			message += "DIRECT QUEUE URL: " + this.sqsWorker.directQueueUrl + "\n";
-			message += "WORKER ID: " + ((this.workerId != null ? this.workerId : "none")) + "\n";
-			message += "WORKER STATUS: " + ((this.workerStatus != null ? this.workerStatus.name() : "none")) + "\n";
-		}
-		message += "===========================\n";
-		log.info(message);
 	}
 }

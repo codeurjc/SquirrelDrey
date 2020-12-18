@@ -40,7 +40,6 @@ public class AutoscalingManager {
 
     private int calculateNumWorkersToLaunch(SystemStatus status, AutoscalingConfig config) {
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
-        int launchingNodes = status.getLaunchingWorkers().size();
         int maxParallelization = config.getMaxParallelization();
         int workersByMaxParallelization = config.getWorkersByMaxParallelization();
         // Necessary num of workers needed to satisfy queues demand
@@ -68,6 +67,10 @@ public class AutoscalingManager {
                 .filter(w -> !isWorkerExceedingMaxTimeNonResponding(w, config))
                 .sorted(Comparator.comparing(WorkerStats::getLaunchingTime))
                 .collect(Collectors.toList());
+
+        // Don't delete minimum number of idle workers
+        int minIddleWorkers = config.getMinIdleWorkers();
+        iddleWorkersToTerminate = iddleWorkersToTerminate.subList(0, iddleWorkersToTerminate.size() - minIddleWorkers);
 
         // Concat both lists
         List<WorkerStats> allWorkersToTerminate = new ArrayList<>(nonRespondingWorkers);

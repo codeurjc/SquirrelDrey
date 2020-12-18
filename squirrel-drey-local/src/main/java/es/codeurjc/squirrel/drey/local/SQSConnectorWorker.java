@@ -25,10 +25,6 @@ import es.codeurjc.squirrel.drey.local.Algorithm.Status;
  */
 public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> {
 
-    String directQueueUrl;
-
-    private String directQueueName;
-
     private final int DEFAULT_PARALLELIZATION_GRADE = 1;
     private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
 
@@ -38,18 +34,10 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     private AlgorithmManager<R> algorithmManager;
 
-    private int listenerPeriod;
-
-    public SQSConnectorWorker(String id, AlgorithmManager<R> algorithmManager) {
-        super(id);
+    public SQSConnectorWorker(Config config, String id, AlgorithmManager<R> algorithmManager) {
+        super(config, id);
         this.algorithmManager = algorithmManager;
-        this.parallelizationGrade = System.getProperty("parallelization-grade") != null
-                ? Integer.valueOf(System.getProperty("parallelization-grade"))
-                : DEFAULT_PARALLELIZATION_GRADE;
-
-        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
-                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
-                : 1;
+        this.parallelizationGrade = config.getParallelizationGrade();
 
         try {
             this.lookForDirectQueue();
@@ -115,11 +103,11 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public void startListen() {
         this.scheduleExecutorOuput.scheduleAtFixedRate(() -> {
             listenInput();
-        }, 0, 250, TimeUnit.MILLISECONDS);
+        }, 0, this.sqsListenerPeriod, TimeUnit.MILLISECONDS);
 
         this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
             listenDirect();
-        }, 0, 250, TimeUnit.MILLISECONDS);
+        }, 0, this.sqsListenerPeriod, TimeUnit.MILLISECONDS);
     }
 
     public void listenInput() {

@@ -8,6 +8,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Map;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
@@ -34,36 +35,64 @@ public abstract class SQSConnector<R extends Serializable> {
         AUTODISCOVER_FROM_MASTER
     }
 
+    private Config config;
+
     protected AmazonSQS sqs;
 
-    protected String inputQueueUrl = null;
-    protected String lowPriorityInputQueueUrl = null;
-    protected String outputQueueUrl = null;
+    // Master and worker common queues
+    protected String inputQueueUrl;
+    protected String lowPriorityInputQueueUrl;
+    protected String outputQueueUrl;
+    // Worker queue
+    protected String directQueueUrl;
 
     protected final String DEFAULT_INPUT_QUEUE_PREFIX = "input_queue";
     protected final String DEFAULT_LOW_PRIORITY_INPUT_QUEUE_PREFIX = "low_priority_input_queue";
     protected final String DEFAULT_OUTPUT_QUEUE_PREFIX = "output_queue";
     protected final String DEFAULT_DIRECT_QUEUE_PREFIX = "direct";
 
+    protected final int DEFAULT_AWS_SDK_HTTP_TIMEOUT = 60;
+
     protected String inputQueueName;
     protected String lowPriorityInputQueueName;
     protected String outputQueueName;
     protected String directQueuePrefix;
+    protected String directQueueName;
 
     protected String id;
 
+    private int sqsMaxTimeOut;
+    protected int sqsListenerPeriod;
+
     private static final Logger log = LoggerFactory.getLogger(SQSConnector.class);
 
-    public SQSConnector(String id) {
+    public SQSConnector(Config config, String id) {
+        this.config = config;
         this.id = id;
-        String region = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
-        String endpointUrl = System.getProperty("endpoint-url");
+
+        this.sqsMaxTimeOut = config.getSqsMaxTimeout();
+        this.sqsListenerPeriod = config.getSqsListenerPeriod();
+        String region = config.getAwsRegion();
+        String endpointUrl = config.getAwsEnpointUrl();
+
+        // SQS Http Client configuration
+        ClientConfiguration clientConfiguration = new ClientConfiguration()
+                .withConnectionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
+                .withClientExecutionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
+
         if (endpointUrl != null) {
             EndpointConfiguration ec = new EndpointConfiguration(endpointUrl, region);
-            this.sqs = AmazonSQSClientBuilder.standard().withEndpointConfiguration(ec).build();
+            this.sqs = AmazonSQSClientBuilder.standard()
+                    .withEndpointConfiguration(ec)
+                    .withClientConfiguration(clientConfiguration)
+                    .build();
         } else {
-            this.sqs = AmazonSQSClientBuilder.standard().withRegion(region).build();
+            this.sqs = AmazonSQSClientBuilder.standard()
+                    .withRegion(region)
+                    .withClientConfiguration(clientConfiguration)
+                    .build();
         }
+
         try {
             this.lookForInputQueue();
         } catch (QueueDoesNotExistException e) {
@@ -149,7 +178,7 @@ public abstract class SQSConnector<R extends Serializable> {
     private Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListenerAux(String queue,
             boolean deleteMsg) throws IOException {
         ReceiveMessageRequest request = new ReceiveMessageRequest(queue).withMaxNumberOfMessages(1)
-                .withWaitTimeSeconds(5)
+                .withWaitTimeSeconds(this.sqsMaxTimeOut)
                 .withMessageAttributeNames("All");
         ReceiveMessageResult messages = sqs.receiveMessage(request);
         Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = new HashMap<>();
@@ -206,7 +235,7 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForInputQueue() throws QueueDoesNotExistException {
-        String customSuffix = System.getProperty("input-queue");
+        String customSuffix = this.config.getSqsInputQueueSuffix();
         if (customSuffix != null) {
             this.inputQueueName = DEFAULT_INPUT_QUEUE_PREFIX + "_" + customSuffix;
         } else {
@@ -221,7 +250,7 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForLowPriorityInputQueue() throws QueueDoesNotExistException {
-        String customSuffix = System.getProperty("low-priority-input-queue");
+        String customSuffix = this.config.getSqsLowPriorityQueueSuffix();
         if (customSuffix != null) {
             this.lowPriorityInputQueueName = DEFAULT_LOW_PRIORITY_INPUT_QUEUE_PREFIX + "_" +customSuffix;
         } else {
@@ -236,7 +265,7 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected String lookForOutputQueue() throws QueueDoesNotExistException {
-        String customSuffix = System.getProperty("output-queue");
+        String customSuffix = this.config.getSqsOutputQueueSuffix();
         if (customSuffix != null) {
             this.outputQueueName = DEFAULT_OUTPUT_QUEUE_PREFIX + "_" + customSuffix + ".fifo";
         } else {
@@ -251,7 +280,7 @@ public abstract class SQSConnector<R extends Serializable> {
     }
 
     protected void generateDirectQueuePrefix() {
-        String customDirectQueueName = System.getProperty("direct-queue");
+        String customDirectQueueName = this.config.getDirectQueueSuffix();
         if (customDirectQueueName != null) {
             this.directQueuePrefix = DEFAULT_DIRECT_QUEUE_PREFIX + "_" + customDirectQueueName;
         } else {

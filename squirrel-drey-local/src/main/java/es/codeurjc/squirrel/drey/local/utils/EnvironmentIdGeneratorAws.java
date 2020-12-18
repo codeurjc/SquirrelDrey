@@ -6,13 +6,13 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.URLConnection;
 
-public class EC2Utils {
+public class EnvironmentIdGeneratorAws extends EnvironmentIdGenerator {
 
     private static final String EC2_METADATA_SERVICE_URL = "http://169.254.169.254";
     private static final String EC2_INSTANCE_ID_PATH = "/latest/meta-data/instance-id";
     private static final int TIMEOUT = 10000;
 
-    public static String retrieveInstanceId() throws IOException {
+    public String generateEnvironmentId() throws IOException {
         String EC2Id = null;
         String inputLine;
         URL EC2MetaData = new URL(EC2_METADATA_SERVICE_URL + EC2_INSTANCE_ID_PATH);
@@ -26,4 +26,5 @@ public class EC2Utils {
         in.close();
         return EC2Id;
     }
+
 }

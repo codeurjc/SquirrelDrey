@@ -29,20 +29,18 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorMaster.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
-    private int listenerPeriod;
+
     private ReentrantLock sharedinfrastructureManagerLock;
     private InfrastructureManager<R> infrastructureManager;
     private AlgorithmManager<R> algorithmManager;
 
-    protected SQSConnectorMaster(AlgorithmManager<R> algorithmManager, ReentrantLock sharedinfrastructureManagerLock) {
-        super(UUID.randomUUID().toString());
+    protected SQSConnectorMaster(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedinfrastructureManagerLock) {
+        super(config, UUID.randomUUID().toString());
         this.algorithmManager = algorithmManager;
         this.sharedinfrastructureManagerLock = sharedinfrastructureManagerLock;
         this.infrastructureManager = this.algorithmManager.infrastructureManager;
         this.scheduleExecutor = Executors.newScheduledThreadPool(1);
-        this.listenerPeriod = System.getProperty("sqs-listener-timer") != null
-                ? Integer.valueOf(System.getProperty("sqs-listener-timer"))
-                : 1;
+
         try {
             this.autodiscoverWorkers();
         } catch (IOException e) {
@@ -105,7 +103,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 log.error(e.getMessage());
                 e.printStackTrace();
             }
-        }, 0, 250, TimeUnit.MILLISECONDS);
+        }, 0, this.sqsListenerPeriod, TimeUnit.MILLISECONDS);
     }
 
     private void autodiscoverWorkers() throws IOException {
