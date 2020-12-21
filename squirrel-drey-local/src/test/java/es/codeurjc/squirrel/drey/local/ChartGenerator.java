@@ -28,6 +28,7 @@ public class ChartGenerator {
         MAX_WORKERS_LIST("maxWorkersList"),
         MIN_IDDLE_WORKERS("minIdleWorkers");
 
+        private final int INDENTATION_VARIABLES = 8;
         private String varDeclaration;
 
         TemplateKeys(String varDeclaration) {
@@ -45,7 +46,12 @@ public class ChartGenerator {
                 JSCode += "];\n";
                 return JSCode;
             }
-            return "var " + this.varDeclaration + "=" + resultList.toString() + ";\n";
+            String result = "";
+            for(int i = 0; i < INDENTATION_VARIABLES; i++) {
+                result += " ";
+            }
+            result += "var " + this.varDeclaration + "=" + resultList.toString() + ";\n";
+            return result;
         }
     }
 
