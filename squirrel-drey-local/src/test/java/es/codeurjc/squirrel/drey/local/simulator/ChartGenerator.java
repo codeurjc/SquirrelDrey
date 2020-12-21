@@ -1,7 +1,6 @@
-package es.codeurjc.squirrel.drey.local;
+package es.codeurjc.squirrel.drey.local.simulator;
 
 import java.io.*;
-import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
@@ -12,6 +11,7 @@ public class ChartGenerator {
 
     Path resourceDirectory = Paths.get("src","test","resources");
     private final String TEMPLATE_RESOURCE_FILE = "chart_template.html";
+    private final String RESULT_DEFAULT_DIR = "results";
 
     public enum TemplateKeys {
 
@@ -19,6 +19,7 @@ public class ChartGenerator {
         HIGH_PRIORITY_TASK("highPriorityTasks"),
         LOW_PRIORITY_TASKS("lowPriorityTasks"),
         TOTAL_TASKS("totalTasks"),
+        RUNNING_TASKS("runningTasks"),
         RUNNING_WORKERS("runningWorkers"),
         LAUNCHING_WORKERS("launchingWorkers"),
         TERMINATING_WORKERS("terminatingWorkers"),
@@ -74,8 +75,15 @@ public class ChartGenerator {
             String suffixSimulationFileName = ".html";
             int index = 1;
             boolean fileNotExistingFound = false;
+
+            // Check if results absolute dir exist
+            File resultsAbsoluteDir = new File(resourceDirectory.toAbsolutePath() + "/" + RESULT_DEFAULT_DIR);
+            if (!resultsAbsoluteDir.exists()) {
+                resultsAbsoluteDir.mkdir();
+            }
+
             while(!fileNotExistingFound) {
-                String absolutePathToFile = resourceDirectory.toAbsolutePath() + "/" + prefixSimulationFileName + index + suffixSimulationFileName;
+                String absolutePathToFile = resourceDirectory.toAbsolutePath() + "/" + RESULT_DEFAULT_DIR + "/" + prefixSimulationFileName + index + suffixSimulationFileName;
                 File f = new File(absolutePathToFile);
                 if (!f.exists()) {
                     fileNotExistingFound = true;

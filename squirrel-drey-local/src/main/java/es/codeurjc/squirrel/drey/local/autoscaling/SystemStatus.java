@@ -17,13 +17,13 @@ public class SystemStatus {
     private final List<WorkerStats> launchingWorkers;
     private final List<WorkerStats> terminatingWorkers;
 
-    public SystemStatus(int numQueueMessages, int numLowPriorityMessages, List<WorkerStats> workers) {
-        this.numHighPriorityMessages = numQueueMessages;
+    public SystemStatus(int numHighQueueMessages, int numLowPriorityMessages, List<WorkerStats> workers) {
+        this.numHighPriorityMessages = numHighQueueMessages;
         this.numLowPriorityMessages = numLowPriorityMessages;
-        this.numWorkers = getLaunchingWorkers().size() + getRunningWorkers().size();
         this.runningWorkers = filterWorkersWithStatus(workers, WorkerStatus.running);
         this.launchingWorkers = filterWorkersWithStatus(workers, WorkerStatus.launching);
         this.terminatingWorkers = filterWorkersWithStatus(workers, WorkerStatus.terminating);
+        this.numWorkers = getLaunchingWorkers().size() + getRunningWorkers().size();
     }
 
     private List<WorkerStats> filterWorkersWithStatus(List<WorkerStats> workers, WorkerStatus status) {

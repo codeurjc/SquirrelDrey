@@ -1,5 +1,6 @@
 package es.codeurjc.squirrel.drey.local.autoscaling;
 
+import es.codeurjc.squirrel.drey.local.Worker;
 import es.codeurjc.squirrel.drey.local.WorkerStats;
 
 import java.util.*;
@@ -12,8 +13,10 @@ public class AutoscalingManager {
 
         // Scale UP
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
+        long numIdleWorkers = getNumIdleWorkers(status);
         if ((status.getNumWorkers() < config.getMinWorkers())
-                || (totalQueuedMessages > 0 && status.getNumWorkers() < config.getMaxWorkers())) {
+                || (totalQueuedMessages > 0 && status.getNumWorkers() < config.getMaxWorkers())
+                || numIdleWorkers < config.getMinIdleWorkers()) {
 
             int numWorkersToLaunch = calculateNumWorkersToLaunch(status, config);
             return new AutoscalingResult(status, config).numWorkersToLaunch(numWorkersToLaunch);
@@ -94,6 +97,13 @@ public class AutoscalingManager {
         long lastTimeWorking = (long) ((double) workerStats.getLastTimeWorking() / 1000);
         long secondsIdle = currentTime - lastTimeWorking;
         return secondsIdle > config.getMaxSecondsIdle();
+    }
+
+    private long getNumIdleWorkers(SystemStatus status) {
+        return status.getRunningWorkers().stream()
+                .filter(w -> w.getTasksRunning() == 0)
+                .filter(w -> !w.isDisconnected())
+                .count();
     }
 
 }

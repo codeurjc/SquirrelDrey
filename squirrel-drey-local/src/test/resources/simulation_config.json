@@ -1,0 +1,41 @@
+{
+  "seed": 1,
+  "secondsByPeriod": 30,
+  "durationInPeriods": 10,
+  "minTimeForWorkersToBeReady": 30,
+  "maxTimeForWorkersToBeReady": 50,
+  "minTimeForWorkersToTerminate": 10,
+  "maxTimeForWorkersToTerminate": 30,
+  "initialRunningWorkers": 2,
+  "autoscalingConfig": {
+    "minWorkers": 1,
+    "maxWorkers": 3,
+    "minIdleWorkers": 2,
+    "maxParallelization": 2,
+    "workersByMaxParallelization": 2,
+    "maxSecondsIdle": 20,
+    "maxSecondsNonRespondingWorker":30
+  },
+  "inputTasks": [
+    {
+      "fromPeriod": 1,
+      "toPeriod": 4,
+      "numHighPriorityTasksByPeriod": 10,
+      "numLowPriorityTasksByPeriod": 3,
+      "minTimeForHighPriorityTasksToComplete": 10,
+      "maxTimeForHighPriorityTasksToComplete": 20,
+      "minTimeForLowPriorityTasksToComplete": 10,
+      "maxTimeForLowPriorityTasksToComplete": 30
+    },
+    {
+      "fromPeriod": 5,
+      "toPeriod": 10,
+      "numHighPriorityTasksByPeriod": 5,
+      "numLowPriorityTasksByPeriod": 5,
+      "minTimeForHighPriorityTasksToComplete": 10,
+      "maxTimeForHighPriorityTasksToComplete": 10,
+      "minTimeForLowPriorityTasksToComplete": 10,
+      "maxTimeForLowPriorityTasksToComplete": 10
+    }
+  ]
+}

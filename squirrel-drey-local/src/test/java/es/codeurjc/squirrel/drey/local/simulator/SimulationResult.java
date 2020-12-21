@@ -1,4 +1,4 @@
-package es.codeurjc.squirrel.drey.local;
+package es.codeurjc.squirrel.drey.local.simulator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +17,7 @@ public class SimulationResult {
     private List<Integer> minWorkersList = new ArrayList<>();
     private List<Integer> maxWorkersList = new ArrayList<>();
     private List<Integer> minIdleWorkers = new ArrayList<>();
+    private List<Integer> runningTasks = new ArrayList<>();
 
     public List<String> getLabelsList() {
         return labelsList;
@@ -66,6 +67,9 @@ public class SimulationResult {
         return minIdleWorkers;
     }
 
+    public List<Integer> getRunningTasks() {
+        return this.getRunningTasks();
+    }
 
     protected List<?> getResultByTemplateKeys(ChartGenerator.TemplateKeys templateKey) {
         switch (templateKey) {
@@ -81,6 +85,7 @@ public class SimulationResult {
             case MIN_WORKERS_LIST: return this.minWorkersList;
             case MAX_WORKERS_LIST: return this.maxWorkersList;
             case MIN_IDDLE_WORKERS: return this.minIdleWorkers;
+            case RUNNING_TASKS: return this.runningTasks;
             default: throw new IllegalArgumentException("Template key is not recognised");
         }
     }
