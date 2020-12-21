@@ -1,18 +1,7 @@
 <div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.2/Chart.min.js"></script>
     <script id="chart-js1">
-        var labelsList = {{LABELS_LIST}}
-        var highPriorityTasks = {{HIGH_PRIORITY_TASK}}
-        var lowPriorityTasks = {{LOW_PRIORITY_TASKS}}
-        var totalTasks = {{TOTAL_TASKS}}
-        var runningWorkers = {{RUNNING_WORKERS}}
-        var launchingWorkers = {{LAUNCHING_WORKERS}}
-        var terminatingWorkers = {{TERMINATING_WORKERS}}
-        var disconnectedWorkers = {{DISCONNECTED_WORKERS}}
-        var idleWorkers = {{IDLE_WORKERS}}
-        var minWorkersList = {{MIN_WORKERS_LIST}}
-        var maxWorkersList = {{MAX_WORKERS_LIST}}
-        var minIddleWorkers = {{MIN_IDDLE_WORKERS}}
+        {{DATASET}}
         window.chartColors = {
             red: 'rgb(255, 99, 132)',
             darkRed: 'rgb(174, 4, 4)',
@@ -82,7 +71,7 @@
                     {
                         label: 'Min Iddle Workers',
                         type: WORKERS_STYLE_CHART,
-                        data: minIddleWorkers,
+                        data: minIdleWorkers,
                         fill: false,
                         borderColor: window.chartColors.darkGreen,
                         backgroundColor: window.chartColors.darkGreen,
