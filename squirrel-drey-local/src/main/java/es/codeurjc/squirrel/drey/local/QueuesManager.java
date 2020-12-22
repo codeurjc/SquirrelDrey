@@ -414,8 +414,13 @@ public class QueuesManager<R extends Serializable> {
 
 	public WorkerStats fetchWorkerStats() {
 		if (this.executor != null) {
+			
+			if (this.algManager.lastTimeWorking == 0) {
+				this.algManager.lastTimeWorking = System.currentTimeMillis();
+			}
+
 			// Calculate time idle
-			this.algManager.lastTimeWorking = this.runningTasks.size() > 0 ? System.currentTimeMillis() : 0;
+			this.algManager.lastTimeWorking = this.runningTasks.size() == 0 ? this.algManager.lastTimeWorking : System.currentTimeMillis();
 			return this.algManager.workerStats(new WorkerEvent(this.algManager.workerId, "worker-stats",
 				new WorkerStats(this.algManager.launchingTime, this.algManager.environmentId, this.algManager.lastTimeWorking,
 						this.algManager.workerId, this.algManager.sqsWorker.directQueueUrl, this.nThreads, executor.getActiveCount(),

@@ -132,7 +132,7 @@
                         steppedLine: WORKERS_STEPPED_STYLE,
                         yAxisID: 'WORKERS',
                     }, {
-                        label: 'Num High Priority Tasks',
+                        label: 'Queued High Priority Tasks',
                         type: TASK_STYLE_CHART,
                         data: highPriorityTasks,
                         fill: false,
@@ -140,7 +140,7 @@
                         borderWidth: 2,
                         yAxisID: 'TASKS',
                     }, {
-                        label: 'Num Low Priority Tasks',
+                        label: 'Queued Low Priority Tasks',
                         type: TASK_STYLE_CHART,
                         data: lowPriorityTasks,
                         fill: false,
@@ -148,16 +148,26 @@
                         borderWidth: 2,
                         yAxisID: 'TASKS',
                     }, {
-                        label: 'Cluster total tasks',
+                        label: 'Total Queued tasks',
                         type: TASK_STYLE_CHART,
                         data: totalTasks,
-                        fill: true,
+                        fill: false,
                         borderColor: window.chartColors.darkBlue,
-                        backgroundColor: window.chartColors.fillBlue,
                         borderWidth: 2,
                         hidden: false,
                         yAxisID: 'TASKS',
-                    }, /* {*/ /* label: 'Num publishers',*/ /* type: CPU_STYLE_CHART,*/ /* data: numPublishers,*/ /* fill: false,*/ /* borderColor: window.chartColors.purple,*/ /* borderWidth: 2,*/ /* steppedLine: true,*/ /* yAxisID: 'CPU',*/ /* }*/ ]
+                    },
+                    {
+                        label: 'Running tasks',
+                        type: TASK_STYLE_CHART,
+                        data: runningTasks,
+                        fill: false,
+                        borderColor: window.chartColors.purple,
+                        borderWidth: 2,
+                        hidden: false,
+                        yAxisID: 'TASKS',
+                    }
+                    ]
                 },
                 options: {
                     responsive: true,
@@ -175,6 +185,7 @@
                             id: 'TASKS',
                             position: 'left',
                             ticks: {
+                                max: Math.max.apply(Math, [...runningTasks, ...highPriorityTasks, ...lowPriorityTasks, ...totalTasks]) + 5,
                                 beginAtZero: true
                             },
                             scaleLabel: {

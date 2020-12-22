@@ -14,6 +14,7 @@ public class ScenaryConfig {
     private int minTimeForWorkersToTerminate;
     private int maxTimeForWorkersToTerminate;
     private int initialRunningWorkers;
+    private int workerCores;
     private AutoscalingConfig autoscalingConfig;
     private List<InputTaskConfig> inputTasks;
 
@@ -55,5 +56,9 @@ public class ScenaryConfig {
 
     public List<InputTaskConfig> getInputTasks() {
         return inputTasks;
+    }
+
+    public int getWorkerCores() {
+        return workerCores;
     }
 }

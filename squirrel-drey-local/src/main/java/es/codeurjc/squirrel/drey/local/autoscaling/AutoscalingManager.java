@@ -2,10 +2,10 @@ package es.codeurjc.squirrel.drey.local.autoscaling;
 
 import es.codeurjc.squirrel.drey.local.Worker;
 import es.codeurjc.squirrel.drey.local.WorkerStats;
+import es.codeurjc.squirrel.drey.local.WorkerStatus;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class AutoscalingManager {
 
@@ -14,11 +14,17 @@ public class AutoscalingManager {
         // Scale UP
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
         long numIdleWorkers = getNumIdleWorkers(status);
-        if ((status.getNumWorkers() < config.getMinWorkers())
-                || (totalQueuedMessages > 0 && status.getNumWorkers() < config.getMaxWorkers())
-                || numIdleWorkers < config.getMinIdleWorkers()) {
+        if ((status.getNumWorkers() > config.getMinWorkers())
+                && ((totalQueuedMessages > 0) || numIdleWorkers < config.getMinIdleWorkers())
+                && status.getNumWorkers() < config.getMaxWorkers()) {
 
             int numWorkersToLaunch = calculateNumWorkersToLaunch(status, config);
+            int potentialNumOfWorkers = numWorkersToLaunch + status.getNumWorkers();
+
+            if (potentialNumOfWorkers > config.getMaxWorkers()) {
+                // if necessary num of workers is grater than max workers, only launch until max workers
+                numWorkersToLaunch = config.getMaxWorkers() - status.getNumWorkers();
+            }
             return new AutoscalingResult(status, config).numWorkersToLaunch(numWorkersToLaunch);
 
         // Scale Down
@@ -30,6 +36,10 @@ public class AutoscalingManager {
             // algorithm's priority
             List<WorkerStats> workersReadyToTerminate = getWorkersReadyToTerminate(status, config);
             int numWorkersToTerminate = workersReadyToTerminate.size();
+            if (numWorkersToTerminate == 0) {
+                // If num of workers to terminate is 0, do nothing
+                return new AutoscalingResult(status, config);
+            }
             return new AutoscalingResult(status, config)
                     .workersToTerminate(workersReadyToTerminate.subList(0, numWorkersToTerminate));
 
@@ -71,9 +81,14 @@ public class AutoscalingManager {
                 .sorted(Comparator.comparing(WorkerStats::getLaunchingTime))
                 .collect(Collectors.toList());
 
-        // Don't delete minimum number of idle workers
-        int minIddleWorkers = config.getMinIdleWorkers();
-        iddleWorkersToTerminate = iddleWorkersToTerminate.subList(0, iddleWorkersToTerminate.size() - minIddleWorkers);
+        int minIddleWorkers = Math.max(config.getMinWorkers(), config.getMinIdleWorkers());
+        if (iddleWorkersToTerminate.size() > minIddleWorkers) {
+            // Don't delete minimum number of idle workers
+            iddleWorkersToTerminate = iddleWorkersToTerminate.subList(0, iddleWorkersToTerminate.size() - minIddleWorkers);
+        } else {
+            iddleWorkersToTerminate.clear();
+        }
+
 
         // Concat both lists
         List<WorkerStats> allWorkersToTerminate = new ArrayList<>(nonRespondingWorkers);
@@ -83,18 +98,18 @@ public class AutoscalingManager {
 
 
     private boolean isWorkerExceedingMaxTimeNonResponding(WorkerStats workerStats, AutoscalingConfig config) {
-        long currentTime = (long) ((double) System.currentTimeMillis() / 1000);
-        long lastTimeFetched = (long) ((double) workerStats.getLastTimeFetched());
+        long currentTime = getCurrentTimeInSeconds();
+        long lastTimeFetched = getLastTimeFetchedInSeconds(workerStats);
         long secondsSinceLastFetch = currentTime - lastTimeFetched;
         return secondsSinceLastFetch > config.getMaxSecondsNonRespondingWorker();
     }
 
     private boolean isWorkerExceedingMaxTimeIdle(WorkerStats workerStats, AutoscalingConfig config) {
-        if (workerStats.getTasksRunning() == 0) {
+        if (workerStats.getTasksRunning() > 0) {
             return false;
         }
-        long currentTime = (long) ((double) System.currentTimeMillis() / 1000);
-        long lastTimeWorking = (long) ((double) workerStats.getLastTimeWorking() / 1000);
+        long currentTime = getCurrentTimeInSeconds();
+        long lastTimeWorking = getLastTimeWorkingInSeconds(workerStats);
         long secondsIdle = currentTime - lastTimeWorking;
         return secondsIdle > config.getMaxSecondsIdle();
     }
@@ -104,6 +119,18 @@ public class AutoscalingManager {
                 .filter(w -> w.getTasksRunning() == 0)
                 .filter(w -> !w.isDisconnected())
                 .count();
+    }
+
+    protected long getCurrentTimeInSeconds() {
+        return (long) ((double) System.currentTimeMillis() / 1000);
+    }
+
+    protected long getLastTimeWorkingInSeconds(WorkerStats workerStats) {
+        return (long) ((double) workerStats.getLastTimeWorking() / 1000);
+    }
+
+    protected long getLastTimeFetchedInSeconds(WorkerStats workerStats) {
+        return (long) ((double) workerStats.getLastTimeFetched() / 1000);
     }
 
 }
