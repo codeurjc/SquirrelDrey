@@ -1,16 +1,17 @@
 package es.codeurjc.squirrel.drey.local.simulator;
 
 import es.codeurjc.squirrel.drey.local.simulator.core.Simulation;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 
-public class ScenarySimulatorApp {
+public class ScenarySimulator {
 
-    public static void main(String[] args) {
+    @Test
+    public void simulate() {
         Path resourceInputDirectory = Paths.get("src","test","resources", "input");
         Path resourceResultsDirectory = Paths.get("src", "test", "resources", "results");
 
