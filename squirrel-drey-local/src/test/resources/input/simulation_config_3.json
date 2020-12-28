@@ -20,19 +20,9 @@
   "inputTasks": [
     {
       "fromPeriod": 2,
-      "toPeriod": 12,
-      "numHighPriorityTasksByPeriod": 3,
-      "numLowPriorityTasksByPeriod": 1,
-      "minTimeForHighPriorityTasksToComplete": 10,
-      "maxTimeForHighPriorityTasksToComplete": 20,
-      "minTimeForLowPriorityTasksToComplete": 10,
-      "maxTimeForLowPriorityTasksToComplete": 30
-    },
-    {
-      "fromPeriod": 20,
       "toPeriod": 25,
       "numHighPriorityTasksByPeriod": 10,
-      "numLowPriorityTasksByPeriod": 1,
+      "numLowPriorityTasksByPeriod": 5,
       "minTimeForHighPriorityTasksToComplete": 10,
       "maxTimeForHighPriorityTasksToComplete": 20,
       "minTimeForLowPriorityTasksToComplete": 10,

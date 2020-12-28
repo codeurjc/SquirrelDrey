@@ -1,5 +1,7 @@
 package es.codeurjc.squirrel.drey.local.simulator;
 
+import es.codeurjc.squirrel.drey.local.simulator.config.ScenaryConfig;
+
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;

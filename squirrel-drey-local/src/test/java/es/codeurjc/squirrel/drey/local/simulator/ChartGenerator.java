@@ -1,5 +1,10 @@
 package es.codeurjc.squirrel.drey.local.simulator;
 
+import com.google.gson.Gson;
+import com.google.gson.stream.JsonReader;
+import es.codeurjc.squirrel.drey.local.simulator.config.ScenaryConfig;
+import es.codeurjc.squirrel.drey.local.simulator.core.Simulation;
+
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -99,17 +104,29 @@ public class ChartGenerator {
         }
     }
 
-    public void saveSimulationResult(SimulationResult simulationResult) throws IOException {
-        this.saveSimulationResult(simulationResult, null);
+    public void saveSimulationResult(SimulationResult simulationResult, String configFile) throws IOException {
+        this.saveSimulationResult(simulationResult, configFile, null);
     }
 
-    public void saveSimulationResult(SimulationResult simulationResult, String outputDir) throws IOException {
+    public void saveSimulationResult(SimulationResult simulationResult, String configFile, String outputDir) throws IOException {
+        if (configFile == null) {
+            String absolutePathToDefaultConfigFile = resourceDirectory.toAbsolutePath() + "/" + Simulation.DEFAULT_RESOURCES_CONFIG_FILE;
+            configFile = absolutePathToDefaultConfigFile;
+        }
+        File file = new File(configFile);
+        Gson gson = new Gson();
+        JsonReader reader = new JsonReader(new FileReader(file));
+        ScenaryConfig scenaryConfig = gson.fromJson(reader, ScenaryConfig.class);
+        String scenaryConfigJson = gson.toJson(scenaryConfig);
+
         String chartTemplate = getResourceFileAsString(this.TEMPLATE_RESOURCE_FILE);
         StringBuilder dataSetJS = new StringBuilder();
         for (TemplateKeys templateKey : TemplateKeys.values()) {
             dataSetJS.append(templateKey.getJSCode(simulationResult));
         }
+        String htmlString = chartTemplate.replace("{{DATASET}}", dataSetJS);
+        htmlString = htmlString.replace("{{CONFIG}}", "var config='" + scenaryConfigJson + "';");
 
-        writeStringAsFile(chartTemplate.replace("{{DATASET}}", dataSetJS), outputDir);
+        writeStringAsFile(htmlString, outputDir);
     }
 }

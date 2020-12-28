@@ -14,8 +14,8 @@ public class AutoscalingManager {
         // Scale UP
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
         long numIdleWorkers = getNumIdleWorkers(status);
-        if ((status.getNumWorkers() > config.getMinWorkers())
-                && ((totalQueuedMessages > 0) || numIdleWorkers < config.getMinIdleWorkers())
+        if ((status.getNumWorkers() >= config.getMinWorkers())
+                && ((totalQueuedMessages > 0) || numIdleWorkers <= config.getMinIdleWorkers())
                 && status.getNumWorkers() < config.getMaxWorkers()) {
 
             int numWorkersToLaunch = calculateNumWorkersToLaunch(status, config);

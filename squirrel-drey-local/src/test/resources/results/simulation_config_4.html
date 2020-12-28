@@ -1,8 +1,21 @@
 <div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.2/Chart.min.js"></script>
     <script id="chart-js1">
-        {{DATASET}}
-        {{CONFIG}}
+        var labelsList=["00:00:00","00:00:10","00:00:20","00:00:30","00:00:40","00:00:50","00:01:00","00:01:10","00:01:20","00:01:30","00:01:40","00:01:50","00:02:00","00:02:10","00:02:20","00:02:30","00:02:40","00:02:50","00:03:00","00:03:10","00:03:20","00:03:30","00:03:40","00:03:50","00:04:00","00:04:10","00:04:20","00:04:30","00:04:40","00:04:50","00:05:00","00:05:10","00:05:20","00:05:30","00:05:40","00:05:50","00:06:00","00:06:10","00:06:20","00:06:30"];
+        var highPriorityTasks=[0, 0, 10, 10, 15, 14, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var lowPriorityTasks=[0, 1, 6, 11, 16, 21, 26, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var totalTasks=[0, 1, 16, 21, 31, 35, 31, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var runningTasks=[0, 14, 14, 14, 14, 14, 28, 49, 58, 56, 40, 31, 29, 31, 32, 34, 31, 31, 31, 32, 32, 33, 30, 29, 31, 20, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var runningWorkers=[2, 2, 2, 2, 2, 2, 4, 7, 9, 10, 10, 8, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+        var launchingWorkers=[0, 2, 4, 6, 8, 8, 6, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var terminatingWorkers=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var disconnectedWorkers=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var idleWorkers=[2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+        var minWorkersList=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+        var maxWorkersList=[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10];
+        var minIdleWorkers=[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+
+        var config='{"seed":1,"secondsByPeriod":10,"durationInPeriods":40,"minTimeForWorkersToBeRunning":30,"maxTimeForWorkersToBeRunning":50,"minTimeForWorkersToTerminate":10,"maxTimeForWorkersToTerminate":30,"initialRunningWorkers":2,"workerCores":8,"autoscalingConfig":{"minWorkers":1,"maxWorkers":10,"minIdleWorkers":2,"maxParallelization":8,"workersByMaxParallelization":2,"maxSecondsIdle":20,"maxSecondsNonRespondingWorker":30},"inputTasks":[{"fromPeriod":2,"toPeriod":25,"numHighPriorityTasksByPeriod":10,"numLowPriorityTasksByPeriod":5,"minTimeForHighPriorityTasksToComplete":10,"maxTimeForHighPriorityTasksToComplete":20,"minTimeForLowPriorityTasksToComplete":10,"maxTimeForLowPriorityTasksToComplete":30}]}';
         window.chartColors = {
             red: 'rgb(255, 99, 132)',
             darkRed: 'rgb(174, 4, 4)',

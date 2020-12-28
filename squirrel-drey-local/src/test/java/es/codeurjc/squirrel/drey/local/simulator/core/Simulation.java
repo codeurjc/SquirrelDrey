@@ -2,11 +2,9 @@ package es.codeurjc.squirrel.drey.local.simulator.core;
 
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
-import es.codeurjc.squirrel.drey.local.Worker;
 import es.codeurjc.squirrel.drey.local.WorkerStats;
 import es.codeurjc.squirrel.drey.local.WorkerStatus;
 import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingConfig;
-import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingManager;
 import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingResult;
 import es.codeurjc.squirrel.drey.local.autoscaling.SystemStatus;
 import es.codeurjc.squirrel.drey.local.simulator.SimulationResult;
@@ -49,7 +47,7 @@ public class Simulation {
 
     private Random random;
 
-    private String DEFAULT_RESOURCES_CONFIG_FILE = "simulation_config.json";
+    public static String DEFAULT_RESOURCES_CONFIG_FILE = "simulation_config.json";
     private String RANDOM_WORKER_ID_CHARACTERS = "abcdefghijklmnopqrstuvwxyz123456789_-";
 
     public Simulation() throws FileNotFoundException, ParseException {
