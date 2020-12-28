@@ -1,7 +1,7 @@
 {
   "seed": 1,
   "secondsByPeriod": 10,
-  "durationInPeriods": 40,
+  "durationInPeriods": 60,
   "minTimeForWorkersToBeRunning": 30,
   "maxTimeForWorkersToBeRunning": 50,
   "minTimeForWorkersToTerminate": 10,
@@ -10,19 +10,19 @@
   "workerCores": 8,
   "autoscalingConfig": {
     "minWorkers": 1,
-    "maxWorkers": 10,
+    "maxWorkers": 5,
     "minIdleWorkers": 2,
     "maxParallelization": 8,
     "workersByMaxParallelization": 2,
-    "maxSecondsIdle": 20,
+    "maxSecondsIdle": 120,
     "maxSecondsNonRespondingWorker":30
   },
   "inputTasks": [
     {
       "fromPeriod": 2,
       "toPeriod": 12,
-      "numHighPriorityTasksByPeriod": 3,
-      "numLowPriorityTasksByPeriod": 1,
+      "numHighPriorityTasksByPeriod": 10,
+      "numLowPriorityTasksByPeriod": 2,
       "minTimeForHighPriorityTasksToComplete": 10,
       "maxTimeForHighPriorityTasksToComplete": 20,
       "minTimeForLowPriorityTasksToComplete": 10,
@@ -30,9 +30,9 @@
     },
     {
       "fromPeriod": 20,
-      "toPeriod": 25,
+      "toPeriod": 30,
       "numHighPriorityTasksByPeriod": 10,
-      "numLowPriorityTasksByPeriod": 1,
+      "numLowPriorityTasksByPeriod": 2,
       "minTimeForHighPriorityTasksToComplete": 10,
       "maxTimeForHighPriorityTasksToComplete": 20,
       "minTimeForLowPriorityTasksToComplete": 10,

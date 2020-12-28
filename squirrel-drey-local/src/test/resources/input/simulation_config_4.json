@@ -1,7 +1,7 @@
 {
   "seed": 1,
   "secondsByPeriod": 10,
-  "durationInPeriods": 40,
+  "durationInPeriods": 60,
   "minTimeForWorkersToBeRunning": 30,
   "maxTimeForWorkersToBeRunning": 50,
   "minTimeForWorkersToTerminate": 10,
@@ -20,9 +20,39 @@
   "inputTasks": [
     {
       "fromPeriod": 2,
-      "toPeriod": 25,
-      "numHighPriorityTasksByPeriod": 10,
-      "numLowPriorityTasksByPeriod": 5,
+      "toPeriod": 12,
+      "numHighPriorityTasksByPeriod": 12,
+      "numLowPriorityTasksByPeriod": 2,
+      "minTimeForHighPriorityTasksToComplete": 10,
+      "maxTimeForHighPriorityTasksToComplete": 20,
+      "minTimeForLowPriorityTasksToComplete": 10,
+      "maxTimeForLowPriorityTasksToComplete": 30
+    },
+    {
+      "fromPeriod": 13,
+      "toPeriod": 23,
+      "numHighPriorityTasksByPeriod": 16,
+      "numLowPriorityTasksByPeriod": 2,
+      "minTimeForHighPriorityTasksToComplete": 10,
+      "maxTimeForHighPriorityTasksToComplete": 20,
+      "minTimeForLowPriorityTasksToComplete": 10,
+      "maxTimeForLowPriorityTasksToComplete": 30
+    },
+    {
+      "fromPeriod": 24,
+      "toPeriod": 34,
+      "numHighPriorityTasksByPeriod": 20,
+      "numLowPriorityTasksByPeriod": 2,
+      "minTimeForHighPriorityTasksToComplete": 10,
+      "maxTimeForHighPriorityTasksToComplete": 20,
+      "minTimeForLowPriorityTasksToComplete": 10,
+      "maxTimeForLowPriorityTasksToComplete": 30
+    },
+    {
+      "fromPeriod": 35,
+      "toPeriod": 45,
+      "numHighPriorityTasksByPeriod": 33,
+      "numLowPriorityTasksByPeriod": 2,
       "minTimeForHighPriorityTasksToComplete": 10,
       "maxTimeForHighPriorityTasksToComplete": 20,
       "minTimeForLowPriorityTasksToComplete": 10,

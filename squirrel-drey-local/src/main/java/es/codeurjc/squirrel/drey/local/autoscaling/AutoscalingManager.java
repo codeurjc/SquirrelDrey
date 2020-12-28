@@ -59,6 +59,13 @@ public class AutoscalingManager {
         int idealNumOfWorkers = totalQueuedMessages / maxParallelization + ((totalQueuedMessages % maxParallelization == 0) ? 0 : 1);
         idealNumOfWorkers = idealNumOfWorkers * workersByMaxParallelization;
 
+        // Sum minimal idle workers
+        long numIdleWorkersToLaunch = config.getMinIdleWorkers() - getNumIdleWorkers(status);
+        if (numIdleWorkersToLaunch > 0 && numIdleWorkersToLaunch <= config.getMinIdleWorkers()) {
+            idealNumOfWorkers += numIdleWorkersToLaunch;
+        }
+
+
         // Not necessary workers because they are launching
         int notNecessaryWorkers = status.getLaunchingWorkers().size();
         return idealNumOfWorkers - notNecessaryWorkers;
