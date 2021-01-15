@@ -59,19 +59,21 @@ public class Config {
 
     private AutoscalingConfig autoscalingConfig;
 
+    private int DEFAULT_PARALLELIZATION_GRADE;
+
     public Config() {
         // Defaults
-        int DEFAULT_PARALLELIZATION_GRADE = 1;
-        int DEFAULT_SQS_LISTENER_PERIOD_MS = 250;
-        int DEFAULT_SQS_MAX_TIMEOUT = 20;
-        int DEFAULT_MONITORING_PERIOD = 10;
-        int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 10;
+        final int DEFAULT_SQS_LISTENER_PERIOD_MS = 10;
+        final int DEFAULT_SQS_MAX_TIMEOUT = 20;
+        final int DEFAULT_MONITORING_PERIOD = 10;
+        final int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 10;
+        this.DEFAULT_PARALLELIZATION_GRADE = 1;
 
         // Parameters
-        this.devmode = System.getProperty("devmode") != null && Boolean.parseBoolean(System.getProperty("devmode"));
+        this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
         this.awsEnpointUrl = System.getProperty("endpoint-url");
         this.awsRegion = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
-        this.isMaster = System.getProperty("worker") != null && !Boolean.parseBoolean(System.getProperty("worker"));
+        this.isMaster = System.getProperty("worker") == null || !Boolean.parseBoolean(System.getProperty("worker"));
         this.parallelizationGrade = System.getProperty("parallelization-grade") != null ? Integer.parseInt(System.getProperty("parallelization-grade")) : DEFAULT_PARALLELIZATION_GRADE;
         this.sqsInputQueueSuffix = System.getProperty("input-queue-suffix");
         this.sqsLowPriorityQueueSuffix = System.getProperty("low-priority-input-queue-suffix");
@@ -192,8 +194,10 @@ public class Config {
         if (System.getProperty("autoscaling-min-idle-workers") != null) {
             asBuilder.minIdleWorkers(Integer.parseInt(System.getProperty("autoscaling-min-idle-workers")));
         }
-        if (System.getProperty("autoscaling-max-parallelization") != null) {
-            asBuilder.maxParalleization(Integer.parseInt(System.getProperty("autoscaling-max-parallelization")));
+        if (System.getProperty("parallelization-grade") != null) {
+            asBuilder.maxParallelization(Integer.parseInt(System.getProperty("parallelization-grade")));
+        } else {
+            asBuilder.maxParallelization(DEFAULT_PARALLELIZATION_GRADE);
         }
         if (System.getProperty("autoscaling-workers-by-max-parallelization") != null) {
             asBuilder.workersByMaxParallelization(Integer.parseInt(System.getProperty("autoscaling-workers-by-max-parallelization")));

@@ -65,13 +65,16 @@ public class InfrastructureManager<R extends Serializable> {
                         if (this.algorithmManager.sqsMaster != null) {
                             // Take account of updated workers
                             long currentTime = System.currentTimeMillis();
-                            log.info("Monitoring workers");
-
+                            log.info("\n ====================\n Monitoring workers \n ===================");
                             this.algorithmManager.fetchInfrastructureWorkers(maxTimeOutFetchWorkers);
 
                             this.workers.values().stream()
                                     .filter(w -> !w.isDisconnected)
-                                    .forEach(workerStats -> log.warn(workerStats.toString()));
+                                    .forEach(workerStats -> log.info(workerStats.toString()));
+
+                            this.workers.values().stream()
+                                    .filter(w -> w.isDisconnected)
+                                    .forEach(workerStats -> log.warn("DISCONNECTED: {}", workerStats.toString()));
 
                             if (this.autoscaling) {
                                 // AUTOSCALING
@@ -80,7 +83,7 @@ public class InfrastructureManager<R extends Serializable> {
                             }
 
                             double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
-                            log.info("Execution time of monitoring: {} seconds", secondsExecuting);
+                            log.info("\n ====================\n Execution time of monitoring: {} seconds \n ===================", secondsExecuting);
                         }
                     } catch (Exception e) {
                         log.warn("Some workers are not responding: {}", e.getMessage());

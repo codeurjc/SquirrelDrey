@@ -11,6 +11,8 @@ import java.util.Map;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSAsync;
+import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import com.amazonaws.services.sqs.model.CreateQueueResult;
@@ -38,6 +40,7 @@ public abstract class SQSConnector<R extends Serializable> {
     private Config config;
 
     protected AmazonSQS sqs;
+    protected AmazonSQSAsync sqsAsync;
 
     // Master and worker common queues
     protected String inputQueueUrl;
@@ -80,17 +83,16 @@ public abstract class SQSConnector<R extends Serializable> {
                 .withConnectionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
                 .withClientExecutionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
 
+        AmazonSQSClientBuilder sqsClientBuilder = AmazonSQSClientBuilder.standard().withClientConfiguration(clientConfiguration);
+        AmazonSQSAsyncClientBuilder sqsAsyncClientBuilder = AmazonSQSAsyncClientBuilder.standard()
+                .withClientConfiguration(clientConfiguration);
         if (endpointUrl != null) {
             EndpointConfiguration ec = new EndpointConfiguration(endpointUrl, region);
-            this.sqs = AmazonSQSClientBuilder.standard()
-                    .withEndpointConfiguration(ec)
-                    .withClientConfiguration(clientConfiguration)
-                    .build();
+            this.sqs = sqsClientBuilder.withEndpointConfiguration(ec).build();
+            this.sqsAsync = sqsAsyncClientBuilder.withEndpointConfiguration(ec).build();
         } else {
-            this.sqs = AmazonSQSClientBuilder.standard()
-                    .withRegion(region)
-                    .withClientConfiguration(clientConfiguration)
-                    .build();
+            this.sqs = sqsClientBuilder.withRegion(region).build();
+            this.sqsAsync = sqsAsyncClientBuilder.withRegion(region).build();
         }
 
         try {
@@ -140,8 +142,23 @@ public abstract class SQSConnector<R extends Serializable> {
         this.generateDirectQueuePrefix();
     }
 
+    protected void asyncSend(String queue, Object object, MessageType messageType) throws IOException {
+        ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        SendMessageRequest sendMsgRequest = generateMessageRequest(bo, queue, object, messageType);
+        sqsAsync.sendMessageAsync(sendMsgRequest);
+        log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
+    }
+
     protected SendMessageResult send(String queue, Object object, MessageType messageType) throws IOException {
         ByteArrayOutputStream bo = new ByteArrayOutputStream();
+        SendMessageRequest sendMsgRequest = generateMessageRequest(bo, queue, object, messageType);
+        SendMessageResult sentMessage = sqs.sendMessage(sendMsgRequest);
+        log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
+        return sentMessage;
+    }
+
+    protected SendMessageRequest generateMessageRequest(ByteArrayOutputStream bo, String queue, Object object, MessageType messageType) throws IOException {
+
         ObjectOutputStream so = new ObjectOutputStream(bo);
         so.writeObject(object);
         so.flush();
@@ -157,12 +174,10 @@ public abstract class SQSConnector<R extends Serializable> {
                 .concat(attributes.get("Id").toString()).concat(attributes.get("Type").toString());
         String messageDeduplicationId = DigestUtils.sha256Hex(messageDeduplicationIdString);
 
-        SendMessageRequest send_msg_request = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
+        SendMessageRequest sendMsgRequest = new SendMessageRequest().withQueueUrl(queue).withMessageGroupId(this.id)
                 .withMessageBody(serializedObject).withMessageAttributes(attributes)
                 .withMessageDeduplicationId(messageDeduplicationId);
-        SendMessageResult sentMessage = sqs.sendMessage(send_msg_request);
-        log.info("Sent object to SQS queue {} with size (bytes): {}", queue, bo.size());
-        return sentMessage;
+        return sendMsgRequest;
     }
 
     protected Map<ObjectInputStream, Map<String, MessageAttributeValue>> messageListener(String queue)

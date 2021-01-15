@@ -103,7 +103,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public void startListen() {
         this.scheduleExecutorOuput.scheduleAtFixedRate(() -> {
             listenInput();
-        }, 0, this.sqsListenerPeriod, TimeUnit.MILLISECONDS);
+        }, 0, 500, TimeUnit.MILLISECONDS);
 
         this.scheduleExecutorDirect.scheduleAtFixedRate(() -> {
             listenDirect();
@@ -257,7 +257,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             }
         }
         log.info("Sending terminate one algorithm blocking done: {}", alg);
-        SendMessageResult message = this.send(this.outputQueueUrl, alg, MessageType.TERMINATE_ONE_DONE);
+        SendMessageResult message = this.send(this.outputQueueUrl, alg.getId(), MessageType.TERMINATE_ONE_DONE);
         return message;
     }
 

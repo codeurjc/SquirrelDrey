@@ -1,15 +1,11 @@
 package es.codeurjc.squirrel.drey.local;
 
 import com.google.gson.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 public class WorkerStats implements Serializable {
-
-	private static final Logger log = LoggerFactory.getLogger(WorkerStats.class);
 
 	private static final long serialVersionUID = 1L;
 
@@ -143,10 +139,6 @@ public class WorkerStats implements Serializable {
 		this.environmentId = environmentId;
 	}
 
-	public String getInstanceId() {
-		return this.getInstanceId();
-	}
-
 	public String getWorkerId() {
 		return this.workerId;
 	}
@@ -239,7 +231,7 @@ public class WorkerStats implements Serializable {
 			json.addProperty("secondsIdle", lastTimeWorking);
 		}
 		if (environmentId != null) {
-			json.addProperty("ec2InstanceId", environmentId);
+			json.addProperty("environmentId", environmentId);
 		}
 		if (workerId != null) {
 			json.addProperty("workerId", workerId);
@@ -279,7 +271,7 @@ public class WorkerStats implements Serializable {
 				"launchingTime=" + launchingTime +
 				", lastTimeFetched=" + lastTimeFetched +
 				", secondsIdle=" + lastTimeWorking +
-				", ec2InstanceId='" + environmentId + '\'' +
+				", environmentId='" + environmentId + '\'' +
 				", workerId='" + workerId + '\'' +
 				", directQueueUrl='" + directQueueUrl + '\'' +
 				", totalCores=" + totalCores +

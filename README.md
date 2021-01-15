@@ -135,6 +135,26 @@ public class SolveTask extends Task {
 
 Note: development has been done using [Localstack](https://github.com/localstack/localstack) to simulate AWS SQS queues.
 
+To run localstack:
+
+1. Git clone the localstack repository and `cd` into the cloned repository:
+
+```
+git clone https://github.com/localstack/localstack.git
+cd localstack
+```
+
+2. Execute `docker-compose up`
+
+When everything is running, a "Simulated AWS" will be running in your machine at port `4566`.
+
+To check if everything is working, with this command you will see a list of your simulated SQS queues:
+
+```
+aws --endpoint-url=http://localhost:4566 sqs list-queues
+```
+
+This will return nothing, but if everything is working, it should return with `exit 0`.
 ### squirrel-drey-hello-world-local
 
 **Clone and build the project**
@@ -148,16 +168,36 @@ mvn -DskipTests=true clean package
 **Launch a worker**
 
 ```
-java -Ddevmode=false -Dworker=true -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
+java -Ddevmode=false \
+    -Dworker=true \ 
+    -Dendpoint-url=http://localhost:4566 \
+    -Dinput-queue-suffix=pvdesign-dev \
+    -Dlow-priority-input-queue-suffix=pvdesign-dev \
+    -Doutput-queue-suffix=pvdesign-dev \
+    -Ddirect-queue-suffix=pvdesign-dev \
+    -jar target/squirrel-drey-hello-world-local-*-with-dependencies.jar
 ```
 
 **Launch app** *(different console window)*
 
 ```
-java -Ddevmode=false -Dworker=false -Daws-region=us-east-1 -Dendpoint-url=http://localhost:4566 -jar target/squirrel-drey-hello-world-*.jar
+java -Ddevmode=false \
+    -Dworker=false \
+    -Dendpoint-url=http://localhost:4566 \
+    -Dinput-queue-suffix=pvdesign-dev \
+    -Dlow-priority-input-queue-suffix=pvdesign-dev \
+    -Doutput-queue-suffix=pvdesign-dev \
+    -Ddirect-queue-suffix=pvdesign-dev \
+    -jar target/squirrel-drey-hello-world-local-*-with-dependencies.jar
 ```
 
 The output of the app will show the solving process, displaying the state of the workers in real time, and will end showing the final result.
+
+If you want to execute the application with master and worker being the same, you just need to run:
+
+```
+java -jar target/squirrel-drey-hello-world-local-*-with-dependencies.jar
+```
 
 ### squirrel-drey-sample-app-local
 
@@ -172,19 +212,27 @@ mvn -DskipTests=true package
 **Launch a worker**
 
 ```
-java -Ddevmode=false -Dworker=true \
-    -Daws-region=us-east-1 \
+java -Ddevmode=false \
+    -Dworker=true \
     -Dendpoint-url=http://localhost:4566 \
-    -Dsqs-listener-timer=1 \ -jar target/squirrel-drey-sampleapp-*.jar
+    -Dinput-queue-suffix=pvdesign-dev \
+    -Dlow-priority-input-queue-suffix=pvdesign-dev \
+    -Doutput-queue-suffix=pvdesign-dev \
+    -Ddirect-queue-suffix=pvdesign-dev \
+    -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 **Launch sampleapp** *(different console window)*
 
 ```
-java -Ddevmode=false -Dworker=false \
-    -Daws-region=us-east-1 \
+java -Ddevmode=false \
+    -Dworker=false \
     -Dendpoint-url=http://localhost:4566 \
-    -Dsqs-listener-timer=1 -jar target/squirrel-drey-sampleapp-*.jar
+    -Dinput-queue-suffix=pvdesign-dev \
+    -Dlow-priority-input-queue-suffix=pvdesign-dev \
+    -Doutput-queue-suffix=pvdesign-dev \
+    -Ddirect-queue-suffix=pvdesign-dev \
+    -jar target/squirrel-drey-sampleapp-*.jar
 ```
 
 You will have the web app available at [localhost:5000](http://localhost:5000). You can launch different algorithms with different configurations at the same time, and they will execute making use of all the launched workers. You can dinamically add or remove workers and see the behaviour and performance of the algorithm's execution.
@@ -343,6 +391,6 @@ java -Ddevmode=false -Dworker=true \
 - [x] Wait for messages instead of polling SQS.
 - [x] Prepare clases for Autoscaling.
 - [x] Implement autoscaling algorithm.
-- [ ] **(In Progress)** Create simulations to test algorithm.
+- [X] **(In Progress)** Create simulations to test algorithm.
 - [ ] Implement InfrastructureManager and update ECS.
 - [ ] Update CF and test in real environment

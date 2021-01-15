@@ -52,7 +52,7 @@ public class AutoscalingConfig {
             return this;
         }
 
-        public Builder maxParalleization(int parallelization) {
+        public Builder maxParallelization(int parallelization) {
             this.maxParallelization = parallelization;
             return this;
         }

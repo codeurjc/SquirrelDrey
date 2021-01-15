@@ -112,10 +112,15 @@ public class QueuesManager<R extends Serializable> {
 			}
 
 			try {
-				task.callback();
 
-				// Remove task from map of running tasks
-				runningTasks.remove(task.getId());
+				// Remove running task in case the callback fails
+				try {
+					task.callback();
+				} catch (Exception e) {
+					log.warn("Exception will running callback. Probably the algorithm was stopped: {}", e.getMessage());
+				} finally {
+					runningTasks.remove(task.getId());
+				}
 				log.info("XXX2 " + runningTasks.size());
 
 				log.info("Finished task [{}] for algorithm [{}]", task, task.algorithmId);

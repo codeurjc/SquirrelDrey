@@ -30,14 +30,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorMaster.class);
     private ScheduledExecutorService scheduleExecutor; // Local scheduled executor for running listener thread
 
-    private ReentrantLock sharedinfrastructureManagerLock;
+    private ReentrantLock sharedInfrastructureManagerLock;
     private InfrastructureManager<R> infrastructureManager;
     private AlgorithmManager<R> algorithmManager;
 
-    protected SQSConnectorMaster(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedinfrastructureManagerLock) {
+    protected SQSConnectorMaster(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
         super(config, UUID.randomUUID().toString());
         this.algorithmManager = algorithmManager;
-        this.sharedinfrastructureManagerLock = sharedinfrastructureManagerLock;
+        this.sharedInfrastructureManagerLock = sharedInfrastructureManagerLock;
         this.infrastructureManager = this.algorithmManager.infrastructureManager;
         this.scheduleExecutor = Executors.newScheduledThreadPool(1);
 
@@ -141,13 +141,13 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     private void establishConnection(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {
         try {
-            sharedinfrastructureManagerLock.lock();
+            sharedInfrastructureManagerLock.lock();
             WorkerStats workerStats = (WorkerStats) si.readObject();
             if (this.infrastructureManager.getWorkers().put(id, workerStats) == null) {
                 log.info("Established direct connection with worker: {}", id);
             }
         } finally {
-            sharedinfrastructureManagerLock.unlock();
+            sharedInfrastructureManagerLock.unlock();
         }
     }
 
@@ -220,13 +220,13 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 .collect(Collectors.toList());
         for (WorkerStats workerStats : runningWorkers) {
             String directQueue = workerStats.directQueueUrl;
-            this.send(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
+            this.asyncSend(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
         }
     }
 
     public void fetchAlgorithmInfo() throws IOException {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             log.info("Fetching current information of all algorithms");
             List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
@@ -237,14 +237,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.send(directQueue, MessageType.FETCH_ALG_INFO, MessageType.FETCH_ALG_INFO);
             }
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }
 
     public void terminateAlgorithms() throws IOException {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             log.info("Terminating all algorithms");
             List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
@@ -255,14 +255,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.send(directQueue, MessageType.TERMINATE_ALL, MessageType.TERMINATE_ALL);
             }
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }
 
     public void terminateAlgorithmsBlocking() throws IOException {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             log.info("Terminating all algorithms (blocking)");
             List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
@@ -273,14 +273,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.send(directQueue, MessageType.TERMINATE_ALL_BLOCKING, MessageType.TERMINATE_ALL_BLOCKING);
             }
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }
 
     public void stopOneAlgorithmBlocking(String algorithmId) throws IOException {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
                     .filter(workerStats -> !workerStats.isDisconnected())
@@ -290,21 +290,21 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.send(directQueue, algorithmId, MessageType.TERMINATE_ONE);
             }
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }
 
     public void deleteDirectQueues() {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             log.info("Deleting direct SQS queues");
             for (WorkerStats workerStats : infrastructureManager.getWorkers().values()) {
                 String queueUrl = workerStats.directQueueUrl;
                 this.sqs.deleteQueue(queueUrl);
             }
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }
@@ -322,7 +322,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     public int getNumberOfWorkers() {
         try {
-            this.sharedinfrastructureManagerLock.lock();
+            this.sharedInfrastructureManagerLock.lock();
             return Long.valueOf(this.infrastructureManager.getWorkers()
                     .values().stream()
                     .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
@@ -332,7 +332,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             e.printStackTrace();
             return 0;
         } finally {
-            this.sharedinfrastructureManagerLock.unlock();
+            this.sharedInfrastructureManagerLock.unlock();
         }
 
     }

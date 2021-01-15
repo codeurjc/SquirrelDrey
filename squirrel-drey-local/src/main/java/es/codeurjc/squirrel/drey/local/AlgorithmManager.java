@@ -14,9 +14,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGenerator;
-import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGeneratorAws;
-import es.codeurjc.squirrel.drey.local.utils.EnvironmentIdGeneratorDefault;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -436,12 +433,14 @@ public class AlgorithmManager<R extends Serializable> {
 		return alg;
 	}
 
-	public void stopOneAlgorithmDone(String algorithmId) {
+	protected void stopOneAlgorithmDone(String algorithmId) {
 		log.info("Algorithm [{}] successfully terminated", algorithmId);
-		this.terminateOneBlockingLatches.get(algorithmId).countDown();
+		if (this.terminateOneBlockingLatches != null) {
+			this.terminateOneBlockingLatches.get(algorithmId).countDown();
+		}
 	}
 
-	public void stopAlgorithmsDone() {
+	protected void stopAlgorithmsDone() {
 		log.info("Algorithms successfully terminated on {} milliseconds",
 				System.currentTimeMillis() - this.timeForTerminate);
 		this.terminateBlockingLatch.countDown();
@@ -488,6 +487,10 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+		return this.infrastructureManager.getWorkers();
+	}
+
+	public Map<String, WorkerStats> getWorkers() {
 		return this.infrastructureManager.getWorkers();
 	}
 

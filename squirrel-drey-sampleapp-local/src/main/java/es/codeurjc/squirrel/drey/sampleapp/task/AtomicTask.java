@@ -33,7 +33,7 @@ public class AtomicTask extends Task {
 		
 		Map<Integer, Integer> results = (Map<Integer, Integer>) this.getMap("results");
 		AtomicLong atomicLong = this.getAtomicLong("countdown");
-		results.put(Integer.parseInt(this.workDescription), 1);
+		results.put(Integer.parseInt(this.workDescription), 3);
 				
 		if (atomicLong.decrementAndGet() == 0L) {
 			App.logger.info("ADDING SOLVE TASK FOR ALGORITHM [{}]", this.algorithmId);
