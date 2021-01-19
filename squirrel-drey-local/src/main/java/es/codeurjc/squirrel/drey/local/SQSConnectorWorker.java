@@ -29,10 +29,12 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
 
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
-    private ScheduledExecutorService scheduleExecutorOuput; // Local scheduled executor for running listener thread
+    private ScheduledExecutorService scheduleExecutorInput; // Local scheduled executor for running listener thread
     private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running listener thread
 
     private AlgorithmManager<R> algorithmManager;
+
+    private boolean enableInput = true;
 
     public SQSConnectorWorker(Config config, String id, AlgorithmManager<R> algorithmManager) {
         super(config, id);
@@ -47,7 +49,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
             this.createDirectQueue();
         }
 
-        this.scheduleExecutorOuput = Executors.newScheduledThreadPool(1);
+        this.scheduleExecutorInput = Executors.newScheduledThreadPool(1);
         this.scheduleExecutorDirect = Executors.newScheduledThreadPool(1);
         this.startListen();
     }
@@ -101,7 +103,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void startListen() {
-        this.scheduleExecutorOuput.scheduleAtFixedRate(() -> {
+        this.scheduleExecutorInput.scheduleAtFixedRate(() -> {
             listenInput();
         }, 0, 500, TimeUnit.MILLISECONDS);
 
@@ -111,44 +113,47 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     }
 
     public void listenInput() {
-        boolean runningAlg = false;
-        int runningAlgs = 0;
-        // If algorithms is null it hasn't finished initializing algorithm manager
-        if (this.algorithmManager.algorithms != null) {
-            for (Map.Entry<String, Algorithm<R>> algEntry : this.algorithmManager.algorithms.entrySet()) {
-                if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
-                    runningAlgs++;
-                    if (runningAlgs >= this.parallelizationGrade) {
-                        log.info("Max Number of Algorithms Running, input messages will not be checked.");
-                        runningAlg = true;
-                        break;
+        log.info("Input is enabled: {}", enableInput);
+        if (enableInput) {
+            boolean runningAlg = false;
+            int runningAlgs = 0;
+            // If algorithms is null it hasn't finished initializing algorithm manager
+            if (this.algorithmManager.algorithms != null) {
+                for (Map.Entry<String, Algorithm<R>> algEntry : this.algorithmManager.algorithms.entrySet()) {
+                    if (algEntry.getValue().getStatus() == Algorithm.Status.STARTED) {
+                        runningAlgs++;
+                        if (runningAlgs >= this.parallelizationGrade) {
+                            log.info("Max Number of Algorithms Running, input messages will not be checked.");
+                            runningAlg = true;
+                            break;
+                        }
                     }
                 }
+            } else {
+                // Wait until algorithm manager is initialized
+                runningAlg = true;
             }
-        } else {
-            // Wait until algorithm manager is initialized
-            runningAlg = true;
-        }
-        if (!runningAlg) {
-            try {
-                if (this.inputQueueUrl == null) {
-                    this.lookForInputQueue();
-                }
-                Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
-                if (siMap.size() > 0) {
-                    processMessage(siMap);
-                } else if (runningAlgs <= 0) {
-                    if (this.lowPriorityInputQueueUrl == null) {
-                        this.lookForLowPriorityInputQueue();
+            if (!runningAlg) {
+                try {
+                    if (this.inputQueueUrl == null) {
+                        this.lookForInputQueue();
                     }
-                    Map<ObjectInputStream, Map<String, MessageAttributeValue>> lowPrioSiMap = messageListener(this.lowPriorityInputQueueUrl);
-                    processMessage(lowPrioSiMap);
+                    Map<ObjectInputStream, Map<String, MessageAttributeValue>> siMap = messageListener(this.inputQueueUrl);
+                    if (siMap.size() > 0) {
+                        processMessage(siMap);
+                    } else if (runningAlgs <= 0) {
+                        if (this.lowPriorityInputQueueUrl == null) {
+                            this.lookForLowPriorityInputQueue();
+                        }
+                        Map<ObjectInputStream, Map<String, MessageAttributeValue>> lowPrioSiMap = messageListener(this.lowPriorityInputQueueUrl);
+                        processMessage(lowPrioSiMap);
+                    }
+                } catch (QueueDoesNotExistException ex) {
+                    log.error(ex.getMessage());
+                } catch (Exception e) {
+                    log.error(e.getMessage());
+                    e.printStackTrace();
                 }
-            } catch (QueueDoesNotExistException ex) {
-                log.error(ex.getMessage());
-            } catch (Exception e) {
-                log.error(e.getMessage());
-                e.printStackTrace();
             }
         }
     }
@@ -193,6 +198,12 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                         break;
                     case FETCH_ALG_INFO:
                         retrieveAlgInfo();
+                        break;
+                    case DISABLE_INPUT:
+                        disableInput();
+                        break;
+                    case ENABLE_INPUT:
+                        enableInput();
                         break;
                     default:
                         throw new Exception("Incorrent message type received in worker: "
@@ -261,9 +272,14 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return message;
     }
 
-    public void stopListen() {
-        this.scheduleExecutorOuput.shutdown();
-        this.scheduleExecutorDirect.shutdown();
+    public void disableInput() {
+        log.info("Disabling Input");
+        this.enableInput = false;
+    }
+
+    public void enableInput() {
+        log.info("Enabling Input");
+        this.enableInput = true;
     }
 
     private void solveAlgorithm(ObjectInputStream si) throws Exception {

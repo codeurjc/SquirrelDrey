@@ -69,14 +69,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                             break;
                         }
                         case ESTABLISH_CONNECTION: {
-                            establishConnection(si.getKey(), si.getValue().get("Id").getStringValue());
+                            establishConnection(si.getKey());
                             break;
                         }
                         case WORKER_STATS_AUTODISCOVERY:
-                            receivedWorkerStatsFromAutodiscovery(si.getKey(), si.getValue().get("Id").getStringValue());
+                            receivedWorkerStatsFromAutodiscovery(si.getKey());
                             break;
                         case WORKER_STATS: {
-                            receivedWorkerStats(si.getKey(), si.getValue().get("Id").getStringValue());
+                            receivedWorkerStats(si.getKey());
                             break;
                         }
                         case TERMINATE_ALL_DONE: {
@@ -125,8 +125,9 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         this.algorithmManager.runCallbackError(erroredAlgEntry.getKey(), erroredAlgEntry.getValue());
     }
 
-    private void receivedWorkerStatsFromAutodiscovery(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {
+    private void receivedWorkerStatsFromAutodiscovery(ObjectInputStream si) throws ClassNotFoundException, IOException {
         WorkerStats workerStats = (WorkerStats) si.readObject();
+        String id = workerStats.getWorkerId();
         if (this.algorithmManager.workerStatsReceivedFromAutodiscovery(id, workerStats) == null) {
             log.info("Established direct connection with worker: {}", id);
         } else {
@@ -134,15 +135,17 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-    private void receivedWorkerStats(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {
+    private void receivedWorkerStats(ObjectInputStream si) throws ClassNotFoundException, IOException {
         WorkerStats workerStats = (WorkerStats) si.readObject();
+        String id = workerStats.getWorkerId();
         this.algorithmManager.workerStatsReceived(id, workerStats);
     }
 
-    private void establishConnection(ObjectInputStream si, String id) throws ClassNotFoundException, IOException {
+    private void establishConnection(ObjectInputStream si) throws ClassNotFoundException, IOException {
         try {
             sharedInfrastructureManagerLock.lock();
             WorkerStats workerStats = (WorkerStats) si.readObject();
+            String id = workerStats.getWorkerId();
             if (this.infrastructureManager.getWorkers().put(id, workerStats) == null) {
                 log.info("Established direct connection with worker: {}", id);
             }
@@ -293,6 +296,16 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             this.sharedInfrastructureManagerLock.unlock();
         }
 
+    }
+
+    public void disableInputForWorker(WorkerStats workerStats) throws IOException {
+        String directQueue = workerStats.getDirectQueueUrl();
+        this.send(directQueue, MessageType.DISABLE_INPUT, MessageType.DISABLE_INPUT);
+    }
+
+    public void enableInputForWorker(WorkerStats workerStats) throws IOException {
+        String directQueue = workerStats.getDirectQueueUrl();
+        this.send(directQueue, MessageType.ENABLE_INPUT, MessageType.ENABLE_INPUT);
     }
 
     public void deleteDirectQueues() {

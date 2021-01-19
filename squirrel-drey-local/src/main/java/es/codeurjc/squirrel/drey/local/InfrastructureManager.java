@@ -1,11 +1,14 @@
 package es.codeurjc.squirrel.drey.local;
 
-import es.codeurjc.squirrel.drey.local.autoscaling.AutoScalingException;
-import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingManager;
-import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingResult;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.*;
+import es.codeurjc.squirrel.drey.local.autoscaling.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
@@ -44,21 +47,45 @@ public class InfrastructureManager<R extends Serializable> {
 
         this.workers = new ConcurrentHashMap<>();
         this.monitoringClusterSchedule = Executors.newScheduledThreadPool(1);
+
         this.startMonitoring();
     }
 
     public void launchWorker(boolean async) {
-        // TODO
+        if (async) {
+            new Thread(() -> {
+                launchWorkerAux(config.getAwsWorkerLaunchTemplate(), config.getAwsSubnetId(), config.getAwsRegion());
+            }).start();
+        } else {
+            launchWorkerAux(config.getAwsWorkerLaunchTemplate(), config.getAwsSubnetId(), config.getAwsRegion());
+        }
     }
 
-    public void removeWorker(String workerId, boolean whenNotRunningTasks, boolean async) {
-        // TODO
+    public void removeWorker(WorkerStats workerStats, boolean async) {
+        if (async) {
+            new Thread(() -> {
+                removeWorkerAux(workerStats, config.getAwsRegion());
+            }).start();
+        } else {
+            removeWorkerAux(workerStats, config.getAwsRegion());
+        }
     }
 
     private void startMonitoring() {
         this.monitoringClusterSchedule.scheduleAtFixedRate(() -> {
             try {
                 if (this.config.isMonitoringEnabled()) {
+                    try {
+                        if (workers.size() == 0) {
+                            // Initial state
+                            for(int i = 0; i < config.getAutoscalingConfig().getMinWorkers(); i++) {
+                                launchWorker(false);
+                            }
+                        }
+                    } catch (Exception e) {
+                        log.error("Error launching initial workers...");
+                        e.printStackTrace();
+                    }
                     Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
                     this.workers.values().forEach(w -> mapWorkerIdLastTimeFetched.put(w.getWorkerId(), w.getLastTimeFetched()));
                     try {
@@ -77,9 +104,12 @@ public class InfrastructureManager<R extends Serializable> {
                                     .forEach(workerStats -> log.warn("DISCONNECTED: {}", workerStats.toString()));
 
                             if (this.autoscaling) {
-                                // AUTOSCALING
-                                // AutoscalingResult autoscalingResult = this.autoscalingManager.evalAutoscaling(config, status);
-                                // this.applyAutoscalingResult(autoscalingResult)
+                                SystemStatus systemStatus = this.getSystemStatus();
+                                AutoscalingConfig asConfig = this.config.getAutoscalingConfig();
+                                log.info("Evaluating autoscaling...");
+                                AutoscalingResult autoscalingResult = autoscalingManager.evalAutoscaling(asConfig, systemStatus);
+                                log.info("Autoscaling result: {}", autoscalingResult.toString());
+                                applyAutoscalingResult(autoscalingResult);
                             }
 
                             double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
@@ -117,15 +147,18 @@ public class InfrastructureManager<R extends Serializable> {
         }, 0, monitoringPeriod, TimeUnit.SECONDS);
     }
 
-    private void applyAutoscalingResult(AutoscalingResult result) {
+    private void applyAutoscalingResult(AutoscalingResult result) throws IOException, TimeoutException {
 
+        log.info("Applying autoscaling");
+        // Remove workers
         if (!result.isDoNothing()) {
-            // Terminate Workers
-            result.getWorkersToTerminate().forEach(node -> {
-                removeWorker(node.workerId, true, true);
+            log.info("Autoscaling: Instances to remove: {}", result.getWorkersToTerminate().size());
+            result.getWorkersToTerminate().forEach(worker -> {
+                removeWorker(worker, true);
             });
 
-            // Launch new Media Nodes only in auto cluster mode
+            log.info("Autoscaling: Instances to launch: {}", result.getNumWorkersToLaunch());
+            // Launch Workers
             for (int i = 0; i < result.getNumWorkersToLaunch(); i++) {
                 launchWorker(true);
             }
@@ -134,6 +167,97 @@ public class InfrastructureManager<R extends Serializable> {
 
     public Map<String, WorkerStats> getWorkers() {
         return this.workers;
+    }
+
+    private void launchWorkerAux(String launchTemplateId, String subnetId, String awsRegion) {
+        try {
+            ClientConfiguration clientConfiguration = new ClientConfiguration()
+                    .withConnectionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
+                    .withClientExecutionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
+
+            AmazonEC2 ec2 = AmazonEC2ClientBuilder.standard()
+                    .withClientConfiguration(clientConfiguration)
+                    .withRegion(awsRegion).build();
+
+            LaunchTemplateSpecification launchTemplate = new LaunchTemplateSpecification()
+                    .withLaunchTemplateId(launchTemplateId);
+            RunInstancesRequest runInstanceRequest = new RunInstancesRequest()
+                    .withLaunchTemplate(launchTemplate)
+                    .withSubnetId(subnetId)
+                    .withMaxCount(1)
+                    .withMinCount(1);
+
+            RunInstancesResult run_response = ec2.runInstances(runInstanceRequest);
+
+            String ec2InstanceId = run_response.getReservation().getInstances().get(0).getInstanceId();
+
+            Long currentTime = System.currentTimeMillis();
+            WorkerStats workerStats = new WorkerStats(currentTime, ec2InstanceId, 0, ec2InstanceId, null, 0, 0,
+                    0, 0, 0, WorkerStatus.launching);
+            workerStats.setLastTimeFetched(currentTime);
+            workerStats.setLastTimeWorking(currentTime);
+
+            log.info("Launching worker: {}", workerStats.toString());
+
+            try {
+                this.algorithmManager.sharedInfrastructureManagerLock.lock();
+                this.workers.put(workerStats.getWorkerId(), workerStats);
+            } finally {
+                this.algorithmManager.sharedInfrastructureManagerLock.unlock();
+            }
+        } catch (Exception e) {
+            log.error("Error while launching worker: {}", e.getMessage());
+            e.printStackTrace();
+        }
+
+    }
+
+    private void removeWorkerAux(WorkerStats workerStats, String awsRegion) {
+        try {
+            ClientConfiguration clientConfiguration = new ClientConfiguration()
+                    .withConnectionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
+                    .withClientExecutionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
+
+            AmazonEC2 ec2 = AmazonEC2ClientBuilder.standard()
+                    .withClientConfiguration(clientConfiguration)
+                    .withRegion(awsRegion).build();
+
+            log.info("Terminating worker: {}", workerStats.toString());
+
+            try {
+                this.algorithmManager.sharedInfrastructureManagerLock.lock();
+                this.workers.remove(workerStats.getWorkerId());
+            } finally {
+                this.algorithmManager.sharedInfrastructureManagerLock.unlock();
+            }
+
+            workerStats.setStatus(WorkerStatus.terminating);
+            TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest().withInstanceIds(workerStats.getWorkerId());
+
+            try {
+                ec2.terminateInstances(terminateInstancesRequest);
+            } catch (Exception e) {
+                log.warn("Error deleting instance ({}): {}", workerStats.getWorkerId(), e.getMessage());
+            }
+
+            try {
+                this.algorithmManager.sqsMaster.removeSqsQueue(workerStats.getDirectQueueUrl());
+            } catch (Exception e) {
+                log.warn("Error deleting sqs queue ({}): {}", workerStats.getDirectQueueUrl(), e.getMessage());
+            }
+
+
+        } catch (Exception e) {
+            log.error("Error while removing worker: {}", e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private SystemStatus getSystemStatus() {
+        int numHighPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesHighPriorityQueue();
+        int numLowPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesLowPriorityQueue();
+        List<WorkerStats> workerStats = new ArrayList<>(workers.values());
+        return new SystemStatus(numHighPriorityQueueMessages, numLowPriorityQueueMessages, workerStats);
     }
 
 

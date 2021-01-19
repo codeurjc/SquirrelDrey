@@ -14,12 +14,16 @@ public class Config {
 
     private static final Logger log = LoggerFactory.getLogger(Config.class);
 
+    public static final int DEFAULT_AWS_SDK_HTTP_TIMEOUT = 60;
+
     // Environment
     private final boolean devmode;
 
     // Aws variables
     private final String awsEnpointUrl;
     private final String awsRegion;
+    private final String awsWorkerLaunchTemplate;
+    private final String awsSubnetId;
 
     // True if is worker
     private final boolean isMaster;
@@ -73,6 +77,8 @@ public class Config {
         this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
         this.awsEnpointUrl = System.getProperty("endpoint-url");
         this.awsRegion = System.getProperty("aws-region") != null ? System.getProperty("aws-region") : "eu-west-1";
+        this.awsWorkerLaunchTemplate = System.getProperty("aws-worker-launch-template");
+        this.awsSubnetId = System.getProperty("aws-subnet-id");
         this.isMaster = System.getProperty("worker") == null || !Boolean.parseBoolean(System.getProperty("worker"));
         this.parallelizationGrade = System.getProperty("parallelization-grade") != null ? Integer.parseInt(System.getProperty("parallelization-grade")) : DEFAULT_PARALLELIZATION_GRADE;
         this.sqsInputQueueSuffix = System.getProperty("input-queue-suffix");
@@ -181,6 +187,18 @@ public class Config {
 
     public String getEnvironmentId() {
         return environmentId;
+    }
+
+    public String getAwsWorkerLaunchTemplate() {
+        return awsWorkerLaunchTemplate;
+    }
+
+    public String getAwsSubnetId() {
+        return awsSubnetId;
+    }
+
+    public AutoscalingConfig getAutoscalingConfig() {
+        return autoscalingConfig;
     }
 
     private AutoscalingConfig loadAutoscalingConfig() {

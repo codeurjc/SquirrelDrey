@@ -14,15 +14,8 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSAsync;
 import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
-import com.amazonaws.services.sqs.model.CreateQueueRequest;
-import com.amazonaws.services.sqs.model.CreateQueueResult;
-import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.MessageAttributeValue;
-import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
-import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
-import com.amazonaws.services.sqs.model.SendMessageResult;
+import com.amazonaws.services.sqs.model.*;
+
 import java.util.Base64;
 import java.util.HashMap;
 
@@ -34,7 +27,7 @@ public abstract class SQSConnector<R extends Serializable> {
     protected enum MessageType {
         ESTABLISH_CONNECTION, ALGORITHM, RESULT, FETCH_WORKER_STATS, WORKER_STATS, WORKER_STATS_AUTODISCOVERY, TERMINATE_ALL,
         TERMINATE_ALL_BLOCKING, TERMINATE_ALL_DONE, TERMINATE_ONE, TERMINATE_ONE_DONE, ERROR, FETCH_ALG_INFO, ALG_INFO,
-        AUTODISCOVER_FROM_MASTER
+        AUTODISCOVER_FROM_MASTER, DISABLE_INPUT, ENABLE_INPUT
     }
 
     private Config config;
@@ -54,7 +47,7 @@ public abstract class SQSConnector<R extends Serializable> {
     protected final String DEFAULT_OUTPUT_QUEUE_PREFIX = "output_queue";
     protected final String DEFAULT_DIRECT_QUEUE_PREFIX = "direct";
 
-    protected final int DEFAULT_AWS_SDK_HTTP_TIMEOUT = 60;
+    protected final String ATTR_NUM_QUEUE_MESSAGES = "ApproximateNumberOfMessages";
 
     protected String inputQueueName;
     protected String lowPriorityInputQueueName;
@@ -80,8 +73,8 @@ public abstract class SQSConnector<R extends Serializable> {
 
         // SQS Http Client configuration
         ClientConfiguration clientConfiguration = new ClientConfiguration()
-                .withConnectionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
-                .withClientExecutionTimeout(DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
+                .withConnectionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000)
+                .withClientExecutionTimeout(Config.DEFAULT_AWS_SDK_HTTP_TIMEOUT * 1000);
 
         AmazonSQSClientBuilder sqsClientBuilder = AmazonSQSClientBuilder.standard().withClientConfiguration(clientConfiguration);
         AmazonSQSAsyncClientBuilder sqsAsyncClientBuilder = AmazonSQSAsyncClientBuilder.standard()
@@ -301,5 +294,21 @@ public abstract class SQSConnector<R extends Serializable> {
         } else {
             this.directQueuePrefix = DEFAULT_DIRECT_QUEUE_PREFIX;
         }
+    }
+
+    public int getNumMessagesHighPriorityQueue() {
+        Map<String, String> attributes = sqs.getQueueAttributes(new GetQueueAttributesRequest(this.inputQueueUrl)
+                .withAttributeNames(ATTR_NUM_QUEUE_MESSAGES)).getAttributes();
+        return Integer.parseInt(attributes.get(ATTR_NUM_QUEUE_MESSAGES));
+    }
+
+    public int getNumMessagesLowPriorityQueue() {
+        Map<String, String> attributes = sqs.getQueueAttributes(new GetQueueAttributesRequest(this.lowPriorityInputQueueUrl)
+                .withAttributeNames(ATTR_NUM_QUEUE_MESSAGES)).getAttributes();
+        return Integer.parseInt(attributes.get(ATTR_NUM_QUEUE_MESSAGES));
+    }
+
+    public void removeSqsQueue(String queueUrl) {
+        sqs.deleteQueue(queueUrl);
     }
 }

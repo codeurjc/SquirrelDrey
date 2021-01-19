@@ -94,11 +94,11 @@ public class AlgorithmManager<R extends Serializable> {
 			} else {
 				log.info("Starting as WORKER");
 				log.info("Initializing...");
-				this.workerId = UUID.randomUUID().toString();
 				this.workerStatus = WorkerStatus.running;
 
 				// Get environment id
 				this.environmentId = config.getEnvironmentId();
+				this.workerId = config.getEnvironmentId();
 
 
 				this.sqsWorker = new SQSConnectorWorker<>(config, this.workerId, this);

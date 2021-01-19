@@ -14,6 +14,7 @@ public class AutoscalingManager {
         // Scale UP
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
         long numIdleWorkers = getNumIdleWorkers(status);
+
         if ((status.getNumWorkers() >= config.getMinWorkers())
                 && ((totalQueuedMessages > 0) || numIdleWorkers <= config.getMinIdleWorkers())
                 && status.getNumWorkers() < config.getMaxWorkers()) {
@@ -24,6 +25,10 @@ public class AutoscalingManager {
             if (potentialNumOfWorkers > config.getMaxWorkers()) {
                 // if necessary num of workers is grater than max workers, only launch until max workers
                 numWorkersToLaunch = config.getMaxWorkers() - status.getNumWorkers();
+            }
+
+            if (numWorkersToLaunch <= 0) {
+                return new AutoscalingResult(status, config);
             }
             return new AutoscalingResult(status, config).numWorkersToLaunch(numWorkersToLaunch);
 
@@ -76,6 +81,7 @@ public class AutoscalingManager {
         // and order by last time fetched ascendant
         List<WorkerStats> nonRespondingWorkers = status.getRunningWorkers().stream()
                 .filter(w -> isWorkerExceedingMaxTimeNonResponding(w, config))
+                .filter(WorkerStats::isDisconnected)
                 .sorted(Comparator.comparing(WorkerStats::getLastTimeFetched))
                 .collect(Collectors.toList());
 
