@@ -76,11 +76,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                             receivedWorkerStatsFromAutodiscovery(si.getKey());
                             break;
                         case WORKER_STATS: {
-                            receivedWorkerStats(si.getKey());
+                            receivedWorkerStats((AsyncResult<WorkerStats>) si.getKey().readObject());
                             break;
                         }
                         case TERMINATE_ALL_DONE: {
-                            this.algorithmManager.stopAlgorithmsDone();
+                            this.algorithmManager.stopAlgorithmsDone((AsyncResult<List<Algorithm<R>>>) si.getKey().readObject());
                             break;
                         }
                         case TERMINATE_ONE_DONE: {
@@ -91,7 +91,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                             runCallbackError(si.getKey());
                         }
                         case ALG_INFO: {
-                            receivedAlgorithmInfo(si.getKey());
+                            receivedAlgorithmInfo((AsyncResult<List<AlgorithmInfo>>) si.getKey().readObject());
+                            break;
+                        }
+                        case INPUT_IS_DISABLED: {
+                            receivedDisabledInput((String) si.getKey().readObject());
                             break;
                         }
                         default:
@@ -114,9 +118,14 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-    private void receivedAlgorithmInfo(ObjectInputStream si) throws ClassNotFoundException, IOException {
-        List<AlgorithmInfo> algInfo = (List<AlgorithmInfo>) si.readObject();
-        this.algorithmManager.algorithmInfoReceived(algInfo);
+    private void receivedAlgorithmInfo(AsyncResult<List<AlgorithmInfo>> asyncResult) throws ClassNotFoundException, IOException {
+        String operationId = asyncResult.getOperationId();
+        List<AlgorithmInfo> algInfo = asyncResult.getResult();
+        this.algorithmManager.algorithmInfoReceived(operationId, algInfo);
+    }
+
+    private void receivedDisabledInput(String operationId) {
+        this.algorithmManager.receivedDisabledInput(operationId);
     }
 
     private void runCallbackError(ObjectInputStream si) throws Exception {
@@ -135,10 +144,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-    private void receivedWorkerStats(ObjectInputStream si) throws ClassNotFoundException, IOException {
-        WorkerStats workerStats = (WorkerStats) si.readObject();
+    private void receivedWorkerStats(AsyncResult<WorkerStats> asyncResult) {
+        String operationId = asyncResult.getOperationId();
+        WorkerStats workerStats = asyncResult.getResult();
         String id = workerStats.getWorkerId();
-        this.algorithmManager.workerStatsReceived(id, workerStats);
+        this.algorithmManager.workerStatsReceived(id, workerStats, operationId);
     }
 
     private void establishConnection(ObjectInputStream si) throws ClassNotFoundException, IOException {
@@ -215,7 +225,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-    public void fetchWorkerStats() throws IOException {
+    public void fetchWorkerStats(String operationId) throws IOException {
         log.info("Fetching worker stats");
         List<WorkerStats> runningWorkers = infrastructureManager.getWorkers().values().stream()
                 .filter(workerStats -> workerStats.getStatus() == WorkerStatus.running)
@@ -223,11 +233,11 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 .collect(Collectors.toList());
         for (WorkerStats workerStats : runningWorkers) {
             String directQueue = workerStats.directQueueUrl;
-            this.asyncSend(directQueue, MessageType.FETCH_WORKER_STATS, MessageType.FETCH_WORKER_STATS);
+            this.asyncSend(directQueue, operationId, MessageType.FETCH_WORKER_STATS);
         }
     }
 
-    public void fetchAlgorithmInfo() throws IOException {
+    public void fetchAlgorithmInfo(String operationId) throws IOException {
         try {
             this.sharedInfrastructureManagerLock.lock();
             log.info("Fetching current information of all algorithms");
@@ -237,7 +247,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                     .collect(Collectors.toList());
             for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
-                this.send(directQueue, MessageType.FETCH_ALG_INFO, MessageType.FETCH_ALG_INFO);
+                this.send(directQueue, operationId, MessageType.FETCH_ALG_INFO);
             }
         } finally {
             this.sharedInfrastructureManagerLock.unlock();
@@ -263,7 +273,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     }
 
-    public void terminateAlgorithmsBlocking() throws IOException {
+    public void terminateAlgorithmsBlocking(String operationId) throws IOException {
         try {
             this.sharedInfrastructureManagerLock.lock();
             log.info("Terminating all algorithms (blocking)");
@@ -273,7 +283,7 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                     .collect(Collectors.toList());
             for (WorkerStats workerStats : runningWorkers) {
                 String directQueue = workerStats.directQueueUrl;
-                this.send(directQueue, MessageType.TERMINATE_ALL_BLOCKING, MessageType.TERMINATE_ALL_BLOCKING);
+                this.send(directQueue, operationId, MessageType.TERMINATE_ALL_BLOCKING);
             }
         } finally {
             this.sharedInfrastructureManagerLock.unlock();
@@ -298,14 +308,29 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
 
     }
 
-    public void disableInputForWorker(WorkerStats workerStats) throws IOException {
-        String directQueue = workerStats.getDirectQueueUrl();
-        this.send(directQueue, MessageType.DISABLE_INPUT, MessageType.DISABLE_INPUT);
+    public void disableInputForWorkers(List<WorkerStats> workers, String operationId) throws IOException {
+        try {
+            this.sharedInfrastructureManagerLock.lock();
+            for(WorkerStats workerStats: workers) {
+                String directQueue = workerStats.getDirectQueueUrl();
+                this.send(directQueue, operationId, MessageType.DISABLE_INPUT);
+            }
+        } finally {
+            this.sharedInfrastructureManagerLock.unlock();
+        }
     }
 
-    public void enableInputForWorker(WorkerStats workerStats) throws IOException {
-        String directQueue = workerStats.getDirectQueueUrl();
-        this.send(directQueue, MessageType.ENABLE_INPUT, MessageType.ENABLE_INPUT);
+    public void enableInputForWorker(List<WorkerStats> workers) throws IOException {
+        try {
+            this.sharedInfrastructureManagerLock.lock();
+            for(WorkerStats workerStats: workers) {
+                String directQueue = workerStats.getDirectQueueUrl();
+                this.send(directQueue, MessageType.ENABLE_INPUT, MessageType.ENABLE_INPUT);
+            }
+        } finally {
+            this.sharedInfrastructureManagerLock.unlock();
+        }
+
     }
 
     public void deleteDirectQueues() {

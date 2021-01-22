@@ -70,7 +70,7 @@ public class Config {
         final int DEFAULT_SQS_LISTENER_PERIOD_MS = 10;
         final int DEFAULT_SQS_MAX_TIMEOUT = 20;
         final int DEFAULT_MONITORING_PERIOD = 10;
-        final int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 10;
+        final int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 20;
         this.DEFAULT_PARALLELIZATION_GRADE = 1;
 
         // Parameters

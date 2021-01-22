@@ -15,6 +15,7 @@ public class AutoscalingResult {
     private boolean doNothing = true;
     private int numWorkersToLaunch;
     private List<WorkerStats> workersToTerminate = new ArrayList<>();
+    private List<WorkerStats> workersDisconnectedToTerminate = new ArrayList<>();
 
     public AutoscalingResult(SystemStatus status, AutoscalingConfig config) {
         this.status = status;
@@ -33,6 +34,10 @@ public class AutoscalingResult {
         return workersToTerminate;
     }
 
+    public List<WorkerStats> getWorkersDisconnectedToTerminate() {
+        return workersDisconnectedToTerminate;
+    }
+
 
     public AutoscalingResult numWorkersToLaunch(int numWorkersToLaunch) {
         this.numWorkersToLaunch = numWorkersToLaunch;
@@ -46,14 +51,23 @@ public class AutoscalingResult {
         return this;
     }
 
+    public AutoscalingResult workersDisconnectedToTerminate(List<WorkerStats> workersDisconnectedToTerminate) {
+        this.workersDisconnectedToTerminate = workersDisconnectedToTerminate;
+        doNothing = false;
+        return this;
+    }
+
     public JsonObject toJson() {
         JsonObject workers = new JsonObject();
 
         JsonArray terminateRunningWorkers = new JsonArray();
+        JsonArray terminateDisconnectedWorkers = new JsonArray();
         this.workersToTerminate.forEach(n -> terminateRunningWorkers.add(n.toJson()));
+        this.workersDisconnectedToTerminate.forEach(n -> terminateDisconnectedWorkers.add(n.toJson()));
 
         workers.addProperty("numWorkersToLaunch", numWorkersToLaunch);
         workers.add("workersToTerminate", terminateRunningWorkers);
+        workers.add("workersDisconnectedToTerminate", terminateDisconnectedWorkers);
 
         JsonObject system = new JsonObject();
         system.add("config", this.config.toJson());
@@ -78,7 +92,8 @@ public class AutoscalingResult {
                 ", config=" + config +
                 ", doNothing=" + doNothing +
                 ", numWorkersToLaunch=" + numWorkersToLaunch +
-                ", workersToTerminate=" + workersToTerminate + "]";
+                ", workersToTerminate=" + workersToTerminate +
+                ", workersDisconnectedToTerminate=" + workersDisconnectedToTerminate + "]";
     }
 
 

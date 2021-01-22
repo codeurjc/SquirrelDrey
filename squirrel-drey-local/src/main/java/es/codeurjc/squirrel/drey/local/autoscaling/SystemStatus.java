@@ -16,6 +16,7 @@ public class SystemStatus {
     private final List<WorkerStats> runningWorkers;
     private final List<WorkerStats> launchingWorkers;
     private final List<WorkerStats> terminatingWorkers;
+    private final List<WorkerStats> allWorkers;
 
     public SystemStatus(int numHighQueueMessages, int numLowPriorityMessages, List<WorkerStats> workers) {
         this.numHighPriorityMessages = numHighQueueMessages;
@@ -23,6 +24,7 @@ public class SystemStatus {
         this.runningWorkers = filterWorkersWithStatus(workers, WorkerStatus.running);
         this.launchingWorkers = filterWorkersWithStatus(workers, WorkerStatus.launching);
         this.terminatingWorkers = filterWorkersWithStatus(workers, WorkerStatus.terminating);
+        this.allWorkers = workers;
         this.numWorkers = getLaunchingWorkers().size() + getRunningWorkers().size();
     }
 
@@ -54,6 +56,10 @@ public class SystemStatus {
         return terminatingWorkers;
     }
 
+    public List<WorkerStats> getAllWorkers() {
+        return this.allWorkers;
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("numHighPriorityMessages", numHighPriorityMessages);
@@ -63,14 +69,17 @@ public class SystemStatus {
         JsonArray jsonRunningWorkers = new JsonArray();
         JsonArray jsonLaunchingWorkers = new JsonArray();
         JsonArray jsonTerminatingWorkers = new JsonArray();
+        JsonArray jsonAllWorkers = new JsonArray();
 
         this.runningWorkers.forEach(n -> jsonRunningWorkers.add(n.toJson()));
         this.launchingWorkers.forEach(n -> jsonLaunchingWorkers.add(n.toJson()));
         this.terminatingWorkers.forEach(n -> jsonTerminatingWorkers.add(n.toJson()));
+        this.allWorkers.forEach(n -> jsonAllWorkers.add(n.toJson()));
 
         json.add("runningWorkers", jsonRunningWorkers);
         json.add("launchingWorkers", jsonLaunchingWorkers);
         json.add("terminatingWorkers", jsonTerminatingWorkers);
+        json.add("allWorkers", jsonAllWorkers);
 
         return json;
     }

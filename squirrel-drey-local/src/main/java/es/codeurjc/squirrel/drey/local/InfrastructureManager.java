@@ -13,6 +13,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * This class monitor state of workers. The functions of this scheduled class are:
@@ -72,11 +73,12 @@ public class InfrastructureManager<R extends Serializable> {
     }
 
     private void startMonitoring() {
-        this.monitoringClusterSchedule.scheduleAtFixedRate(() -> {
+        this.monitoringClusterSchedule.scheduleWithFixedDelay(() -> {
             try {
                 if (this.config.isMonitoringEnabled()) {
+                    /**
                     try {
-                        if (workers.size() == 0) {
+                        if (workers.size() == 0 && this.autoscaling) {
                             // Initial state
                             for(int i = 0; i < config.getAutoscalingConfig().getMinWorkers(); i++) {
                                 launchWorker(false);
@@ -86,6 +88,7 @@ public class InfrastructureManager<R extends Serializable> {
                         log.error("Error launching initial workers...");
                         e.printStackTrace();
                     }
+                     **/
                     Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
                     this.workers.values().forEach(w -> mapWorkerIdLastTimeFetched.put(w.getWorkerId(), w.getLastTimeFetched()));
                     try {
@@ -93,7 +96,7 @@ public class InfrastructureManager<R extends Serializable> {
                             // Take account of updated workers
                             long currentTime = System.currentTimeMillis();
                             log.info("\n ====================\n Monitoring workers \n ===================");
-                            this.algorithmManager.fetchInfrastructureWorkers(maxTimeOutFetchWorkers);
+                            this.algorithmManager.fetchWorkersInfrastructure(maxTimeOutFetchWorkers);
 
                             this.workers.values().stream()
                                     .filter(w -> !w.isDisconnected)
@@ -149,24 +152,82 @@ public class InfrastructureManager<R extends Serializable> {
 
     private void applyAutoscalingResult(AutoscalingResult result) throws IOException, TimeoutException {
 
-        log.info("Applying autoscaling");
+
         // Remove workers
         if (!result.isDoNothing()) {
-            log.info("Autoscaling: Instances to remove: {}", result.getWorkersToTerminate().size());
-            result.getWorkersToTerminate().forEach(worker -> {
-                removeWorker(worker, true);
-            });
+            log.info("Applying autoscaling");
+            //Disconnected workers to remove
+            if (result.getWorkersDisconnectedToTerminate().size() > 0) {
+                result.getWorkersDisconnectedToTerminate().forEach(worker -> {
+                    removeWorker(worker, true);
+                });
+            }
+
+            if (result.getWorkersToTerminate().size() > 0) {
+                log.info("Autoscaling: Instances candidates to remove: {}", result.getWorkersToTerminate());
+                List<WorkerStats> workersToRemoveGracefully = this.workersToRemoveGracefully(result.getWorkersToTerminate());
+
+                log.info("Autoscaling: Instances to remove gracefully: {}", workersToRemoveGracefully.size());
+                workersToRemoveGracefully.forEach(worker -> {
+                    removeWorker(worker, true);
+                });
+            }
 
             log.info("Autoscaling: Instances to launch: {}", result.getNumWorkersToLaunch());
-            // Launch Workers
-            for (int i = 0; i < result.getNumWorkersToLaunch(); i++) {
-                launchWorker(true);
+            // Launch Workersç
+            if (result.getNumWorkersToLaunch() > 0) {
+                for (int i = 0; i < result.getNumWorkersToLaunch(); i++) {
+                    launchWorker(true);
+                }
             }
+
+        } else {
+            log.info("Autoscaling has nothing to do");
         }
     }
 
     public Map<String, WorkerStats> getWorkers() {
         return this.workers;
+    }
+
+    private List<WorkerStats> workersToRemoveGracefully(List<WorkerStats> workers) throws IOException {
+        long currentTime = System.currentTimeMillis();
+        log.info("Checking workers to remove gracefully");
+        List<WorkerStats> workersToRemoveGracefully = new ArrayList<>();
+        try {
+            // Disable input of candidates workers and wait
+            this.algorithmManager.disableInputWorkers(workers, maxTimeOutFetchWorkers);
+        } catch (Exception e) {
+            log.error("Exception: '{}', while disabling Input for workers: {}", e.getMessage(), workers);
+            log.info("Enabling input again because of exception");
+            this.algorithmManager.enableInputWorkers(workers);
+            return workersToRemoveGracefully;
+        }
+
+        try {
+            log.info("Fetching workers after disabling input for workers: {}", workers);
+            // Fetch all workers to know exactly what workers can be removed
+            this.algorithmManager.fetchWorkersInfrastructure(maxTimeOutFetchWorkers);
+        } catch (Exception e) {
+            log.error("Some workers can't be fetched after disabling input. Exception: {}", e.getMessage());
+            log.info("Enabling input again because of exception");
+            this.algorithmManager.enableInputWorkers(workers);
+            return workersToRemoveGracefully;
+        }
+
+        // Return workers which can be deleted gracefully
+        for (WorkerStats workerStats: workers) {
+            if (workerStats.getTasksRunning() == 0) {
+                log.info("Worker {} can be deleted safely with {} running tasks", workerStats.getWorkerId(), workerStats.getTasksRunning());
+                workersToRemoveGracefully.add(workerStats);
+            } else {
+                log.info("Enabling again input for worker {} which can't be deleted safely with {} running Tasks", workerStats.getWorkerId(), workerStats.getTasksRunning());
+                this.algorithmManager.enableInputWorkers(workers);
+            }
+        }
+        double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
+        log.info("Workers to remove safely checked in {} seconds ", secondsExecuting);
+        return workersToRemoveGracefully;
     }
 
     private void launchWorkerAux(String launchTemplateId, String subnetId, String awsRegion) {

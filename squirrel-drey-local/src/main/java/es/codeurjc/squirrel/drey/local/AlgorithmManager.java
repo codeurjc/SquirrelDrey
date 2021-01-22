@@ -1,8 +1,8 @@
 package es.codeurjc.squirrel.drey.local;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -66,19 +66,29 @@ public class AlgorithmManager<R extends Serializable> {
 	Map<String, AtomicLong> algorithmCompletedTasks;
 	Map<String, AtomicLong> algorithmTimeoutTasks;
 
-	CountDownLatch terminateBlockingLatch;
-	Map<String, CountDownLatch> terminateOneBlockingLatches;
+	// Key: String - ID of the operation
+	// Value: CoundDownLatch to wait the result of the operation
+	ConcurrentHashMap<String, CountDownLatch> terminateBlockingLatches;
+	ConcurrentHashMap<String, CountDownLatch> workerStatsFetchLatches;
+	ConcurrentHashMap<String, CountDownLatch> algInfoFetchLatches;
+	ConcurrentHashMap<String, CountDownLatch> disableInputLatches;
+
+	// Key: String - ID of the algorithm
+	// Value: CoundDownLatch to wait the result of the operation
+	ConcurrentHashMap<String, CountDownLatch> terminateOneBlockingLatches;
 	long timeForTerminate;
 
-	CountDownLatch workerStatsFetched;
-	CountDownLatch algInfoFetched;
 
 	public AlgorithmManager(Object... args) {
 		this.config = new Config();
 		this.devmode = this.config.isDevmode();
 		this.autoscaling = this.config.isAutoscalingEnabled();
 		this.launchingTime = System.currentTimeMillis();
-		this.workerStatsFetched = new CountDownLatch(0);
+		this.workerStatsFetchLatches = new ConcurrentHashMap<>();
+		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
+		this.terminateBlockingLatches = new ConcurrentHashMap<>();
+		this.algInfoFetchLatches = new ConcurrentHashMap<>();
+		this.disableInputLatches = new ConcurrentHashMap<>();
 		if (this.devmode) {
 			log.info("Devmode enabled");
 			this.workerId = UUID.randomUUID().toString();
@@ -121,8 +131,8 @@ public class AlgorithmManager<R extends Serializable> {
 		this.terminateOneBlockingLatches = new ConcurrentHashMap<>();
 		this.algorithmInfo = new ConcurrentHashMap<>();
 		this.sharedInfrastructureManagerLock = new ReentrantLock();
-		this.infrastructureManager = new InfrastructureManager<R>(config,this, sharedInfrastructureManagerLock);
-		this.sqsMaster = new SQSConnectorMaster<R>(config,this, sharedInfrastructureManagerLock);
+		this.infrastructureManager = new InfrastructureManager<R>(config, this, sharedInfrastructureManagerLock);
+		this.sqsMaster = new SQSConnectorMaster<R>(config, this, sharedInfrastructureManagerLock);
 	}
 
 	private void initializeWorker() {
@@ -178,7 +188,7 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, Consumer<R> callback,
-			boolean isLowPriority) throws Exception {
+							   boolean isLowPriority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
 			if (this.algorithms.containsKey(id)) {
@@ -199,7 +209,7 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public void solveAlgorithm(String id, Task initialTask, Integer priority, AlgorithmCallback<R> callback,
-			boolean isLowPriority) throws Exception {
+							   boolean isLowPriority) throws Exception {
 		Algorithm<R> alg = new Algorithm<R>(this, id, priority, initialTask, callback);
 		if (this.mastermode) {
 			if (this.algorithms.containsKey(id)) {
@@ -440,10 +450,13 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	protected void stopAlgorithmsDone() {
+	protected void stopAlgorithmsDone(AsyncResult<List<Algorithm<R>>> asyncResult) {
+		String operationId = asyncResult.getOperationId();
 		log.info("Algorithms successfully terminated on {} milliseconds",
 				System.currentTimeMillis() - this.timeForTerminate);
-		this.terminateBlockingLatch.countDown();
+		if (this.terminateBlockingLatches.get(operationId) != null) {
+			this.terminateBlockingLatches.get(operationId).countDown();
+		}
 	}
 
 	public void taskAdded(Task t, String queueId) {
@@ -486,15 +499,15 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.algorithms.values();
 	}
 
-	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
-		return this.infrastructureManager.getWorkers();
-	}
-
 	public Map<String, WorkerStats> getWorkers() {
 		return this.infrastructureManager.getWorkers();
 	}
 
-	protected Map<String, WorkerStats> fetchInfrastructureWorkers(int maxSecondsToWait) throws TimeoutException, IOException {
+	public Map<String, WorkerStats> fetchWorkers(int maxSecondsToWait) {
+		return this.getWorkers();
+	}
+
+	public Map<String, WorkerStats> fetchWorkersInfrastructure(int maxSecondsToWait) throws TimeoutException, IOException {
 		if (this.devmode) {
 			WorkerStats stats = this.getWorkerStats();
 			Map<String, WorkerStats> statsMap = new HashMap<>();
@@ -502,17 +515,24 @@ public class AlgorithmManager<R extends Serializable> {
 			log.info("Sending worker stats map (devmode): {}", statsMap);
 			return statsMap;
 		} else {
+			// Generate an operation ID for concurrent requests
+			String operationId = UUID.randomUUID().toString();
+
 			// We get the current number of workers as countdown measure
 			// Other workers could join during the process
 			final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-			this.workerStatsFetched = new CountDownLatch(NUMBER_OF_WORKERS);
+			this.workerStatsFetchLatches.put(operationId, new CountDownLatch(NUMBER_OF_WORKERS));
+			log.debug("workerStatsFetchLatches PUT: {}", this.workerStatsFetchLatches.size());
 
-			this.sqsMaster.fetchWorkerStats();
+			this.sqsMaster.fetchWorkerStats(operationId);
 
 			try {
-				if (this.workerStatsFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+				boolean successfulAwait = this.workerStatsFetchLatches.get(operationId).await(maxSecondsToWait, TimeUnit.SECONDS);
+				// Clean CountDownLatch
+				this.workerStatsFetchLatches.remove(operationId);
+				log.debug("workerStatsFetchLatches REMOVE: {}", this.workerStatsFetchLatches.size());
+				if (successfulAwait) {
 					return this.infrastructureManager.getWorkers();
-
 				} else {
 					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
 							NUMBER_OF_WORKERS);
@@ -524,6 +544,38 @@ public class AlgorithmManager<R extends Serializable> {
 			}
 		}
 	}
+
+	protected void disableInputWorkers(List<WorkerStats> workers, int maxSecondsToWait) throws IOException, InterruptedException, TimeoutException {
+		log.info("Disabling input for workers: {}", workers);
+		// Generate an operation ID for concurrent requests
+		String operationId = UUID.randomUUID().toString();
+
+		// We get the current number of workers as countdown measure
+		// Other workers could join during the process
+		final int numOfWorkersToWait = workers.size();
+		this.disableInputLatches.put(operationId, new CountDownLatch(numOfWorkersToWait));
+		log.debug("disableInputLatches PUT: {}", disableInputLatches.size());
+
+		this.sqsMaster.disableInputForWorkers(workers, operationId);
+
+		boolean successfulAwait = this.disableInputLatches.get(operationId).await(maxSecondsToWait, TimeUnit.SECONDS);
+
+		// Clean CountDownLatch
+		this.disableInputLatches.remove(operationId);
+		log.debug("disableInputLatches REMOVE: {}", this.disableInputLatches.size());
+
+		if (!successfulAwait) {
+			log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
+					numOfWorkersToWait);
+			throw new TimeoutException("Timeout of " + maxSecondsToWait + " elapsed");
+		}
+	}
+
+	protected void enableInputWorkers(List<WorkerStats> workers) throws IOException {
+		log.info("Enabling input for workers: {}", workers);
+		this.sqsMaster.enableInputForWorker(workers);
+	}
+
 
 	protected WorkerStats getWorkerStats() {
 		return this.queuesManager.fetchWorkerStats();
@@ -546,11 +598,13 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	protected void workerStatsReceived(String id, WorkerStats workerStats) {
+	protected void workerStatsReceived(String id, WorkerStats workerStats, String operationId) {
 		try {
 			this.sharedInfrastructureManagerLock.lock();
 			this.infrastructureManager.getWorkers().put(id, workerStats);
-			this.workerStatsFetched.countDown();
+			if(this.workerStatsFetchLatches.get(operationId) != null) {
+				this.workerStatsFetchLatches.get(operationId).countDown();
+			}
 		} finally {
 			this.sharedInfrastructureManagerLock.unlock();
 		}
@@ -567,22 +621,36 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public List<Algorithm<R>> blockingTerminateAlgorithms() throws InterruptedException, IOException {
-		// We get the current number of workers as countdown measure
+	    // Generate an operation ID for concurrent requests
+        String operationId = UUID.randomUUID().toString();
+
+	    // We get the current number of workers as countdown measure
 		// Other workers could join during the process
 		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-		this.terminateBlockingLatch = new CountDownLatch(NUMBER_OF_WORKERS);
+		this.terminateBlockingLatches.put(operationId, new CountDownLatch(NUMBER_OF_WORKERS));
+		log.debug("terminateBlockingLatches PUT: {}", this.terminateBlockingLatches.size());
 		timeForTerminate = System.currentTimeMillis();
 
-		this.sqsMaster.terminateAlgorithmsBlocking();
+		this.sqsMaster.terminateAlgorithmsBlocking(operationId);
 
-		this.terminateBlockingLatch.await(20, TimeUnit.SECONDS);
+		this.terminateBlockingLatches.get(operationId).await(20, TimeUnit.SECONDS);
+
+		// Clean CountDownLatch
+		this.terminateBlockingLatches.remove(operationId);
+		log.debug("terminateBlockingLatches REMOVE: {}", this.terminateBlockingLatches.size());
 		return this.clearAllAlgorithmsFromTermination();
 	}
 
 	public Algorithm<R> blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException, IOException {
 		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
+		log.debug("terminateOneBlockingLatches PUT: {}", this.terminateOneBlockingLatches.size());
+
 		this.sqsMaster.stopOneAlgorithmBlocking(algorithmId);
 		this.terminateOneBlockingLatches.get(algorithmId).await(20, TimeUnit.SECONDS);
+
+		// Clean CountDownLatch
+		this.terminateOneBlockingLatches.remove(algorithmId);
+		log.debug("terminateOneBlockingLatches REMOVE: {}", this.terminateOneBlockingLatches.size());
 		Algorithm<R> alg = this.cleanAlgorithmStructures(algorithmId);
 		if (alg != null) {
 			alg.setStatus(Status.TERMINATED);
@@ -653,14 +721,22 @@ public class AlgorithmManager<R extends Serializable> {
 			}
 			return algInfoMap;
 		} else {
+            // Generate an operation ID for concurrent requests
+            String operationId = UUID.randomUUID().toString();
+
 			// We get the current number of workers as countdown measure
 			// Other workers could join during the process
 			final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-			this.algInfoFetched = new CountDownLatch(NUMBER_OF_WORKERS);
-			this.sqsMaster.fetchAlgorithmInfo();
+			this.algInfoFetchLatches.put(operationId, new CountDownLatch(NUMBER_OF_WORKERS));
+			log.info("algInfoFetchLatches PUT: {}", this.algInfoFetchLatches.size());
+			this.sqsMaster.fetchAlgorithmInfo(operationId);
 
 			try {
-				if (this.algInfoFetched.await(maxSecondsToWait, TimeUnit.SECONDS)) {
+				boolean successfulAwait = this.algInfoFetchLatches.get(operationId).await(maxSecondsToWait, TimeUnit.SECONDS);
+				// Clean CountDownLatch
+				this.algInfoFetchLatches.remove(operationId);
+				log.debug("algInfoFetchLatches REMOVE: {}", this.algInfoFetchLatches.size());
+				if (successfulAwait) {
 					return this.algorithmInfo;
 				} else {
 					log.error("Timeout ({} s) while waiting for all {} workers to update their stats", maxSecondsToWait,
@@ -675,10 +751,18 @@ public class AlgorithmManager<R extends Serializable> {
 
 	}
 
-	protected void algorithmInfoReceived(List<AlgorithmInfo> algorithmInfo) {
+	protected void algorithmInfoReceived(String operationId, List<AlgorithmInfo> algorithmInfo) {
 		for (AlgorithmInfo info : algorithmInfo) {
 			this.algorithmInfo.put(info.getAlgorithmId(), info);
 		}
-		this.algInfoFetched.countDown();
+		if (this.algInfoFetchLatches.get(operationId) != null) {
+			this.algInfoFetchLatches.get(operationId).countDown();
+		}
+	}
+
+	protected void receivedDisabledInput(String operationId) {
+		if (this.disableInputLatches.get(operationId) != null) {
+			this.disableInputLatches.get(operationId).countDown();
+		}
 	}
 }

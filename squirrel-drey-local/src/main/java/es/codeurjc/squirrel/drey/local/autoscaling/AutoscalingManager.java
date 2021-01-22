@@ -11,6 +11,28 @@ public class AutoscalingManager {
 
     public AutoscalingResult evalAutoscaling(AutoscalingConfig config, SystemStatus status) {
 
+        // If disconnected workers exists, delete them for next evalAutoscaling
+        List<WorkerStats> disconnectedWorkersToTerminate = status.getRunningWorkers().stream()
+                .filter(w -> isWorkerExceedingMaxTimeNonResponding(w, config))
+                .filter(WorkerStats::isDisconnected)
+                .collect(Collectors.toList());
+        List<WorkerStats> possibleLaunchingWorkersNonResponding = status.getLaunchingWorkers().stream()
+                .filter(w -> isWorkerExceedingMaxTimeNonResponding(w, config))
+                .collect(Collectors.toList());
+
+        disconnectedWorkersToTerminate.addAll(possibleLaunchingWorkersNonResponding);
+        if (disconnectedWorkersToTerminate.size() > 0) {
+            return new AutoscalingResult(status, config).workersDisconnectedToTerminate(disconnectedWorkersToTerminate);
+        }
+
+        // Initial state
+        int minWorkers = Math.max(config.getMinWorkers(), config.getMinIdleWorkers());
+        int actualNumWorkers = status.getNumWorkers();
+        if (actualNumWorkers < minWorkers) {
+            int numWorkersToLaunch = minWorkers - actualNumWorkers;
+            return new AutoscalingResult(status, config).numWorkersToLaunch(numWorkersToLaunch);
+        }
+
         // Scale UP
         int totalQueuedMessages = status.getNumHighPriorityMessages() + status.getNumLowPriorityMessages();
         long numIdleWorkers = getNumIdleWorkers(status);
@@ -77,20 +99,12 @@ public class AutoscalingManager {
     }
 
     private List<WorkerStats> getWorkersReadyToTerminate(SystemStatus status, AutoscalingConfig config) {
-        // Get all non responding workers
-        // and order by last time fetched ascendant
-        List<WorkerStats> nonRespondingWorkers = status.getRunningWorkers().stream()
-                .filter(w -> isWorkerExceedingMaxTimeNonResponding(w, config))
-                .filter(WorkerStats::isDisconnected)
-                .sorted(Comparator.comparing(WorkerStats::getLastTimeFetched))
-                .collect(Collectors.toList());
-
         // Get all workers connect with 0 running tasks which exceeds max idle time
         // and order idle workers to terminate by launch time ascendant
         List<WorkerStats> iddleWorkersToTerminate = status.getRunningWorkers().stream()
                 .filter(w -> w.getTasksRunning() == 0)
+                .filter(w -> !w.isDisconnected())
                 .filter(w -> isWorkerExceedingMaxTimeIdle(w, config))
-                .filter(w -> !isWorkerExceedingMaxTimeNonResponding(w, config))
                 .sorted(Comparator.comparing(WorkerStats::getLaunchingTime))
                 .collect(Collectors.toList());
 
@@ -102,15 +116,11 @@ public class AutoscalingManager {
             iddleWorkersToTerminate.clear();
         }
 
-
-        // Concat both lists
-        List<WorkerStats> allWorkersToTerminate = new ArrayList<>(nonRespondingWorkers);
-        allWorkersToTerminate.addAll(iddleWorkersToTerminate);
-        return allWorkersToTerminate;
+        return iddleWorkersToTerminate;
     }
 
 
-    private boolean isWorkerExceedingMaxTimeNonResponding(WorkerStats workerStats, AutoscalingConfig config) {
+    public boolean isWorkerExceedingMaxTimeNonResponding(WorkerStats workerStats, AutoscalingConfig config) {
         long currentTime = getCurrentTimeInSeconds();
         long lastTimeFetched = getLastTimeFetchedInSeconds(workerStats);
         long secondsSinceLastFetch = currentTime - lastTimeFetched;

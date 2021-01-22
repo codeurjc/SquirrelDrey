@@ -185,22 +185,22 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                         establishDirectConnection(true);
                         break;
                     case FETCH_WORKER_STATS:
-                        retrieveWorkerStats();
+                        retrieveWorkerStats(si.getKey());
                         break;
                     case TERMINATE_ALL:
                         terminateAllAlgorithms();
                         break;
                     case TERMINATE_ALL_BLOCKING:
-                        terminateAllAlgorithmsBlocking();
+                        terminateAllAlgorithmsBlocking(si.getKey());
                         break;
                     case TERMINATE_ONE:
                         terminateOneAlgorithmBlocking(si.getKey());
                         break;
                     case FETCH_ALG_INFO:
-                        retrieveAlgInfo();
+                        retrieveAlgInfo(si.getKey());
                         break;
                     case DISABLE_INPUT:
-                        disableInput();
+                        disableInput(si.getKey());
                         break;
                     case ENABLE_INPUT:
                         enableInput();
@@ -220,13 +220,14 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         }
     }
 
-    private List<Algorithm<R>> terminateAllAlgorithmsBlocking() throws IOException, InterruptedException {
-        List<Algorithm<R>> algs = this.algorithmManager.terminateAlgorithmsBlockingWorker();
-        this.sendTerminateAllAlgorithmsBlocking(algs);
+    private AsyncResult<List<Algorithm<R>>> terminateAllAlgorithmsBlocking(ObjectInputStream si) throws IOException, InterruptedException, ClassNotFoundException {
+        String operationId = (String) si.readObject();
+        AsyncResult<List<Algorithm<R>>> algs = new AsyncResult<>(operationId, this.algorithmManager.terminateAlgorithmsBlockingWorker());
+        this.sendTerminateAllAlgorithmsBlocking(operationId, algs);
         return algs;
     }
 
-    private SendMessageResult sendTerminateAllAlgorithmsBlocking(List<Algorithm<R>> algs)
+    private SendMessageResult sendTerminateAllAlgorithmsBlocking(String operationId, AsyncResult<List<Algorithm<R>>> algs)
             throws IOException, InterruptedException {
         if (this.outputQueueUrl == null) {
             try {
@@ -235,7 +236,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 int retryTime = 1000;
                 log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
                 Thread.sleep(retryTime);
-                return sendTerminateAllAlgorithmsBlocking(algs);
+                return sendTerminateAllAlgorithmsBlocking(operationId, algs);
             }
         }
         log.info("Sending terminate all algorithms blocking done: {}", algs);
@@ -272,9 +273,12 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return message;
     }
 
-    public void disableInput() {
+    public SendMessageResult disableInput(ObjectInputStream si) throws IOException, ClassNotFoundException {
+        String operationId = (String) si.readObject();
         log.info("Disabling Input");
         this.enableInput = false;
+        SendMessageResult message = this.send(this.outputQueueUrl, operationId, MessageType.INPUT_IS_DISABLED);
+        return message;
     }
 
     public void enableInput() {
@@ -288,7 +292,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         this.algorithmManager.solveAlgorithmAux(algorithm.getId(), algorithm);
     }
 
-    private SendMessageResult retrieveWorkerStats() throws InterruptedException, IOException {
+    private SendMessageResult retrieveWorkerStats(ObjectInputStream si) throws InterruptedException, IOException, ClassNotFoundException {
         if (this.outputQueueUrl == null) {
             try {
                 this.lookForOutputQueue();
@@ -296,12 +300,14 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 int retryTime = 1000;
                 log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
                 Thread.sleep(retryTime);
-                return retrieveWorkerStats();
+                return retrieveWorkerStats(si);
             }
         }
+        String operationId = (String) si.readObject();
         WorkerStats result = this.algorithmManager.getWorkerStats();
-        log.info("Sending worker stats: {}", result);
-        SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.WORKER_STATS);
+        AsyncResult<WorkerStats> asyncResult = new AsyncResult<>(operationId, result);
+        log.info("Sending worker stats: {}", asyncResult);
+        SendMessageResult message = this.send(this.outputQueueUrl, asyncResult, MessageType.WORKER_STATS);
         return message;
     }
 
@@ -339,7 +345,7 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
         return message;
     }
 
-    private SendMessageResult retrieveAlgInfo() throws InterruptedException, IOException {
+    private SendMessageResult retrieveAlgInfo(ObjectInputStream si) throws InterruptedException, IOException, ClassNotFoundException {
         if (this.outputQueueUrl == null) {
             try {
                 this.lookForOutputQueue();
@@ -347,12 +353,14 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                 int retryTime = 1000;
                 log.error("Output queue does not exist. Retrying in: {} ms", retryTime);
                 Thread.sleep(retryTime);
-                return retrieveAlgInfo();
+                return retrieveAlgInfo(si);
             }
         }
+        String operationId = (String) si.readObject();
         List<AlgorithmInfo> result = this.algorithmManager.getAlgorithmInfoWorker();
-        log.info("Sending algorithm information: {}", result);
-        SendMessageResult message = this.send(this.outputQueueUrl, result, MessageType.ALG_INFO);
+        AsyncResult<List<AlgorithmInfo>> asyncResult = new AsyncResult<>(operationId, result);
+        log.info("Sending algorithm information: {}", asyncResult);
+        SendMessageResult message = this.send(this.outputQueueUrl, asyncResult, MessageType.ALG_INFO);
         return message;
     }
 }

@@ -165,7 +165,7 @@ public class SampleAlgorithmController {
 	private List<WorkerStats> fetchWorkerStats() {
 		List<WorkerStats> l2 = new ArrayList<>();
 		try {
-			Map<String, WorkerStats> fetchedWorkers = this.algorithmManager.getWorkers();
+			Map<String, WorkerStats> fetchedWorkers = this.algorithmManager.fetchWorkers(5);
 			for (String id : fetchedWorkers.keySet()) {
 				l2.add(fetchedWorkers.get(id));
 			}
