@@ -17,7 +17,7 @@ public class AutoscalingManager {
                 .filter(WorkerStats::isDisconnected)
                 .collect(Collectors.toList());
         List<WorkerStats> possibleLaunchingWorkersNonResponding = status.getLaunchingWorkers().stream()
-                .filter(w -> isWorkerExceedingMaxTimeNonResponding(w, config))
+                .filter(w -> isWorkerLaunchingExceedingMaxTimeNonResponding(w, config))
                 .collect(Collectors.toList());
 
         disconnectedWorkersToTerminate.addAll(possibleLaunchingWorkersNonResponding);
@@ -125,6 +125,13 @@ public class AutoscalingManager {
         long lastTimeFetched = getLastTimeFetchedInSeconds(workerStats);
         long secondsSinceLastFetch = currentTime - lastTimeFetched;
         return secondsSinceLastFetch > config.getMaxSecondsNonRespondingWorker();
+    }
+
+    public boolean isWorkerLaunchingExceedingMaxTimeNonResponding(WorkerStats workerStats, AutoscalingConfig config) {
+        long currentTime = getCurrentTimeInSeconds();
+        long lastTimeFetched = getLastTimeFetchedInSeconds(workerStats);
+        long secondsSinceLastFetch = currentTime - lastTimeFetched;
+        return secondsSinceLastFetch > config.getMaxSecondsLaunchingNonRespondingWorker();
     }
 
     private boolean isWorkerExceedingMaxTimeIdle(WorkerStats workerStats, AutoscalingConfig config) {

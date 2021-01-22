@@ -74,6 +74,11 @@ public class WorkerStats implements Serializable {
 	 */
 	boolean isDisconnected;
 
+	/**
+	 * Time taken from launching to running in seconds
+	 */
+	double timeToLaunch;
+
 	public WorkerStats(long launchingTime, String environmentId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
 					   long totalCompletedTasks, long tasksRunning, WorkerStatus status) {
 		this.launchingTime = launchingTime;
@@ -113,6 +118,14 @@ public class WorkerStats implements Serializable {
 
 	public void setLaunchingTime(long launchingTime) {
 		this.launchingTime = launchingTime;
+	}
+
+	public double getTimeToLaunch() {
+		return this.timeToLaunch;
+	}
+
+	public void setTimeToLaunch(double timeToLaunch) {
+		this.timeToLaunch = timeToLaunch;
 	}
 
 	public long getLastTimeFetched() {

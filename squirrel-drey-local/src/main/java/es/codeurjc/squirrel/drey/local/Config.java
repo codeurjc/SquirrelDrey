@@ -201,6 +201,10 @@ public class Config {
         return autoscalingConfig;
     }
 
+    public void setAutoscalingConfig(AutoscalingConfig autoscalingConfig) {
+        this.autoscalingConfig = autoscalingConfig;
+    }
+
     private AutoscalingConfig loadAutoscalingConfig() {
         AutoscalingConfig.Builder asBuilder = new AutoscalingConfig.Builder();
         if (System.getProperty("autoscaling-min-workers") != null) {
@@ -225,6 +229,9 @@ public class Config {
         }
         if (System.getProperty("autoscaling-max-seconds-non-responding") != null) {
             asBuilder.maxSecondsNonRespondingWorker(Integer.parseInt(System.getProperty("autoscaling-max-seconds-non-responding")));
+        }
+        if (System.getProperty("autoscaling-max-seconds-non-responding") != null) {
+            asBuilder.maxSecondsLaunchingNonRespondingWorker(Integer.parseInt(System.getProperty("autoscaling-max-seconds-launching-non-responding")));
         }
         return asBuilder.build();
     }

@@ -156,8 +156,15 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
             sharedInfrastructureManagerLock.lock();
             WorkerStats workerStats = (WorkerStats) si.readObject();
             String id = workerStats.getWorkerId();
-            if (this.infrastructureManager.getWorkers().put(id, workerStats) == null) {
+            WorkerStats previousWorkerStats = this.infrastructureManager.getWorkers().put(id, workerStats);
+            if (previousWorkerStats == null) {
                 log.info("Established direct connection with worker: {}", id);
+            } else {
+                double launchingTime = (double) previousWorkerStats.getLastTimeFetched() / 1000;
+                double runningTime = (double) workerStats.getLastTimeFetched() / 1000;
+                double timeToLaunch = runningTime - launchingTime;
+                this.infrastructureManager.getWorkers().get(id).setTimeToLaunch(timeToLaunch);
+                log.info("=== Instance '{}' launched in {} seconds ===", workerStats.getWorkerId(), timeToLaunch);
             }
         } finally {
             sharedInfrastructureManagerLock.unlock();

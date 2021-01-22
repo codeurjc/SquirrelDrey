@@ -35,6 +35,8 @@ public class InfrastructureManager<R extends Serializable> {
     private Map<String, WorkerStats> workers;
     private ScheduledExecutorService monitoringClusterSchedule;
 
+    private InfrastructureStats infrastructureStats;
+
     public InfrastructureManager(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
         // Load object dependencies
         this.config = config;
@@ -49,6 +51,7 @@ public class InfrastructureManager<R extends Serializable> {
         this.workers = new ConcurrentHashMap<>();
         this.monitoringClusterSchedule = Executors.newScheduledThreadPool(1);
 
+        this.infrastructureStats = new InfrastructureStats(config.getAutoscalingConfig(), getSystemStatus(), new ArrayList<>(workers.values()));
         this.startMonitoring();
     }
 
@@ -76,19 +79,6 @@ public class InfrastructureManager<R extends Serializable> {
         this.monitoringClusterSchedule.scheduleWithFixedDelay(() -> {
             try {
                 if (this.config.isMonitoringEnabled()) {
-                    /**
-                    try {
-                        if (workers.size() == 0 && this.autoscaling) {
-                            // Initial state
-                            for(int i = 0; i < config.getAutoscalingConfig().getMinWorkers(); i++) {
-                                launchWorker(false);
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("Error launching initial workers...");
-                        e.printStackTrace();
-                    }
-                     **/
                     Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
                     this.workers.values().forEach(w -> mapWorkerIdLastTimeFetched.put(w.getWorkerId(), w.getLastTimeFetched()));
                     try {
@@ -114,6 +104,7 @@ public class InfrastructureManager<R extends Serializable> {
                                 log.info("Autoscaling result: {}", autoscalingResult.toString());
                                 applyAutoscalingResult(autoscalingResult);
                             }
+                            this.infrastructureStats = new InfrastructureStats(config.getAutoscalingConfig(), getSystemStatus(), new ArrayList<>(workers.values()));
 
                             double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
                             log.info("\n ====================\n Execution time of monitoring: {} seconds \n ===================", secondsExecuting);
@@ -315,10 +306,22 @@ public class InfrastructureManager<R extends Serializable> {
     }
 
     private SystemStatus getSystemStatus() {
-        int numHighPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesHighPriorityQueue();
-        int numLowPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesLowPriorityQueue();
+        int numHighPriorityQueueMessages;
+        int numLowPriorityQueueMessages;
+        try {
+            numHighPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesHighPriorityQueue();
+            numLowPriorityQueueMessages = this.algorithmManager.sqsMaster.getNumMessagesLowPriorityQueue();
+        } catch (Exception e) {
+            numHighPriorityQueueMessages = 0;
+            numLowPriorityQueueMessages = 0;
+        }
+
         List<WorkerStats> workerStats = new ArrayList<>(workers.values());
         return new SystemStatus(numHighPriorityQueueMessages, numLowPriorityQueueMessages, workerStats);
+    }
+
+    public InfrastructureStats getInfrastructureStats() {
+        return infrastructureStats;
     }
 
 

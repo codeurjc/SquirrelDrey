@@ -14,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -692,6 +693,18 @@ public class AlgorithmManager<R extends Serializable> {
 		} else {
 			return null;
 		}
+	}
+
+	public void setAutoscalingConfig(AutoscalingConfig config) {
+		this.config.setAutoscalingConfig(config);
+	}
+
+	public AutoscalingConfig getAutoscalingConfig() {
+		return this.config.getAutoscalingConfig();
+	}
+
+	public InfrastructureStats getInfrastructureStats() {
+		return this.infrastructureManager.getInfrastructureStats();
 	}
 
 	public void deleteDirectQueues() {
