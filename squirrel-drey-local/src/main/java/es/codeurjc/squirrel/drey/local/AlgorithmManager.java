@@ -81,7 +81,7 @@ public class AlgorithmManager<R extends Serializable> {
 	long timeForTerminate;
 
 
-	public AlgorithmManager(Object... args) {
+	public AlgorithmManager() {
 		this.config = new Config();
 		this.devmode = this.config.isDevmode();
 		this.autoscaling = this.config.isAutoscalingEnabled();
