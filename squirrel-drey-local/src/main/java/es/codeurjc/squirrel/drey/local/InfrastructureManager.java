@@ -349,7 +349,7 @@ public class InfrastructureManager<R extends Serializable> {
         //change to hourly update
         if (monitoringClusterScheduleManager != null) {
             log.info("Updating monitoring scheduler...");
-            monitoringClusterScheduleManager.cancel(true);
+            monitoringClusterScheduleManager.cancel(false);
             startMonitoring();
         }
 

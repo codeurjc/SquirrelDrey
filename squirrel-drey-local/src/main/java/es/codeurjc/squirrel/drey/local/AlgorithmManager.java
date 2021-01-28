@@ -447,7 +447,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 	protected void stopOneAlgorithmDone(String algorithmId) {
 		log.info("Algorithm [{}] successfully terminated", algorithmId);
-		if (this.terminateOneBlockingLatches != null) {
+		if (this.terminateOneBlockingLatches != null && this.terminateOneBlockingLatches.get(algorithmId) != null) {
 			this.terminateOneBlockingLatches.get(algorithmId).countDown();
 		}
 	}
