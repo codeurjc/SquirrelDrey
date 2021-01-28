@@ -1,6 +1,7 @@
 package es.codeurjc.squirrel.drey.local.autoscaling;
 
 import com.google.gson.JsonObject;
+import es.codeurjc.squirrel.drey.local.Config;
 
 public class AutoscalingConfig {
 
@@ -12,9 +13,12 @@ public class AutoscalingConfig {
     private final int maxSecondsIdle;
     private final int maxSecondsNonRespondingWorker;
     private final int maxSecondsLaunchingNonRespondingWorker;
+    private final int monitoringPeriod;
+    private final int maxTimeOutFetchWorkers;
 
     private AutoscalingConfig(int minWorkers, int maxWorkers, int minIdleWorkers, int maxParallelization, int workersByMaxParallelization,
-                              int maxSecondsIdle, int maxSecondsNoRespondingWorker, int maxSecondsLaunchingNonRespondingWorker) {
+                              int maxSecondsIdle, int maxSecondsNoRespondingWorker, int maxSecondsLaunchingNonRespondingWorker,
+                              int monitoringPeriod, int maxTimeOutFetchWorkers) {
         this.minWorkers = minWorkers;
         this.maxWorkers = maxWorkers;
         this.minIdleWorkers = minIdleWorkers;
@@ -23,21 +27,26 @@ public class AutoscalingConfig {
         this.maxSecondsIdle = maxSecondsIdle;
         this.maxSecondsNonRespondingWorker = maxSecondsNoRespondingWorker;
         this.maxSecondsLaunchingNonRespondingWorker = maxSecondsLaunchingNonRespondingWorker;
+        this.monitoringPeriod = monitoringPeriod;
+        this.maxTimeOutFetchWorkers = maxTimeOutFetchWorkers;
     }
 
     public static class Builder {
-        private int minWorkers = 1;
-        private int maxWorkers = 4;
-        private int minIdleWorkers = 2;
-        private int maxParallelization = 4;
-        private int workersByMaxParallelization = 2;
-        private int maxSecondsIdle = 60;
-        private int maxSecondsNonRespondingWorker = 60;
-        private int maxSecondsLaunchingNonRespondingWorker = 300;
+        private int minWorkers = Config.MIN_WORKERS;
+        private int maxWorkers = Config.MAX_WORKERS;
+        private int minIdleWorkers = Config.MIN_IDLE_WORKERS;
+        private int maxParallelization = Config.DEFAULT_PARALLELIZATION_GRADE;
+        private int workersByMaxParallelization = Config.WORKERS_BY_MAX_PARALLELIZATION;
+        private int maxSecondsIdle = Config.MAX_SECONDS_IDLE;
+        private int maxSecondsNonRespondingWorker = Config.MAX_SECONDS_NOT_RESPONDING;
+        private int maxSecondsLaunchingNonRespondingWorker = Config.MAX_SECONDS_LAUNCHING_NOT_RESPONDING;
+        private int monitoringPeriod = Config.DEFAULT_MONITORING_PERIOD;
+        private int maxTimeOutFetchWorkers = Config.DEFAULT_MAX_TIMEOUT_FETCH_WORKERS;
 
         public AutoscalingConfig build() {
             return new AutoscalingConfig(this.minWorkers, this.maxWorkers, this.minIdleWorkers, this.maxParallelization,
-                    this.workersByMaxParallelization, this.maxSecondsIdle, this.maxSecondsNonRespondingWorker, this.maxSecondsLaunchingNonRespondingWorker);
+                    this.workersByMaxParallelization, this.maxSecondsIdle, this.maxSecondsNonRespondingWorker, this.maxSecondsLaunchingNonRespondingWorker,
+                    this.monitoringPeriod, this.maxTimeOutFetchWorkers);
         }
 
         public Builder minWorkers(int minWorkers) {
@@ -79,6 +88,16 @@ public class AutoscalingConfig {
             this.maxSecondsLaunchingNonRespondingWorker = maxSecondsLaunchingNonRespondingWorker;
             return this;
         }
+
+        public Builder monitoringPeriod(int monitoringPeriod) {
+            this.monitoringPeriod = monitoringPeriod;
+            return this;
+        }
+
+        public Builder maxTimeOutFetchWorkers(int maxTimeOutFetchWorkers) {
+            this.maxTimeOutFetchWorkers = maxTimeOutFetchWorkers;
+            return this;
+        }
     }
 
     public int getMinWorkers() {
@@ -111,6 +130,14 @@ public class AutoscalingConfig {
 
     public int getMaxSecondsLaunchingNonRespondingWorker() { return maxSecondsLaunchingNonRespondingWorker; }
 
+    public int getMonitoringPeriod() {
+        return monitoringPeriod;
+    }
+
+    public int getMaxTimeOutFetchWorkers() {
+        return this.maxTimeOutFetchWorkers;
+    }
+
     public JsonObject toJson() {
         JsonObject json = new JsonObject();
         json.addProperty("minWorkers", minWorkers);
@@ -121,6 +148,8 @@ public class AutoscalingConfig {
         json.addProperty("maxSecondsIdle", maxSecondsIdle);
         json.addProperty("maxSecondsNonRespondingWorker", maxSecondsNonRespondingWorker);
         json.addProperty("maxSecondsLaunchingNonRespondingWorker", maxSecondsLaunchingNonRespondingWorker);
+        json.addProperty("monitoringPeriod", monitoringPeriod);
+        json.addProperty("maxTimeOutFetchWorkers", maxTimeOutFetchWorkers);
         return json;
     }
 
@@ -132,8 +161,10 @@ public class AutoscalingConfig {
                 ", minIdleWorkers=" + minIdleWorkers +
                 ", maxParallelization=" + maxParallelization +
                 ", workersByMaxParallelization=" + workersByMaxParallelization +
-                ", maxSecondsIdle" + maxSecondsIdle +
-                ", maxSecondsNonRespondingWorker" + maxSecondsNonRespondingWorker +
-                ", maxSecondsLaunchingNonRespondingWorker=" + maxSecondsLaunchingNonRespondingWorker + "]";
+                ", maxSecondsIdle=" + maxSecondsIdle +
+                ", maxSecondsNonRespondingWorker=" + maxSecondsNonRespondingWorker +
+                ", maxSecondsLaunchingNonRespondingWorker=" + maxSecondsLaunchingNonRespondingWorker +
+                ", monitoringPeriod=" + monitoringPeriod +
+                ", maxTimeOutFetchWorkers=" + maxTimeOutFetchWorkers + "]";
     }
 }

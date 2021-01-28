@@ -29,13 +29,14 @@ public class InfrastructureManager<R extends Serializable> {
 
     private AutoscalingManager autoscalingManager;
     private boolean autoscaling;
-    private int monitoringPeriod;
-    private int maxTimeOutFetchWorkers;
 
     private Map<String, WorkerStats> workers;
     private ScheduledExecutorService monitoringClusterSchedule;
+    private ScheduledFuture<?> monitoringClusterScheduleManager;
 
     private InfrastructureStats infrastructureStats;
+
+    private int currentParallelizationGrade;
 
     public InfrastructureManager(Config config, AlgorithmManager<R> algorithmManager, ReentrantLock sharedInfrastructureManagerLock) {
         // Load object dependencies
@@ -44,14 +45,13 @@ public class InfrastructureManager<R extends Serializable> {
         this.autoscalingManager = new AutoscalingManager();
 
         // Load properties
-        this.monitoringPeriod = this.config.getMonitoringPeriod();
         this.autoscaling = this.config.isAutoscalingEnabled();
-        this.maxTimeOutFetchWorkers = this.config.getMaxTimeOutFetchWorkers();
 
         this.workers = new ConcurrentHashMap<>();
         this.monitoringClusterSchedule = Executors.newScheduledThreadPool(1);
 
         this.infrastructureStats = new InfrastructureStats(config.getAutoscalingConfig(), getSystemStatus(), new ArrayList<>(workers.values()));
+        this.currentParallelizationGrade = config.getParallelizationGrade();
         this.startMonitoring();
     }
 
@@ -76,7 +76,7 @@ public class InfrastructureManager<R extends Serializable> {
     }
 
     private void startMonitoring() {
-        this.monitoringClusterSchedule.scheduleWithFixedDelay(() -> {
+        monitoringClusterScheduleManager = this.monitoringClusterSchedule.scheduleWithFixedDelay(() -> {
             try {
                 if (this.config.isMonitoringEnabled()) {
                     Map<String, Long> mapWorkerIdLastTimeFetched = new HashMap<>();
@@ -86,7 +86,7 @@ public class InfrastructureManager<R extends Serializable> {
                             // Take account of updated workers
                             long currentTime = System.currentTimeMillis();
                             log.info("\n ====================\n Monitoring workers \n ===================");
-                            this.algorithmManager.fetchWorkersInfrastructure(maxTimeOutFetchWorkers);
+                            this.algorithmManager.fetchWorkersInfrastructure(config.getMaxTimeOutFetchWorkers());
 
                             this.workers.values().stream()
                                     .filter(w -> !w.isDisconnected)
@@ -104,6 +104,10 @@ public class InfrastructureManager<R extends Serializable> {
                                 log.info("Autoscaling result: {}", autoscalingResult.toString());
                                 applyAutoscalingResult(autoscalingResult);
                             }
+
+                            // Check parallelization grade
+                            updateParallelizationGrade();
+
                             this.infrastructureStats = new InfrastructureStats(config.getAutoscalingConfig(), getSystemStatus(), new ArrayList<>(workers.values()));
 
                             double secondsExecuting = (double) (System.currentTimeMillis() - currentTime) / 1000;
@@ -138,7 +142,7 @@ public class InfrastructureManager<R extends Serializable> {
                 e.printStackTrace();
             }
 
-        }, 0, monitoringPeriod, TimeUnit.SECONDS);
+        }, 0, config.getMonitoringPeriod(), TimeUnit.SECONDS);
     }
 
     private void applyAutoscalingResult(AutoscalingResult result) throws IOException, TimeoutException {
@@ -187,7 +191,7 @@ public class InfrastructureManager<R extends Serializable> {
         List<WorkerStats> workersToRemoveGracefully = new ArrayList<>();
         try {
             // Disable input of candidates workers and wait
-            this.algorithmManager.disableInputWorkers(workers, maxTimeOutFetchWorkers);
+            this.algorithmManager.disableInputWorkers(workers, config.getMaxTimeOutFetchWorkers());
         } catch (Exception e) {
             log.error("Exception: '{}', while disabling Input for workers: {}", e.getMessage(), workers);
             log.info("Enabling input again because of exception");
@@ -198,7 +202,7 @@ public class InfrastructureManager<R extends Serializable> {
         try {
             log.info("Fetching workers after disabling input for workers: {}", workers);
             // Fetch all workers to know exactly what workers can be removed
-            this.algorithmManager.fetchWorkersInfrastructure(maxTimeOutFetchWorkers);
+            this.algorithmManager.fetchWorkersInfrastructure(config.getMaxTimeOutFetchWorkers());
         } catch (Exception e) {
             log.error("Some workers can't be fetched after disabling input. Exception: {}", e.getMessage());
             log.info("Enabling input again because of exception");
@@ -245,7 +249,7 @@ public class InfrastructureManager<R extends Serializable> {
 
             Long currentTime = System.currentTimeMillis();
             WorkerStats workerStats = new WorkerStats(currentTime, ec2InstanceId, 0, ec2InstanceId, null, 0, 0,
-                    0, 0, 0, WorkerStatus.launching);
+                    0, 0, 0, 0, WorkerStatus.launching);
             workerStats.setLastTimeFetched(currentTime);
             workerStats.setLastTimeWorking(currentTime);
 
@@ -320,8 +324,35 @@ public class InfrastructureManager<R extends Serializable> {
         return new SystemStatus(numHighPriorityQueueMessages, numLowPriorityQueueMessages, workerStats);
     }
 
+    private void updateParallelizationGrade() throws IOException {
+        this.currentParallelizationGrade = config.getParallelizationGrade();
+        List<WorkerStats> workerStatsToUpdate = this.workers.values().stream()
+                .filter(w -> !w.isDisconnected)
+                .filter(w -> w.status == WorkerStatus.running)
+                .filter(w -> w.getParallelizationGrade() != this.currentParallelizationGrade)
+                .collect(Collectors.toList());
+
+        for (WorkerStats workerStats: workerStatsToUpdate) {
+            this.algorithmManager.sqsMaster.updateParallelizationGradeOfWorker(workerStats);
+        }
+    }
+
     public InfrastructureStats getInfrastructureStats() {
         return infrastructureStats;
+    }
+
+    public int getCurrentParallelizationGrade() {
+        return currentParallelizationGrade;
+    }
+
+    public void restartMonitoring(){
+        //change to hourly update
+        if (monitoringClusterScheduleManager != null) {
+            log.info("Updating monitoring scheduler...");
+            monitoringClusterScheduleManager.cancel(true);
+            startMonitoring();
+        }
+
     }
 
 

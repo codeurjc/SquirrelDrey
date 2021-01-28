@@ -142,6 +142,15 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
         } else {
             log.info("Worker discovered but it is connected: {}", id);
         }
+        // If worker parallelization is not initialized
+        if (workerStats.getParallelizationGrade() == 0 && workerStats.getStatus() == WorkerStatus.running) {
+            try {
+                log.info("Updating parallelization for worker: {}", workerStats.getWorkerId());
+                this.asyncSend(workerStats.directQueueUrl, this.infrastructureManager.getCurrentParallelizationGrade(), MessageType.SET_PARALLELIZATION_GRADE);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     private void receivedWorkerStats(AsyncResult<WorkerStats> asyncResult) {
@@ -166,9 +175,19 @@ public class SQSConnectorMaster<R extends Serializable> extends SQSConnector<R> 
                 this.infrastructureManager.getWorkers().get(id).setTimeToLaunch(timeToLaunch);
                 log.info("=== Instance '{}' launched in {} seconds ===", workerStats.getWorkerId(), timeToLaunch);
             }
+            // If worker parallelization is not initialized
+            if (workerStats.getParallelizationGrade() == 0 && workerStats.getStatus() == WorkerStatus.running) {
+                    log.info("Updating parallelization for worker: {}", workerStats.getWorkerId());
+                    this.asyncSend(workerStats.directQueueUrl, this.infrastructureManager.getCurrentParallelizationGrade(), MessageType.SET_PARALLELIZATION_GRADE);
+            }
         } finally {
             sharedInfrastructureManagerLock.unlock();
         }
+    }
+
+    protected void updateParallelizationGradeOfWorker(WorkerStats workerStats) throws IOException {
+        log.info("Updating parallelization for worker: {}", workerStats.getWorkerId());
+        this.asyncSend(workerStats.directQueueUrl, this.infrastructureManager.getCurrentParallelizationGrade(), MessageType.SET_PARALLELIZATION_GRADE);
     }
 
     public void stopListen() {

@@ -14,7 +14,22 @@ public class Config {
 
     private static final Logger log = LoggerFactory.getLogger(Config.class);
 
-    public static final int DEFAULT_AWS_SDK_HTTP_TIMEOUT = 60;
+    public static int DEFAULT_AWS_SDK_HTTP_TIMEOUT = 60;
+    public static int DEFAULT_PARALLELIZATION_GRADE = 1;
+    public static int DEFAULT_SQS_LISTENER_PERIOD_MS = 20;
+    public static int DEFAULT_SQS_MAX_TIMEOUT = 20;
+
+    // Autoscaling
+    public static int DEFAULT_MONITORING_PERIOD = 10;
+    public static int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 20;
+    public static int MIN_WORKERS = 1;
+    public static int MAX_WORKERS = 4;
+    public static int MIN_IDLE_WORKERS = 2;
+    public static int WORKERS_BY_MAX_PARALLELIZATION = 1;
+    public static int MAX_SECONDS_IDLE = 60;
+    public static int MAX_SECONDS_NOT_RESPONDING = 60;
+    public static int MAX_SECONDS_LAUNCHING_NOT_RESPONDING = 300;
+
 
     // Environment
     private final boolean devmode;
@@ -52,8 +67,6 @@ public class Config {
     // Master Monitoring and Autoscaling
     private final boolean monitoringEnabled;
     private final boolean autoscalingEnabled;
-    private final int monitoringPeriod;
-    private final int maxTimeOutFetchWorkers;
 
     // Execution mode
     private final Mode mode;
@@ -63,15 +76,7 @@ public class Config {
 
     private AutoscalingConfig autoscalingConfig;
 
-    private int DEFAULT_PARALLELIZATION_GRADE;
-
     public Config() {
-        // Defaults
-        final int DEFAULT_SQS_LISTENER_PERIOD_MS = 10;
-        final int DEFAULT_SQS_MAX_TIMEOUT = 20;
-        final int DEFAULT_MONITORING_PERIOD = 10;
-        final int DEFAULT_MAX_TIMEOUT_FETCH_WORKERS = 20;
-        this.DEFAULT_PARALLELIZATION_GRADE = 1;
 
         // Parameters
         this.devmode = System.getProperty("devmode") == null || Boolean.parseBoolean(System.getProperty("devmode"));
@@ -89,8 +94,6 @@ public class Config {
         this.sqsMaxTimeout = System.getProperty("sqs-timeout") != null ? Integer.parseInt(System.getProperty("sqs-timeout")) : DEFAULT_SQS_MAX_TIMEOUT;
         this.monitoringEnabled = System.getProperty("enable-monitoring") == null || Boolean.parseBoolean(System.getProperty("enable-monitoring"));
         this.autoscalingEnabled = System.getProperty("enable-autoscaling") == null || Boolean.parseBoolean(System.getProperty("enable-autoscaling"));
-        this.monitoringPeriod = System.getProperty("monitoring-period") != null ? Integer.parseInt(System.getProperty("monitoring-period")) : DEFAULT_MONITORING_PERIOD;
-        this.maxTimeOutFetchWorkers = System.getProperty("monitoring-max-timeout-fetch-workers") != null ? Integer.parseInt(System.getProperty("monitoring-max-timeout-fetch-workers")) : DEFAULT_MAX_TIMEOUT_FETCH_WORKERS;
         this.mode = (System.getProperty("mode") != null) ? Mode.valueOf(System.getProperty("mode")) : Mode.RANDOM;
         String stringIdleCores = System.getProperty("idle-cores-app");
         if (stringIdleCores != null) {
@@ -134,7 +137,7 @@ public class Config {
     }
 
     public int getParallelizationGrade() {
-        return parallelizationGrade;
+        return this.autoscalingConfig.getMaxParallelization();
     }
 
     public String getSqsInputQueueSuffix() {
@@ -174,11 +177,11 @@ public class Config {
     }
 
     public int getMonitoringPeriod() {
-        return monitoringPeriod;
+        return this.autoscalingConfig.getMonitoringPeriod();
     }
 
     public int getMaxTimeOutFetchWorkers() {
-        return maxTimeOutFetchWorkers;
+        return this.autoscalingConfig.getMaxTimeOutFetchWorkers();
     }
 
     public Mode getMode() {
@@ -232,6 +235,12 @@ public class Config {
         }
         if (System.getProperty("autoscaling-max-seconds-non-responding") != null) {
             asBuilder.maxSecondsLaunchingNonRespondingWorker(Integer.parseInt(System.getProperty("autoscaling-max-seconds-launching-non-responding")));
+        }
+        if (System.getProperty("monitoring-period") != null) {
+            asBuilder.monitoringPeriod(Integer.parseInt(System.getProperty("monitoring-period")));
+        }
+        if (System.getProperty("monitoring-max-timeout-fetch-workers") != null) {
+            asBuilder.maxTimeOutFetchWorkers(Integer.parseInt(System.getProperty("monitoring-max-timeout-fetch-workers")));
         }
         return asBuilder.build();
     }

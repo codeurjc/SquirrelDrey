@@ -137,7 +137,7 @@ public class Simulation {
         for(int i = 0; i < numWorkersRunning; i++) {
             String workerId = generateRandomWorkerId();
             WorkerStats workerStats = new WorkerStats(currentTime, workerId, 0, workerId, null, workerCores, 0,
-                    0, 0, 0, WorkerStatus.running);
+                    0, 0, 0, autoscalingConfig.getMaxParallelization(), WorkerStatus.running);
             workerStats.setLastTimeFetched(currentTime);
             workerStats.setLastTimeWorking(currentTime);
             this.simulationState.getWorkers().put(workerId, workerStats);
@@ -158,7 +158,7 @@ public class Simulation {
         int currentTime = getCurrentTime(currentPeriod);
         int timeToBeRunning = random.nextInt(maxTimeForWorkersToBeRunning - minTimeForWorkersToBeRunning + 1) + minTimeForWorkersToBeRunning;
         WorkerStats workerStats = new WorkerStats(currentTime, workerId, 1, workerId, null, workerCores, 0,
-                0, 0, 0, WorkerStatus.launching);
+                0, 0, 0, autoscalingConfig.getMaxParallelization(), WorkerStatus.launching);
         workerStats.setLastTimeFetched(currentTime);
         workerStats.setLastTimeWorking(currentTime);
         simulationState.getWorkers().put(workerId, workerStats);

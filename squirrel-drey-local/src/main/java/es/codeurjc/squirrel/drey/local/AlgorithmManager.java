@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingConfig;
+import es.codeurjc.squirrel.drey.local.autoscaling.SystemStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -460,13 +461,13 @@ public class AlgorithmManager<R extends Serializable> {
 		}
 	}
 
-	public void taskAdded(Task t, String queueId) {
+	protected void taskAdded(Task t, String queueId) {
 		log.info("Item [" + t.toString() + "] added to queue [" + queueId + "]");
 
 		this.queuesManager.lookQueuesForTask();
 	}
 
-	public void runCallback(Algorithm<R> algorithm) throws Exception {
+	protected void runCallback(Algorithm<R> algorithm) throws Exception {
 		this.algorithms.put(algorithm.getId(), algorithm);
 		Consumer<R> callback = this.algorithmCallbacksConsumers.get(algorithm.getId());
 		if (callback != null) {
@@ -482,7 +483,7 @@ public class AlgorithmManager<R extends Serializable> {
 		this.cleanAlgorithmStructuresMaster(algorithm.getId());
 	}
 
-	public void runCallbackError(Algorithm<R> algorithm, Status errorStatus) throws Exception {
+	protected void runCallbackError(Algorithm<R> algorithm, Status errorStatus) throws Exception {
 		this.algorithms.put(algorithm.getId(), algorithm);
 		AlgorithmCallback<R> algorithmCallback = this.algorithmCallbacks.get(algorithm.getId());
 		if (algorithmCallback != null) {
@@ -501,6 +502,13 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public Map<String, WorkerStats> getWorkers() {
+		if (this.devmode) {
+			WorkerStats stats = this.getWorkerStats();
+			Map<String, WorkerStats> statsMap = new HashMap<>();
+			statsMap.put(this.workerId, stats);
+			log.info("Sending worker stats map (devmode): {}", statsMap);
+			return statsMap;
+		}
 		return this.infrastructureManager.getWorkers();
 	}
 
@@ -508,7 +516,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.getWorkers();
 	}
 
-	public Map<String, WorkerStats> fetchWorkersInfrastructure(int maxSecondsToWait) throws TimeoutException, IOException {
+	protected Map<String, WorkerStats> fetchWorkersInfrastructure(int maxSecondsToWait) throws TimeoutException, IOException {
 		if (this.devmode) {
 			WorkerStats stats = this.getWorkerStats();
 			Map<String, WorkerStats> statsMap = new HashMap<>();
@@ -627,12 +635,19 @@ public class AlgorithmManager<R extends Serializable> {
 
 	    // We get the current number of workers as countdown measure
 		// Other workers could join during the process
-		final int NUMBER_OF_WORKERS = this.sqsMaster.getNumberOfWorkers();
-		this.terminateBlockingLatches.put(operationId, new CountDownLatch(NUMBER_OF_WORKERS));
+		int numWorkers = 0;
+		if (!this.isDevMode()) {
+			numWorkers = this.sqsMaster.getNumberOfWorkers();
+		}
+		this.terminateBlockingLatches.put(operationId, new CountDownLatch(numWorkers));
 		log.debug("terminateBlockingLatches PUT: {}", this.terminateBlockingLatches.size());
 		timeForTerminate = System.currentTimeMillis();
 
-		this.sqsMaster.terminateAlgorithmsBlocking(operationId);
+		if (!this.devmode) {
+			this.sqsMaster.terminateAlgorithmsBlocking(operationId);
+		} else {
+			terminateAlgorithmsBlockingWorker();
+		}
 
 		this.terminateBlockingLatches.get(operationId).await(20, TimeUnit.SECONDS);
 
@@ -643,15 +658,20 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public Algorithm<R> blockingTerminateOneAlgorithm(String algorithmId) throws InterruptedException, IOException {
-		this.terminateOneBlockingLatches.put(algorithmId, new CountDownLatch(1));
+		this.terminateOneBlockingLatches.put(algorithmId, this.devmode ? new CountDownLatch(0) : new CountDownLatch(1));
 		log.debug("terminateOneBlockingLatches PUT: {}", this.terminateOneBlockingLatches.size());
 
-		this.sqsMaster.stopOneAlgorithmBlocking(algorithmId);
-		this.terminateOneBlockingLatches.get(algorithmId).await(20, TimeUnit.SECONDS);
+		if (!this.isDevMode()) {
+			this.sqsMaster.stopOneAlgorithmBlocking(algorithmId);
+			this.terminateOneBlockingLatches.get(algorithmId).await(20, TimeUnit.SECONDS);
+		} else {
+			this.terminateOneAlgorithmBlockingWorker(algorithmId);
+		}
 
 		// Clean CountDownLatch
 		this.terminateOneBlockingLatches.remove(algorithmId);
 		log.debug("terminateOneBlockingLatches REMOVE: {}", this.terminateOneBlockingLatches.size());
+
 		Algorithm<R> alg = this.cleanAlgorithmStructures(algorithmId);
 		if (alg != null) {
 			alg.setStatus(Status.TERMINATED);
@@ -682,7 +702,7 @@ public class AlgorithmManager<R extends Serializable> {
 		return this.clearAllAlgorithmsFromTermination();
 	}
 
-	public Algorithm<R> terminateOneAlgorithmBlockingWorker(String algorithmId) {
+	protected Algorithm<R> terminateOneAlgorithmBlockingWorker(String algorithmId) {
 		if (this.algorithms.get(algorithmId) != null) {
 			this.queuesManager.terminateOneAlgorithmBlocking(algorithmId);
 			Algorithm<R> alg = this.cleanAlgorithmStructures(algorithmId);
@@ -697,6 +717,7 @@ public class AlgorithmManager<R extends Serializable> {
 
 	public void setAutoscalingConfig(AutoscalingConfig config) {
 		this.config.setAutoscalingConfig(config);
+		this.infrastructureManager.restartMonitoring();
 	}
 
 	public AutoscalingConfig getAutoscalingConfig() {
@@ -704,6 +725,13 @@ public class AlgorithmManager<R extends Serializable> {
 	}
 
 	public InfrastructureStats getInfrastructureStats() {
+		if (this.devmode) {
+			List<WorkerStats> workerStatsList = new ArrayList<>();
+			WorkerStats workerStats = getWorkerStats();
+			workerStatsList.add(workerStats);
+			SystemStatus systemStatus = new SystemStatus(0, 0, workerStatsList);
+			return new InfrastructureStats(config.getAutoscalingConfig(), systemStatus, workerStatsList);
+		}
 		return this.infrastructureManager.getInfrastructureStats();
 	}
 
@@ -777,5 +805,9 @@ public class AlgorithmManager<R extends Serializable> {
 		if (this.disableInputLatches.get(operationId) != null) {
 			this.disableInputLatches.get(operationId).countDown();
 		}
+	}
+
+	public boolean isDevMode() {
+		return this.devmode;
 	}
 }

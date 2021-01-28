@@ -424,12 +424,24 @@ public class QueuesManager<R extends Serializable> {
 				this.algManager.lastTimeWorking = System.currentTimeMillis();
 			}
 
+			String directQueue = null;
+			Integer parallelizationGrade = null;
+			String environmentId = this.algManager.workerId;
+			if (!this.algManager.isDevMode()) {
+				directQueue = this.algManager.sqsWorker.directQueueUrl;
+				parallelizationGrade = this.algManager.sqsWorker.parallelizationGrade;
+				environmentId = this.algManager.environmentId;
+			}
+
 			// Calculate time idle
-			this.algManager.lastTimeWorking = this.runningTasks.size() == 0 ? this.algManager.lastTimeWorking : System.currentTimeMillis();
+			this.algManager.lastTimeWorking = executor.getActiveCount() == 0 ? this.algManager.lastTimeWorking : System.currentTimeMillis();
+
+			// Return worker Stats
 			return this.algManager.workerStats(new WorkerEvent(this.algManager.workerId, "worker-stats",
-				new WorkerStats(this.algManager.launchingTime, this.algManager.environmentId, this.algManager.lastTimeWorking,
-						this.algManager.workerId, this.algManager.sqsWorker.directQueueUrl, this.nThreads, executor.getActiveCount(),
-						executor.getTaskCount(), executor.getCompletedTaskCount(), this.runningTasks.size(), this.algManager.workerStatus)));
+				new WorkerStats(this.algManager.launchingTime, environmentId, this.algManager.lastTimeWorking,
+						this.algManager.workerId, directQueue, this.nThreads, executor.getActiveCount(),
+						executor.getTaskCount(), executor.getCompletedTaskCount(), executor.getActiveCount(),
+						parallelizationGrade, this.algManager.workerStatus)));
 		} else {
 			return null;
 		}

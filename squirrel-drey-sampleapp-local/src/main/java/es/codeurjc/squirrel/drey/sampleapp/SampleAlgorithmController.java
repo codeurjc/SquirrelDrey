@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 
+import es.codeurjc.squirrel.drey.local.*;
+import es.codeurjc.squirrel.drey.local.autoscaling.AutoscalingConfig;
 import org.apache.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import es.codeurjc.squirrel.drey.local.Algorithm;
-import es.codeurjc.squirrel.drey.local.AlgorithmInfo;
-import es.codeurjc.squirrel.drey.local.AlgorithmManager;
-import es.codeurjc.squirrel.drey.local.Task;
-import es.codeurjc.squirrel.drey.local.WorkerStats;
 import es.codeurjc.squirrel.drey.sampleapp.task.PreparationTask;
 
 @Controller
@@ -199,5 +196,70 @@ public class SampleAlgorithmController {
 		}
 		log.info("...ALGORITHM {} TERMINATED", algorithmId);
 		return ResponseEntity.status(HttpStatus.SC_OK).build();
+	}
+
+	@RequestMapping(value = "/autoscaling-config", method = RequestMethod.GET)
+	public ResponseEntity<AutoscalingConfig> getAutoscalingConfig() throws IOException {
+		return ResponseEntity.ok(this.algorithmManager.getAutoscalingConfig());
+	}
+
+	@RequestMapping(value = "/autoscaling-config", method = RequestMethod.POST)
+	public ResponseEntity<AutoscalingConfig> autoscalingConfig(
+			@RequestBody() Map<String, String> autoscalingConfigBody) throws IOException {
+		String minWorkers = autoscalingConfigBody.get("minWorkers");
+		String maxWorkers = autoscalingConfigBody.get("maxWorkers");
+		String minIdleWorkers = autoscalingConfigBody.get("minIdleWorkers");
+		String maxParallelization = autoscalingConfigBody.get("maxParallelization");
+		String workersByMaxParallelization = autoscalingConfigBody.get("workersByMaxParallelization");
+		String maxSecondsIdle = autoscalingConfigBody.get("maxSecondsIdle");
+		String maxSecondsNonRespondingWorker = autoscalingConfigBody.get("maxSecondsNonRespondingWorker");
+		String maxSecondsLaunchingNonRespondingWorker = autoscalingConfigBody.get("maxSecondsLaunchingNonRespondingWorker");
+		String monitoringPeriod = autoscalingConfigBody.get("monitoringPeriod");
+		String maxTimeOutFetchWorkers = autoscalingConfigBody.get("maxTimeOutFetchWorkers");
+
+		AutoscalingConfig.Builder autoscalingConfigBuilder = new AutoscalingConfig.Builder();
+		if (minWorkers != null) {
+			autoscalingConfigBuilder.minWorkers(Integer.parseInt(minWorkers));
+		}
+		if (maxWorkers != null) {
+			autoscalingConfigBuilder.maxWorkers(Integer.parseInt(maxWorkers));
+		}
+		if (minIdleWorkers != null) {
+			autoscalingConfigBuilder.minIdleWorkers(Integer.parseInt(minIdleWorkers));
+		}
+		if (maxParallelization != null) {
+			autoscalingConfigBuilder.maxParallelization(Integer.parseInt(maxParallelization));
+		}
+		if (workersByMaxParallelization != null) {
+			autoscalingConfigBuilder.workersByMaxParallelization(Integer.parseInt(workersByMaxParallelization));
+		}
+		if (maxSecondsIdle != null) {
+			autoscalingConfigBuilder.maxSecondsIdle(Integer.parseInt(maxSecondsIdle));
+		}
+		if (maxSecondsNonRespondingWorker != null) {
+			autoscalingConfigBuilder.maxSecondsNonRespondingWorker(Integer.parseInt(maxSecondsNonRespondingWorker));
+		}
+		if (maxSecondsLaunchingNonRespondingWorker != null) {
+			autoscalingConfigBuilder.maxSecondsLaunchingNonRespondingWorker(Integer.parseInt(maxSecondsLaunchingNonRespondingWorker));
+		}
+		if (monitoringPeriod != null) {
+			autoscalingConfigBuilder.monitoringPeriod(Integer.parseInt(monitoringPeriod));
+		}
+		if (maxTimeOutFetchWorkers != null) {
+			autoscalingConfigBuilder.maxTimeOutFetchWorkers(Integer.parseInt(maxTimeOutFetchWorkers));
+		}
+		AutoscalingConfig autoscalingConfig = autoscalingConfigBuilder.build();
+		this.algorithmManager.setAutoscalingConfig(autoscalingConfig);
+		return ResponseEntity.ok(autoscalingConfig);
+	}
+
+	@RequestMapping(value = "/infra-stats", method = RequestMethod.GET)
+	public ResponseEntity<InfrastructureStats> infraStats() throws IOException {
+		return ResponseEntity.ok(this.algorithmManager.getInfrastructureStats());
+	}
+
+	@RequestMapping(value = "/fetch-workers", method = RequestMethod.GET)
+	public ResponseEntity<Map<String, WorkerStats>> fetchWorkers() throws IOException {
+		return ResponseEntity.ok(this.algorithmManager.fetchWorkers(5));
 	}
 }

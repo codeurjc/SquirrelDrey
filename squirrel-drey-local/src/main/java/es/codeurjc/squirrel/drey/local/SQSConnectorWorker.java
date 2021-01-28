@@ -25,9 +25,6 @@ import es.codeurjc.squirrel.drey.local.Algorithm.Status;
  */
 public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> {
 
-    private final int DEFAULT_PARALLELIZATION_GRADE = 1;
-    private int parallelizationGrade = DEFAULT_PARALLELIZATION_GRADE;
-
     private static final Logger log = LoggerFactory.getLogger(SQSConnectorWorker.class);
     private ScheduledExecutorService scheduleExecutorInput; // Local scheduled executor for running listener thread
     private ScheduledExecutorService scheduleExecutorDirect; // Local scheduled executor for running listener thread
@@ -35,12 +32,13 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     private AlgorithmManager<R> algorithmManager;
 
     private boolean enableInput = true;
+    private boolean isParallelizationGradeConfigured = false;
+
+    protected int parallelizationGrade;
 
     public SQSConnectorWorker(Config config, String id, AlgorithmManager<R> algorithmManager) {
         super(config, id);
         this.algorithmManager = algorithmManager;
-        this.parallelizationGrade = config.getParallelizationGrade();
-
         try {
             this.lookForDirectQueue();
         } catch (QueueDoesNotExistException e) {
@@ -114,7 +112,8 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
 
     public void listenInput() {
         log.info("Input is enabled: {}", enableInput);
-        if (enableInput) {
+        log.info("Parallelization grade is configured: {}", isParallelizationGradeConfigured);
+        if (enableInput && isParallelizationGradeConfigured) {
             boolean runningAlg = false;
             int runningAlgs = 0;
             // If algorithms is null it hasn't finished initializing algorithm manager
@@ -205,6 +204,9 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
                     case ENABLE_INPUT:
                         enableInput();
                         break;
+                    case SET_PARALLELIZATION_GRADE:
+                        setParallelizationGrade(si.getKey());
+                        break;
                     default:
                         throw new Exception("Incorrent message type received in worker: "
                                 + si.getValue().get("Type").getStringValue());
@@ -284,6 +286,13 @@ public class SQSConnectorWorker<R extends Serializable> extends SQSConnector<R> 
     public void enableInput() {
         log.info("Enabling Input");
         this.enableInput = true;
+    }
+
+    public void setParallelizationGrade(ObjectInputStream si) throws IOException, ClassNotFoundException {
+        int parallelizationGrade = (int) si.readObject();
+        log.info("Setting parallelization grade to {}", parallelizationGrade);
+        isParallelizationGradeConfigured = true;
+        this.parallelizationGrade = parallelizationGrade;
     }
 
     private void solveAlgorithm(ObjectInputStream si) throws Exception {

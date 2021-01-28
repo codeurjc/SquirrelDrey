@@ -79,8 +79,10 @@ public class WorkerStats implements Serializable {
 	 */
 	double timeToLaunch;
 
+	Integer parallelizationGrade;
+
 	public WorkerStats(long launchingTime, String environmentId, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded,
-					   long totalCompletedTasks, long tasksRunning, WorkerStatus status) {
+					   long totalCompletedTasks, long tasksRunning, Integer parallelizationGrade, WorkerStatus status) {
 		this.launchingTime = launchingTime;
 		this.environmentId = environmentId;
 		this.lastTimeWorking = lastTimeWorking;
@@ -94,22 +96,7 @@ public class WorkerStats implements Serializable {
 		this.tasksRunning = tasksRunning;
 		this.status = status;
 		this.isDisconnected = false;
-	}
-
-	public WorkerStats(long launchingTime, long lastTimeWorking, String workerId, String directQueueUrl, int totalCores, int workingCores, long tasksAdded, long totalCompletedTasks,
-					   long tasksRunning, WorkerStatus status) {
-		this.launchingTime = launchingTime;
-		this.lastTimeFetched = System.currentTimeMillis();
-		this.lastTimeWorking = lastTimeWorking;
-		this.workerId = workerId;
-		this.directQueueUrl = directQueueUrl;
-		this.totalCores = totalCores;
-		this.workingCores = workingCores;
-		this.tasksAdded = tasksAdded;
-		this.totalCompletedTasks = totalCompletedTasks;
-		this.tasksRunning = tasksRunning;
-		this.status = status;
-		this.isDisconnected = false;
+		this.parallelizationGrade = parallelizationGrade;
 	}
 
 	public long getLaunchingTime() {
@@ -232,6 +219,10 @@ public class WorkerStats implements Serializable {
 		isDisconnected = disconnected;
 	}
 
+	public Integer getParallelizationGrade() {
+		return this.parallelizationGrade;
+	}
+
 	public JsonObject toJson() {
 		JsonObject json = new JsonObject();
 		if (launchingTime != 0L) {
@@ -256,6 +247,7 @@ public class WorkerStats implements Serializable {
 		json.addProperty("totalCompletedTasks", totalCores);
 		json.addProperty("taskRunning", tasksRunning);
 		json.addProperty("status", status.name());
+		json.addProperty("parallelizationGrade", parallelizationGrade);
 		return json;
 	}
 
@@ -268,6 +260,7 @@ public class WorkerStats implements Serializable {
 				&& lastTimeFetched == that.lastTimeFetched && lastTimeWorking == that.lastTimeWorking
 				&& totalCores == that.totalCores && workingCores == that.workingCores && tasksAdded == that.tasksAdded
 				&& totalCompletedTasks == that.totalCompletedTasks && tasksRunning == that.tasksRunning
+				&& Objects.equals(parallelizationGrade, that.parallelizationGrade)
 				&& Objects.equals(environmentId, that.environmentId) && Objects.equals(workerId, that.workerId)
 				&& Objects.equals(directQueueUrl, that.directQueueUrl) && status == that.status;
 	}
@@ -275,15 +268,15 @@ public class WorkerStats implements Serializable {
 	@Override
 	public int hashCode() {
 		return Objects.hash(launchingTime, lastTimeFetched, lastTimeWorking, environmentId, workerId, directQueueUrl,
-				totalCores, workingCores, tasksAdded, totalCompletedTasks, tasksRunning, status);
+				totalCores, workingCores, tasksAdded, totalCompletedTasks, parallelizationGrade, tasksRunning, status);
 	}
 
 	@Override
 	public String toString() {
-		return "WorkerStats [" +
+		return "WorkerStats[ " +
 				"launchingTime=" + launchingTime +
 				", lastTimeFetched=" + lastTimeFetched +
-				", secondsIdle=" + lastTimeWorking +
+				", lastTimeWorking=" + lastTimeWorking +
 				", environmentId='" + environmentId + '\'' +
 				", workerId='" + workerId + '\'' +
 				", directQueueUrl='" + directQueueUrl + '\'' +
@@ -292,7 +285,9 @@ public class WorkerStats implements Serializable {
 				", tasksAdded=" + tasksAdded +
 				", totalCompletedTasks=" + totalCompletedTasks +
 				", tasksRunning=" + tasksRunning +
+				", status=" + status +
 				", isDisconnected=" + isDisconnected +
-				", status=" + status  + "]";
+				", timeToLaunch=" + timeToLaunch +
+				", parallelizationGrade=" + parallelizationGrade + " ]";
 	}
 }
